@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: infpower
+      POSTGRES_PASSWORD: infpower154
+      POSTGRES_DB: infinite_power
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_DATABASE=infinite_power
+      - DB_POSTGRESDB_USER=infpower
+      - DB_POSTGRESDB_PASSWORD=infpower154
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    depends_on:
+      - postgres
+
+  omniroute:
+    image: diegosouzapw/omniroute:latest
+    restart: unless-stopped
+    ports:
+      - "20128:20128"
+    volumes:
+      - ./data/omniroute:/app/config
