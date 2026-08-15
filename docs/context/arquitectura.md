@@ -19,13 +19,20 @@ su rama antes de reportar a Efadam.
   enrutamiento ni de negocio propia — es la capa de entrada/salida.
 - **Efadam** — cerebro de orquestación central. Enruta y resume. No ejecuta
   trabajo de ninguna rama. No se salta las aprobaciones de la rama destino.
-  Es el cuello de botella único de entrada a `knowledge_log` (tipo
-  `aprendizaje`) y a `system_knowledge`, pero no redacta ese contenido —
-  se lo solicita a Upgrade & review center e inserta lo que este produce.
-  Conoce el sistema por dos vías: `system_knowledge` inyectado vía
-  `contexto_slugs` (qué es el sistema, estático) y lectura directa de
-  `tasks`/`agent_runs` (qué está pasando ahora, dinámico) — única excepción
-  del sistema al principio de que ningún bot lee Postgres directo.
+  Es el **cuello de botella intencional** único de entrada a `knowledge_log`
+  (tipo `aprendizaje`) y a `system_knowledge`: todo conocimiento que cruza de
+  una rama a otra pasa por él, incluso cuando eso implica fricción — es la
+  razón por la que el sistema aprende de forma centralizada, y es uno de los
+  rasgos que distingue a Infinite Power de sistemas multi-agente parecidos.
+  Efadam no redacta ese contenido — se lo solicita a Upgrade & review center
+  e inserta lo que este produce. La única excepción documentada es
+  `bots.conocimiento_directo` (hoy, solo Trouble shooter — ver
+  `memoria_del_sistema.md`). Conoce el sistema por dos vías: `system_knowledge`
+  inyectado vía `contexto_slugs` (qué es el sistema; no cambia mensaje a
+  mensaje, pero sí evoluciona con el tiempo vía Upgrade & review center) y
+  lectura directa de `tasks`/`agent_runs` (qué está pasando ahora, cambia
+  todo el tiempo) — única excepción del sistema al principio de que ningún
+  bot lee Postgres directo.
 - **Tech center** — hub de la rama Dev/Tech. Gate de aprobación final antes de
   producción en su rama.
 - **Upgrade & review center** — hub de la rama Estrategia + Legal + Investigación.
@@ -78,6 +85,14 @@ no necesita el schema de Postgres para un dictamen legal).
 
 Detalle completo de este mecanismo (incluyendo por qué Efadam es la única
 excepción con lectura directa de Postgres) en `memoria_del_sistema.md`.
+
+## Cómo cada bot declara su costo — niveles de importancia
+
+Ningún bot, incluido Efadam, referencia un modelo específico en su prompt.
+Cada bot/tarea declara un **nivel de importancia** fijo del sistema (`bajo`,
+`medio`, `alto`, `crítico`); OmniRoute traduce ese nivel al modelo real
+configurado para esa instalación. Detalle completo (incluyendo el
+empaquetado de OmniRoute y BYOK por nivel) en `stack_y_convenciones.md`.
 
 ## Rama Dev/Tech (prompts escritos)
 

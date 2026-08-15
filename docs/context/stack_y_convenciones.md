@@ -7,11 +7,9 @@
 
 - **Orquestador:** n8n self-hosted (Docker), `localhost:5678`.
 - **Base de datos:** Postgres 16 self-hosted (Docker). Es la memoria y la cola.
-- **Router de modelos:** OmniRoute self-hosted, `localhost:20128`. Gateway
-  multi-proveedor (90+ proveedores con capa gratis, fallback automático de 4
-  niveles) — baja el riesgo de que una cadencia alta se corte por rate limit
-  de un solo proveedor.
+- **Router de modelos:** OmniRoute self-hosted, `localhost:20128`.
   Desde adentro de la red de Docker se llama `http://omniroute:20128`, nunca `localhost`.
+  Ver "Niveles de importancia y BYOK" abajo para cómo se configura y quién lo usa.
 - **Canal humano:** bot de Telegram (aprobaciones y alertas).
 - **Repo:** `https://github.com/Madafe/Infinite_Power` (privado).
 - **Ubicación local:** `C:\Users\2\Documents\infinite-power`.
@@ -24,12 +22,18 @@
   Estados: `pending, running, done, failed, blocked, needs_approval`.
   `output` es **text**, no jsonb.
 - `bots` — configuración de cada bot: `slug, cluster, prompt_especifico,
-  system_prompt (derivado), default_model, contexto_slugs, requires_approval,
-  dispatches_tasks, active`.
+  system_prompt (derivado), nivel_importancia, contexto_slugs,
+  conocimiento_directo, requires_approval, dispatches_tasks, active`.
 - `approvals`, `agent_runs` — aprobaciones y logs (agent_runs se llena en Fase 4).
-- `system_knowledge` — autoconciencia, sincronizada desde `docs/context/*.md`.
-- `knowledge_log` — bitácora de casos. Efadam es dueño por default (`aprendizaje`);
-  excepción angosta por bot vía `bots.conocimiento_directo` (hoy solo `trouble_shooter`, `patron_fallo`).
+- `system_knowledge` — autoconciencia del sistema: arquitectura, stack, reglas.
+  No cambia mensaje a mensaje, pero sí evoluciona con el tiempo — la fuente
+  de verdad es la tabla misma (el repo es solo el seed inicial, cargado una
+  vez). La escribe Upgrade & review center, a solicitud de Efadam, que actúa
+  como cuello de botella único de entrada — nunca redacta el contenido él
+  mismo. Ver `memoria_del_sistema.md` para el diseño completo.
+- `knowledge_log` — bitácora de casos: `patron_fallo` (automático, salvo la
+  excepción `conocimiento_directo`) y `aprendizaje` (redactado por Upgrade &
+  review center, insertado por Efadam).
 
 ## Ejecución
 
@@ -37,17 +41,6 @@ Un solo workflow, el **Ejecutor genérico**, corre a cualquier bot leyendo su
 fila de `bots`. Agregar un bot = un `INSERT`, no un workflow nuevo.
 Un bot con `dispatches_tasks = true` no entrega un resultado final: entrega
 asignaciones en JSON estricto que el ejecutor convierte en tareas hijas.
-
-**Cadencia:** cada rama/proyecto corre por Schedule Trigger propio en n8n, con
-su propia frecuencia — pendiente definir el número exacto por rama. No es un
-loop continuo; se siente indefinido porque las colas de cada rama son
-independientes entre sí, no porque nada nunca se detenga.
-
-Sistema de aclaración/reanudación construido: cuando un bot responde
-`NECESITA_ACLARACION:` y la tarea tiene `parent_task_id`, se crea
-automáticamente una tarea de vuelta al bot padre y la original se marca
-`blocked`; el workflow **Reanudador de bloqueados** reactiva la tarea padre
-cuando la tarea hija de aclaración queda `done`.
 
 ## Convenciones de código
 
@@ -65,13 +58,58 @@ cuando la tarea hija de aclaración queda `done`.
   herramientas, reglas y límites, cuándo pedir aprobación humana, prompt de
   sistema final, casos de prueba.
 
-## Presupuesto
+## Niveles de importancia y BYOK (rediseño del 15 de agosto de 2026, noche)
 
-Capas gratis (Gemini, Groq) por default vía OmniRoute. El presupuesto pagado
-(~$350 MXN total) se reserva para: Council, Abogado Jefe, Consultor de negocios,
-Ciber seguridad, Hacker ético, Out of the box thinker.
-**Efadam NO usa modelo de pago** para ruteo: es el bot de mayor frecuencia del
-sistema y agotaría el presupuesto solo en decidir a quién mandar las cosas.
+**Reemplaza el modelo anterior de "Presupuesto"** (una sola instancia de
+OmniRoute cargada a mano con las llaves de Mateo, capas gratis por default,
+presupuesto pagado reservado a una lista fija de bots). Ese modelo no
+escala: (1) obliga a cablear una llave API por bot a mano durante el setup,
+lo cual es fricción real para cualquier instalador nuevo, y (2) asume una
+sola instancia de OmniRoute compartida, lo cual no aplica a un producto
+distribuible — cada instalación necesita su propio OmniRoute, con sus
+propias llaves, no la de Mateo.
+
+**Principio central: los bots nunca declaran un modelo, declaran un nivel.**
+Ningún prompt de ningún bot (ni Efadam) menciona el nombre de un modelo. Cada
+bot tiene una columna `bots.nivel_importancia` con uno de 4 valores fijos del
+sistema — no configurables en cantidad ni nombre, solo en qué modelo resuelve
+cada uno:
+
+| nivel | uso típico |
+|---|---|
+| `bajo` | ruteo de alta frecuencia, tareas mecánicas (ej. Efadam en su modo normal) |
+| `medio` | trabajo estándar de un bot especializado (ej. Coder, Trouble shooter) |
+| `alto` | decisiones con impacto de negocio real (ej. Consultor de negocios, Abogado Jefe) |
+| `crítico` | máximo riesgo o síntesis compleja (ej. Council, Out of the box thinker) |
+
+OmniRoute es el **único** traductor de nivel → modelo real. Esto mantiene los
+prompts de los bots estables aunque el usuario cambie de proveedor: cambiar
+qué modelo resuelve `alto` es una configuración de OmniRoute, nunca una
+edición al prompt del bot.
+
+**OmniRoute viene empaquetado, no configurado a mano.** OmniRoute (y n8n,
+junto con el workflow del Ejecutor genérico ya importado) se distribuyen
+como parte del mismo paquete instalable — hoy, contenedores Docker dentro
+del mismo `docker-compose.yml` del sistema. Al instalar, los 4 niveles ya
+tienen un modelo gratis asignado por default (ej. Groq/Gemini free tier) sin
+que el usuario tenga que tocar nada. Esto es distinto de n8n: n8n no
+requiere una llave por instalación (es un solo operador por instancia), lo
+que cambia es que deja de requerir configuración manual post-instalación —
+llega con la credencial de OmniRoute y el workflow del ejecutor ya cargados.
+
+**Setup: qué ve el usuario.** Durante el setup inicial, el usuario ve los 4
+niveles listados con su modelo gratis default ya asignado, y un disclaimer
+recomendando subir de nivel (agregar una llave de pago) al menos en `alto` y
+`crítico`, donde un modelo gratis puede no ser suficiente. Añadir una llave
+propia por nivel es opcional en el setup y se puede hacer en cualquier
+momento después — no es un bloqueo para empezar a usar el sistema.
+
+**Es una característica por instalación, no compartida.** "Es un OmniRoute
+diferente para cada quien, no el mío" (Mateo, 15 de agosto de 2026): cada
+instalador de Infinite Power obtiene su propia instancia de OmniRoute, con
+sus propias llaves, aislada de cualquier otra instalación — incluida la de
+Mateo. Esto es lo que hace posible que el producto se distribuya a terceros
+sin que cada quien dependa de las credenciales de otra persona.
 
 ## Gotchas de n8n ya documentados (no repetirlos)
 
@@ -83,18 +121,3 @@ sistema y agotaría el presupuesto solo en decidir a quién mandar las cosas.
   hay nodos intermedios; `$json` cambia al insertar un nodo nuevo en medio.
 - Cancelar una ejecución a mano deja la tarea en `running` para siempre; hay que
   resetearla con `UPDATE tasks SET status='pending' WHERE id = <id>;`.
-- **Docker Desktop puede caerse solo en Windows.** Si `docker ps` falla con
-  `failed to connect to the docker API at npipe:...`, revisar si el proceso
-  sigue vivo (`Get-Process "com.docker*"`) y relanzarlo con
-  `Start-Process "shell:AppsFolder\Docker.DockerForWindows.Settings"` — no
-  siempre está en `C:\Program Files\Docker\Docker\Docker Desktop.exe`.
-- **`Get-Content | docker exec -i psql` corrompe acentos/ñ en PowerShell.**
-  Usar siempre `docker cp archivo.sql <contenedor>:/tmp/ && docker exec -i
-  <contenedor> psql ... -f /tmp/archivo.sql` para cualquier SQL con texto en
-  español.
-- **No montar el repo local dentro de contenedores para que n8n lo lea.**
-  n8n bloquea por default el acceso a rutas de disco arbitrarias, y aunque no
-  lo bloqueara, es una dependencia oculta que rompe en cuanto alguien más edita
-  desde otra máquina o esto se mueve a un VPS. Todo lo que dependa del
-  contenido del repo (prompts, docs canónicos) se lee vía la API de GitHub,
-  nunca por ruta de archivo local.

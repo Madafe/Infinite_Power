@@ -5,6 +5,47 @@ Para: Mateo + amigo · 7 de agosto de 2026
 
 ---
 
+## Actualización — 15 de agosto de 2026, noche (niveles de importancia + BYOK + empaquetado de OmniRoute/n8n) — VIGENTE, léase primero
+
+Se rediseña de fondo cómo el sistema decide qué modelo usa cada bot, y cómo
+se distribuye OmniRoute como parte del producto. Detalle completo en
+`stack_y_convenciones.md`, sección "Niveles de importancia y BYOK":
+
+- 4 niveles fijos del sistema (`bajo`, `medio`, `alto`, `crítico`). Cada bot
+  declara en `bots.nivel_importancia` uno de estos 4 valores — nunca un
+  modelo específico. OmniRoute es el único que traduce nivel → modelo real.
+- OmniRoute (y n8n, con el Ejecutor genérico ya importado) se distribuyen
+  empaquetados — mismo `docker-compose.yml` del sistema — con un modelo
+  gratis ya asignado por default a cada nivel. El setup deja de requerir
+  cablear una llave API por bot a mano.
+- En el setup, el usuario ve los 4 niveles con su default gratis y un
+  disclaimer recomendando subir de nivel `alto`/`crítico`; puede añadir sus
+  propias llaves por nivel en cualquier momento, no es bloqueante.
+- Es una característica **por instalación**: cada quien que instale Infinite
+  Power tiene su propio OmniRoute con sus propias llaves, no comparte el de
+  Mateo.
+
+---
+
+## Actualización — 15 de agosto de 2026, noche (refuerzo de documentación: cuello de botella + `conocimiento_directo`)
+
+Se fusionó al resto de la documentación un mecanismo que vivía aislado en una
+nota de visión antigua (`docs/vision/Efadam/Efadam.md`, nunca conectada al
+resto del vault): la columna `bots.conocimiento_directo`, única excepción
+válida a que todo conocimiento cruzado entre ramas pase por Efadam. Detalle
+completo, ya integrado, en `memoria_del_sistema.md` y `efadam.md`. Además se
+corrigió en varios documentos el uso de la palabra "estático" al describir
+`system_knowledge` — no es inmutable, evoluciona con el tiempo vía Upgrade &
+review center; lo que no hace es cambiar mensaje a mensaje.
+
+**Nota explícita, porque es un rasgo diferenciador del proyecto:** el cuello
+de botella de Efadam es intencional — la fricción de que todo pase por un
+único punto es lo que permite que el sistema aprenda de forma centralizada.
+Este principio se repite a propósito en varios documentos
+(`arquitectura.md`, `efadam.md`, `memoria_del_sistema.md`), no solo aquí.
+
+---
+
 ## Actualización — 15 de agosto de 2026, noche (orden de construcción pasa de horizontal a vertical) — VIGENTE, léase primero
 
 Cambia de raíz cómo se secuencia todo lo que sigue en este documento. Las
@@ -165,7 +206,7 @@ para el razonamiento completo.
 
 | Paso | Qué es | Estado |
 |---|---|---|
-| 0 — Infraestructura | VPS/local + n8n + Postgres + OmniRoute + Telegram + repo | ✅ Completo en local; VPS pendiente sin fecha |
+| 0 — Infraestructura | VPS/local + n8n + Postgres + OmniRoute + Telegram + repo | ✅ Completo en local; VPS pendiente sin fecha; empaquetado de OmniRoute/n8n para distribución pendiente de implementar (diseño ya definido) |
 | 1 — Efadam | Cerebro de orquestación central, cuello de botella de entrada a Postgres | ⬜ Siguiente paso |
 | 2 — Tech center | Rama Dev/Tech completa y activa end-to-end contra Efadam | 🟡 Prompts casi listos (10/12); falta activar contra Efadam real |
 | 3 — Upgrade & review center | Rama Estrategia/Crecimiento + Legal + Investigación completa | ⬜ Prompts pendientes |
@@ -187,6 +228,10 @@ para el razonamiento completo.
 8. Agregar al amigo/cofundador como colaborador del repo de GitHub (pendiente desde la Fase 0).
 9. Activar más bots en la tabla `bots` conforme cada componente vertical lo requiera — hoy solo `tecnico_jefe` y `coder` están activos.
 10. Corregir `consultor-de-arquitectura.md` y `trouble-scouter.md`, que aún referencian `project_knowledge`/`trouble_shooter_knowledge` (nombres ya descartados) — corregir antes de activarlos.
+11. **Implementar el empaquetado de OmniRoute + n8n para distribución** (diseño ya definido, ver actualización del 15 de agosto, noche, arriba y `stack_y_convenciones.md`): agregar la columna `bots.nivel_importancia` al schema, definir los defaults gratis por nivel dentro de la config de OmniRoute, y diseñar la pantalla/paso de setup donde el usuario ve los 4 niveles y puede añadir sus llaves. No es bloqueante para construir Efadam.
+12. Eliminar o resolver la duplicación de la nota `docs/vision/Efadam/Efadam.md` en Obsidian — su contenido ya se fusionó a `memoria_del_sistema.md` y `efadam.md`, pero el archivo original sigue existiendo por separado. Pendiente de que Mateo lo revise antes de borrarlo (solicitud explícita suya).
+13. Localizar y leer la referencia "Infinite power.md > Método > Multiproyecto", mencionada en la nota antigua de Efadam como pendiente sobre la cadencia con la que Efadam revisa proyectos activos — no localizada todavía.
+14. Decidir qué hacer con dos archivos sueltos sin commitear en el repo local (`schema/_tmp_diag_github.ps1`, `schema/_tmp_inspect_schedule.js`), que parecen debris de una sesión anterior.
 
 **Nota 15 de agosto:** la API key de n8n del paso 8 (Auto-expansión) ya existe
 y está en uso desde hoy (es la misma que permite conectarse a n8n local desde

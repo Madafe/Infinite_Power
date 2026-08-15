@@ -4,11 +4,20 @@ Fecha: 14 de agosto de 2026. Reemplaza la nota de memoria del
 `plan_de_accion_completo.md` del mismo día, que dejaba tres cosas sin resolver
 (de dónde sale el contenido, a quién se le inyecta, y quién puede escribir).
 
-**Actualización 15 de agosto de 2026:** cambia de fondo de dónde sale el
-contenido de `system_knowledge` y quién puede escribirlo. Ver sección
+**Actualización 15 de agosto de 2026, tarde:** cambia de fondo de dónde sale
+el contenido de `system_knowledge` y quién puede escribirlo. Ver sección
 "Repo como seed, no como fuente de verdad" más abajo — reemplaza la sección
 original "Sincronización repo → tabla", que queda documentada al final como
 diseño descartado, para no perder el porqué.
+
+**Actualización 15 de agosto de 2026, noche:** dos correcciones más. (1) Se
+corrige el uso de la palabra "estático" en varias secciones — no significa
+"inmutable", significa "no cambia dentro de una misma corrida ni mensaje a
+mensaje"; `system_knowledge` sí evoluciona con el tiempo, vía Upgrade &
+review center. (2) Se incorpora el mecanismo `bots.conocimiento_directo`
+(hallado en una nota de visión antigua, desconectada del resto de la
+documentación) como la única excepción válida al cuello de botella de
+Efadam — ver sección nueva más abajo.
 
 ## El problema que resuelve
 
@@ -22,8 +31,12 @@ ya tomadas.
 
 ### `system_knowledge` — autoconciencia
 
-Qué es el sistema: arquitectura, stack, convenciones, reglas generales.
-Cambia poco. Es corto a propósito.
+Qué es el sistema: arquitectura, stack, convenciones, reglas generales. Es
+corto a propósito, y **cambia con poca frecuencia** — no en cada mensaje,
+como sí cambia el estado de `tasks`/`agent_runs` (ver más abajo), pero eso no
+quiere decir que sea fijo: evoluciona con el tiempo conforme el sistema
+aprende, mediante el flujo descrito en "Efadam como cuello de botella
+intencional" más abajo.
 
 **Fuente de verdad: la tabla misma, no el repo.** Esto es un cambio respecto
 al diseño original del 14 de agosto (ver "Diseño descartado" al final). El
@@ -56,15 +69,17 @@ Qué le ha pasado al sistema. Crece constantemente. Dos tipos, con dueño distin
 
 | tipo | quién redacta | quién dispara | ritmo | juicio requerido |
 |---|---|---|---|---|
-| `patron_fallo` | el ejecutor, automático, desde `patron_aprendido` de Trouble shooter | automático | alto | ninguno — ya viene estructurado |
+| `patron_fallo` | el ejecutor, automático, desde `patron_aprendido` de Trouble shooter | automático (ver excepción `conocimiento_directo` abajo) | alto | ninguno — ya viene estructurado |
 | `aprendizaje` | Upgrade & review center | Efadam | bajo | mucho |
 
-**Por qué no todo pasa por Efadam para redactar.** Para los patrones de fallo,
-Efadam no participa: Trouble shooter ya entrega el patrón en JSON
-estructurado, no hay nada que curar, y meter a Efadam en medio agrega tres
-saltos de latencia y consumo de tokens en el bot de mayor frecuencia del
+**Por qué no todo pasa por Efadam para redactar.** Para los patrones de fallo
+de Trouble shooter, Efadam no participa: Trouble shooter ya entrega el patrón
+en JSON estructurado, no hay nada que curar, y meter a Efadam en medio agrega
+tres saltos de latencia y consumo de tokens en el bot de mayor frecuencia del
 sistema — que además corre en modelo gratis, o sea el peor juez posible de
-qué vale la pena recordar.
+qué vale la pena recordar. Esto no contradice el cuello de botella (ver
+sección siguiente): es la única excepción documentada, y está acotada a un
+solo bot por una razón específica, no es una puerta abierta.
 
 Para `aprendizaje` (y, desde el 15 de agosto, también para cambios a
 `system_knowledge`) sí hace falta criterio — pero el criterio no es de
@@ -75,6 +90,17 @@ Efadam. Ver la sección siguiente.
 Precisión de diseño del 15 de agosto de 2026, hasta ahora no documentada en
 ningún archivo (corrige una imprecisión de `efadam.md` y de la tabla anterior
 de este mismo documento, que decían "lo escribe Efadam").
+
+**Esto es uno de los rasgos que diferencia a Infinite Power de sistemas
+multi-agente parecidos, así que vale la pena repetirlo con todas sus letras
+en cada documento donde aplique, no solo aquí:** todo conocimiento que cruza
+de una rama a otra tiene que pasar por Efadam, incluso cuando eso se sienta
+como fricción o como un paso de más. Esa fricción es intencional — es lo que
+hace posible que el sistema aprenda de forma centralizada en vez de que cada
+bot acumule su propio conocimiento aislado, sin que nadie más se entere. Si
+un bot pudiera hablarle directo a otra rama o escribir directo a las tablas
+de conocimiento, Efadam nunca se enteraría, y no habría aprendizaje
+compartido ni contexto inyectado a futuro.
 
 Cuando un hallazgo de cualquier rama implica que algo en `system_knowledge` o
 `knowledge_log` (tipo `aprendizaje`) debería actualizarse, el flujo es:
@@ -99,6 +125,47 @@ Esto mantiene la simetría del diseño existente (los 3 centers retienen y
 auditan su rama; Efadam enruta y no re-audita el detalle) en vez de crear una
 excepción especial para el conocimiento del sistema.
 
+## La única excepción al cuello de botella: `bots.conocimiento_directo`
+
+Hallado en una nota de visión antigua (`docs/vision/Efadam/Efadam.md`),
+escrita el 14 de agosto y hasta ahora nunca fusionada con el resto de la
+documentación — quedaba como un nodo desconectado en el vault de Obsidian.
+Se incorpora aquí formalmente, corrigiendo dos cosas que decía esa nota y que
+ya no aplican: que Efadam es "dueño por default" de escribir en
+`knowledge_log` (ya no — ver sección anterior), y que Efadam "todavía no
+existe como bot activo" (ya no — es el primer paso del orden de construcción
+vigente).
+
+El principio general es que **no existe una vía alterna al cuello de
+botella** — ver sección anterior. Pero hay una única forma válida de que un
+bot escriba directo a `knowledge_log` sin pasar por Efadam: que su
+conocimiento **no aporte absolutamente nada fuera del campo exacto en el que
+ese bot trabaja**. No es una excepción por "tipo" de hallazgo (no es "todos
+los errores técnicos se saltan a Efadam") — es una excepción explícita,
+opt-in, por bot individual, y se espera que sea rara.
+
+**Mecanismo:** columna `bots.conocimiento_directo boolean default false`.
+Cualquier bot nuevo empieza en `false` — pasa por Efadam salvo que se
+justifique explícitamente lo contrario, caso por caso.
+
+**Único bot que califica hoy: Trouble shooter.** Sus patrones son errores de
+infraestructura (n8n, Postgres, encoding, Docker) — nunca le van a servir a
+Legal, a Estrategia, ni a ningún otro dominio del negocio. Por eso, y solo
+por eso, sus `patron_fallo` se insertan automáticamente vía el ejecutor, sin
+pasar por Efadam (esto es lo que ya describía la tabla de la sección "Dos
+tablas, porque son dos cosas distintas" arriba, ahora con el mecanismo
+formal que lo respalda).
+
+**Prueba para cualquier candidato futuro a esta excepción:** *¿hay algún
+escenario donde otra rama necesitaría saber esto?* Si la respuesta no es un
+"no" claro y rotundo, el bot se queda en `conocimiento_directo = false` y
+pasa por Efadam.
+
+Este mecanismo es ortogonal al de la sección anterior, no lo contradice: la
+sección anterior define **quién redacta** el contenido que sí pasa por
+Efadam (U&R center, no Efadam); este mecanismo define **quién puede saltarse
+a Efadam por completo**, y hoy esa lista tiene un solo nombre.
+
 ## Cómo Efadam conoce el proyecto (dos mecanismos distintos)
 
 Precisión de diseño del 15 de agosto de 2026, tarde — quedaba implícito pero
@@ -108,23 +175,26 @@ se construye antes que las ramas.
 Efadam necesita dos tipos de conocimiento, y usa un mecanismo distinto para
 cada uno — no los mezcla:
 
-1. **Qué es el sistema (estático, cambia poco): `system_knowledge` vía
-   `contexto_slugs`.** Igual que cualquier otro bot, Efadam declara en
-   `bots.contexto_slugs` qué slugs se le inyectan al arrancar cada corrida.
-   Asignación: `{arquitectura, stack_y_convenciones}` (ver tabla de
-   asignación abajo). Sin esto, Efadam no sabría qué ramas existen, qué hace
-   cada center, ni cómo está armada la infraestructura — necesitaría
-   adivinar o preguntar en cada mensaje, lo cual es inaceptable para el bot
-   de mayor frecuencia del sistema.
-2. **Qué está pasando ahora mismo (dinámico, cambia todo el tiempo): lectura
-   directa de `tasks` y `agent_runs`.** Esto NO pasa por `contexto_slugs` —
-   sería absurdo tratar de "sincronizar" el estado de las tareas de hoy como
-   si fuera conocimiento estático. Efadam tiene permiso de lectura directa de
-   estas dos tablas (excepción al principio general de que ningún bot lee
-   Postgres directo — ver "Lo que este diseño deliberadamente NO hace" más
-   abajo; Efadam es el único caso, porque su trabajo de enrutar y resumir
-   requiere visión en vivo de las 3 ramas a la vez, cosa que ningún workflow
-   podría curar de antemano sin saber qué va a preguntar el usuario).
+1. **Qué es el sistema (no cambia mensaje a mensaje, pero sí evoluciona con
+   el tiempo): `system_knowledge` vía `contexto_slugs`.** Igual que
+   cualquier otro bot, Efadam declara en `bots.contexto_slugs` qué slugs se
+   le inyectan al arrancar cada corrida. Asignación: `{arquitectura,
+   stack_y_convenciones}` (ver tabla de asignación abajo). Sin esto, Efadam
+   no sabría qué ramas existen, qué hace cada center, ni cómo está armada la
+   infraestructura — necesitaría adivinar o preguntar en cada mensaje, lo
+   cual es inaceptable para el bot de mayor frecuencia del sistema. Este
+   contenido cambia solo cuando Upgrade & review center lo actualiza vía el
+   flujo de la sección anterior — no en cada corrida, pero tampoco nunca.
+2. **Qué está pasando ahora mismo (cambia todo el tiempo, se lee en vivo):
+   lectura directa de `tasks` y `agent_runs`.** Esto NO pasa por
+   `contexto_slugs` — sería absurdo tratar de "sincronizar" el estado de las
+   tareas de hoy como si fuera conocimiento de baja frecuencia. Efadam tiene
+   permiso de lectura directa de estas dos tablas (excepción al principio
+   general de que ningún bot lee Postgres directo — ver "Lo que este diseño
+   deliberadamente NO hace" más abajo; Efadam es el único caso, porque su
+   trabajo de enrutar y resumir requiere visión en vivo de las 3 ramas a la
+   vez, cosa que ningún workflow podría curar de antemano sin saber qué va a
+   preguntar el usuario).
 
 **Lo que Efadam NO hace para conocer el proyecto:** no lee `docs/context/*.md`
 del repo directamente (mecanismo descartado, ver más abajo), no lee el
@@ -147,7 +217,7 @@ Asignación inicial:
 
 | bot | contexto_slugs |
 |---|---|
-| `efadam` | `{arquitectura, stack_y_convenciones}` — el estado en vivo del sistema (tareas pendientes, qué reportó cada center) lo lee directo de `tasks`/`agent_runs`, no de aquí (ver sección anterior) |
+| `efadam` | `{arquitectura, stack_y_convenciones}` — necesita saber qué ramas existen y cómo enrutar; el estado en vivo lo lee directo de `tasks`/`agent_runs`, no de aquí (ver sección anterior) |
 | `tecnico_jefe` | `{arquitectura, stack_y_convenciones}` |
 | `coder` | `{stack_y_convenciones}` |
 | Legal (cuando entren) | `{}` — no necesitan saber cómo está armado el sistema |
@@ -210,6 +280,12 @@ sistema se piensa para más de un operador:
   "Cómo Efadam conoce el proyecto" — es la única excepción al principio de
   "el workflow entrega el contexto ya curado". Para el resto de los bots
   sigue aplicando sin excepción.
+- No le permite a ningún bot escribir en `knowledge_log`/`system_knowledge`
+  saltándose a Efadam, **salvo** el caso acotado de
+  `bots.conocimiento_directo` (hoy, solo Trouble shooter) — ver sección
+  dedicada arriba. Esto es intencional y es lo que hace posible el
+  aprendizaje centralizado: la fricción de pasar por Efadam no es un costo a
+  eliminar, es el mecanismo mismo.
 - No hay banco de conocimiento por center. Se evaluó y se descartó: sería el
   mismo mecanismo repetido tres veces.
 - No hay embeddings ni búsqueda semántica. Con menos de 50 filas en
@@ -233,6 +309,7 @@ Workflow de n8n "Sync conocimiento del sistema", disparo manual:
 Se decidió correrlo cada vez que se editara un archivo de `docs/context/`. Se
 descartó el 15 de agosto de 2026 por las razones en "Repo como seed, no como
 fuente de verdad". El workflow en n8n (`Sync conocimiento del sistema`,
-desactivado) se borra; el patrón de nodos (Leer GitHub → Extraer texto →
-Guardar Postgres) queda documentado aquí por si algún día vuelve a hacer
-falta releer el repo por algún motivo puntual — no como mecanismo recurrente.
+desactivado) se borró (confirmado); el patrón de nodos (Leer GitHub → Extraer
+texto → Guardar Postgres) queda documentado aquí por si algún día vuelve a
+hacer falta releer el repo por algún motivo puntual — no como mecanismo
+recurrente.
