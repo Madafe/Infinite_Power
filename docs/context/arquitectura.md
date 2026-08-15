@@ -8,31 +8,76 @@
 
 ## Forma general
 
-Efadam en el centro + 3 ramas. Cada rama tiene un bot "center" que consolida,
-audita y retiene lo que produce su rama antes de reportar a Efadam.
+Jarvis (endpoint humano) → Efadam (cerebro de orquestación) en el centro + 3 ramas.
+Cada rama tiene un bot "center" que consolida, audita y retiene lo que produce
+su rama antes de reportar a Efadam.
 
-- **Efadam** — única interfaz conversacional con el humano (Telegram hoy).
-  Enruta y resume. No ejecuta trabajo de ninguna rama. No se salta las
-  aprobaciones de la rama destino. Dueño **por default** de `knowledge_log` —
-  todo bot nuevo pasa por Efadam para registrar lo que aprende, salvo una
-  excepción angosta y explícita por bot (`bots.conocimiento_directo`, hoy solo
-  `trouble_shooter`) cuando su conocimiento no cruza a ningún otro dominio.
+- **Jarvis** — endpoint de interacción humana, por texto y por voz. Es la
+  superficie de conversación (hoy Telegram cumple ese rol de forma provisional
+  mientras Jarvis no existe). Recibe el mensaje/voz del usuario y se lo pasa a
+  Efadam; regresa la respuesta de Efadam al usuario. No tiene lógica de
+  enrutamiento ni de negocio propia — es la capa de entrada/salida.
+- **Efadam** — cerebro de orquestación central. Enruta y resume. No ejecuta
+  trabajo de ninguna rama. No se salta las aprobaciones de la rama destino.
+  Es el cuello de botella único de entrada a `knowledge_log` (tipo
+  `aprendizaje`) y a `system_knowledge`, pero no redacta ese contenido —
+  se lo solicita a Upgrade & review center e inserta lo que este produce.
+  Conoce el sistema por dos vías: `system_knowledge` inyectado vía
+  `contexto_slugs` (qué es el sistema, estático) y lectura directa de
+  `tasks`/`agent_runs` (qué está pasando ahora, dinámico) — única excepción
+  del sistema al principio de que ningún bot lee Postgres directo.
 - **Tech center** — hub de la rama Dev/Tech. Gate de aprobación final antes de
   producción en su rama.
 - **Upgrade & review center** — hub de la rama Estrategia + Legal + Investigación.
   Misión: Observar → Analizar → Mejorar. Libera hacia Planner / Establecer metas.
+  Redacta y evalúa las actualizaciones de `system_knowledge` y `knowledge_log`
+  que Efadam le solicita.
 - **Proyect center** — hub de la rama Operación/Proyectos y negocios propios.
 
 Los 3 centers son simétricos: su función principal es **retener** (auditoría
 activa de su rama), no solo enrutar. Efadam no re-audita el detalle de
 ejecución; solo verifica que lo entregado no se contradiga con la meta.
 
+## Orden de construcción (vigente desde el 15 de agosto de 2026)
+
+Vertical, un componente completo (construido, probado, activo) antes de pasar
+al siguiente — ya no por fase horizontal ("escribir los 40 prompts primero"):
+
+1. **Efadam** — se construye primero, para que cuando las ramas empiecen a
+   producir output ya exista a dónde mandarlo. Evita el problema de ramas
+   terminadas sin un destino que las reciba.
+2. **Tech center** (rama Dev/Tech completa) — ya tiene 10 de 12 bots con
+   prompt escrito; falta activarlo end-to-end contra un Efadam real.
+3. **Upgrade & review center** (rama Estrategia/Crecimiento + Legal +
+   Investigación completa).
+4. **Proyect center** (rama Operación/Proyectos + negocios propios completa).
+5. **Jarvis** — al final. No tiene nada útil que enrutar ni con qué conversar
+   hasta que Efadam y las 3 ramas ya existen y producen resultado real.
+   Mientras tanto, Telegram (ya construido en la Fase 0 de infraestructura)
+   sirve como canal de prueba puntual, sin uso operativo diario.
+
 ## Bots activos hoy en la tabla `bots`
 
-`tecnico_jefe` (despacha), `coder`, `trouble_shooter` (despacha, único con
-`conocimiento_directo = true`).
+`tecnico_jefe` (despacha), `coder`.
 Todo lo demás del roster está escrito pero **no activo**. Un bot que no está
 en `bots` con `active = true` no existe para el sistema.
+
+## Cómo cada bot conoce el sistema — `contexto_slugs`
+
+Cada bot declara en `bots.contexto_slugs text[]` qué slugs de
+`system_knowledge` se le inyectan al arrancar cada corrida. Array vacío es
+válido y es el default — evita cargar contexto irrelevante (ej. Abogado Jefe
+no necesita el schema de Postgres para un dictamen legal).
+
+| bot | contexto_slugs |
+|---|---|
+| `efadam` | `{arquitectura, stack_y_convenciones}` — el estado en vivo del sistema (tareas pendientes, qué reportó cada center) lo lee directo de `tasks`/`agent_runs`, no de aquí |
+| `tecnico_jefe` | `{arquitectura, stack_y_convenciones}` |
+| `coder` | `{stack_y_convenciones}` |
+| Legal (cuando entren) | `{}` — no necesitan saber cómo está armado el sistema |
+
+Detalle completo de este mecanismo (incluyendo por qué Efadam es la única
+excepción con lectura directa de Postgres) en `memoria_del_sistema.md`.
 
 ## Rama Dev/Tech (prompts escritos)
 
@@ -46,35 +91,21 @@ Ciberseguridad: Ciber seguridad scouter → Hacker ético → Ciber seguridad �
 
 ## Rama Upgrade & review center (prompts pendientes)
 
-Investigación (pipeline con orden definido): Investigador → Skill finder →
-Observador de patrones replicables → Automatizador → Cross department → Council.
-Corre en su propia cola — una tarea bloqueada en otra rama no la detiene; es
-el mecanismo real detrás de "el sistema sigue pensando en el fondo".
-No aprueba nada por default: si falta evidencia, rechaza y pide más data.
-
-Estrategia: Nuevos departamentos, Especialista en organización y métodos,
-Buscador de áreas de oportunidad, Out of the box thinker, Optimizador.
+Estrategia: Establecer metas, Planner, Nuevos departamentos, Especialista en
+organización y métodos, Buscador de áreas de oportunidad, Out of the box thinker,
+Optimizador, Council, Cross department, Automatizador.
+Investigación: Investigador, Skill finder, Observador de patrones replicables.
 Legal: Abogado Scouter → Abogado Jefe → Abogado verificador.
-
-Tiene su propia instancia de **Establecer metas / Planner**, para sus propias
-metas internas. No comparte bot con Proyect center — cada departamento tiene
-el suyo, duplicado a propósito (ver Proyect center más abajo).
 
 Cross department es el agregador interno de esta rama; entrega a Upgrade & review center.
 
 ## Rama Proyect center (prompts pendientes)
 
-Dueño del **Setup**: cuando arranca un proyecto nuevo (o Mateo pide reajustar
-el actual), corre la entrevista de objetivo — meta, lista de pasos (vía su
-propia instancia de Establecer metas → Planner, **duplicada** de la de Upgrade
-& review center, no compartida), y criterio de "listo" para pasar a
-mantenimiento de baja frecuencia. El resultado del Setup no se despacha
-directo a otras ramas — vuelve a Efadam, quien decide qué jefe(s) le
-corresponde cada parte.
-
-Tracker de clientes, Front end, Consultor negocios, Task manager, Ventas
-ideas, Expansión ideas, Mentor. Negocios propios (TalentIA, Bintix, Back
-end/Front end páginas web, Consultor SEO) cuelgan de Proyectos.
+Proyectos, Tracker de clientes, Front end, Consultor negocios, Task manager,
+Ventas ideas, Expansión ideas, Mentor. Establecer Metas y Planner son nodos
+compartidos con la rama 2 (dueño: rama 2; Proyect center los consume, no los edita).
+Negocios propios (TalentIA, Bintix, Back end/Front end páginas web, Consultor SEO)
+cuelgan de Proyectos.
 
 ## Reglas de aprobación humana
 

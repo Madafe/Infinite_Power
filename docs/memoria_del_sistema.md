@@ -4,6 +4,12 @@ Fecha: 14 de agosto de 2026. Reemplaza la nota de memoria del
 `plan_de_accion_completo.md` del mismo día, que dejaba tres cosas sin resolver
 (de dónde sale el contenido, a quién se le inyecta, y quién puede escribir).
 
+**Actualización 15 de agosto de 2026:** cambia de fondo de dónde sale el
+contenido de `system_knowledge` y quién puede escribirlo. Ver sección
+"Repo como seed, no como fuente de verdad" más abajo — reemplaza la sección
+original "Sincronización repo → tabla", que queda documentada al final como
+diseño descartado, para no perder el porqué.
+
 ## El problema que resuelve
 
 Un bot que corre en el ejecutor genérico no sabe nada del sistema en el que
@@ -19,13 +25,16 @@ ya tomadas.
 Qué es el sistema: arquitectura, stack, convenciones, reglas generales.
 Cambia poco. Es corto a propósito.
 
-**Fuente de verdad: los archivos `docs/context/*.md` del repo, no la tabla.**
-La tabla es una copia sincronizada. Esto importa: si se escribiera directo en
-Postgres, tendríamos la arquitectura documentada en dos lugares (los `.md` del
-repo y la BD) y garantizado que se van a contradecir. Un humano edita markdown,
-un workflow lo sube. Nunca al revés.
+**Fuente de verdad: la tabla misma, no el repo.** Esto es un cambio respecto
+al diseño original del 14 de agosto (ver "Diseño descartado" al final). El
+repo (`docs/context/*.md`, `reglas_generales.md`) es el **seed inicial** —
+el estado día-cero del conocimiento, cargado una sola vez al arrancar el
+sistema. Después de ese arranque, la tabla evoluciona sola conforme el
+sistema aprende, y el repo puede quedar desactualizado respecto a ella — eso
+es esperado, no un bug. El repo documenta de dónde partió el sistema, no
+dónde está hoy.
 
-Archivos canónicos:
+Archivos canónicos del seed inicial:
 
 | slug | archivo | contenido |
 |---|---|---|
@@ -33,55 +42,99 @@ Archivos canónicos:
 | `stack_y_convenciones` | `docs/context/stack_y_convenciones.md` | infra, tablas, lean/robusto, gotchas |
 | `reglas_generales` | `reglas_generales.md` | las 5 reglas que van dentro de cada system_prompt |
 
-Regla de escritura para estos archivos: **presente, hechos, sin historia**.
-El porqué de cada decisión y su narrativa siguen viviendo en
-`arquitectura_general.md`, `plan_de_accion_completo.md` y
+Regla de escritura para estos archivos (aplica igual al seed y a las
+actualizaciones que produce Upgrade & review center después): **presente,
+hechos, sin historia**. El porqué de cada decisión y su narrativa siguen
+viviendo en `arquitectura_general.md`, `plan_de_accion_completo.md` y
 `contexto_proyecto_infinite_power_v6.md` — esos son para humanos y NO se
 inyectan a ningún bot (son demasiado largos y están llenos de decisiones
 revertidas que confundirían al modelo).
 
 ### `knowledge_log` — bitácora de casos
 
-Qué le ha pasado al sistema. Crece constantemente. **Efadam es el dueño por
-default de la escritura**, sin excepción, aunque se sienta como cuello de
-botella — es intencional, es la razón por la que el sistema aprende de forma
-centralizada en vez de que cada bot acumule su propio silo aislado.
+Qué le ha pasado al sistema. Crece constantemente. Dos tipos, con dueño distinto:
 
-| tipo | quién escribe | condición |
-|---|---|---|
-| `aprendizaje` | Efadam, tras el reporte de un center | **default para todo bot nuevo** |
-| `patron_fallo` | el ejecutor, automático, desde `patron_aprendido` | solo si `bots.conocimiento_directo = true` |
+| tipo | quién redacta | quién dispara | ritmo | juicio requerido |
+|---|---|---|---|---|
+| `patron_fallo` | el ejecutor, automático, desde `patron_aprendido` de Trouble shooter | automático | alto | ninguno — ya viene estructurado |
+| `aprendizaje` | Upgrade & review center | Efadam | bajo | mucho |
 
-La única excepción válida a "todo pasa por Efadam" es angosta y explícita, no
-por tipo de hallazgo: un bot cuyo conocimiento **no aporta absolutamente nada
-fuera del campo exacto en el que ese bot trabaja**. Se controla con la columna
-`bots.conocimiento_directo` (default `false` — cualquier bot nuevo pasa por
-Efadam salvo que se justifique explícitamente lo contrario, caso por caso).
+**Por qué no todo pasa por Efadam para redactar.** Para los patrones de fallo,
+Efadam no participa: Trouble shooter ya entrega el patrón en JSON
+estructurado, no hay nada que curar, y meter a Efadam en medio agrega tres
+saltos de latencia y consumo de tokens en el bot de mayor frecuencia del
+sistema — que además corre en modelo gratis, o sea el peor juez posible de
+qué vale la pena recordar.
 
-Hoy solo `trouble_shooter` califica: sus patrones son errores de
-infraestructura (n8n, Postgres, Docker, encoding) que nunca le van a importar
-a Legal ni a Estrategia. La pregunta para justificar cualquier futura
-excepción: *"¿hay algún escenario donde otra rama necesitaría saber esto?"* —
-si la respuesta no es un "no" rotundo, pasa por Efadam.
+Para `aprendizaje` (y, desde el 15 de agosto, también para cambios a
+`system_knowledge`) sí hace falta criterio — pero el criterio no es de
+Efadam. Ver la sección siguiente.
 
-Ver `Efadam.md` (Obsidian) para el principio completo, incluida la nota de que
-esta corrige una versión anterior de este mismo documento que trataba la
-excepción como una regla general por tipo — estaba mal planteada.
+## Efadam como cuello de botella intencional, no como autor
 
-### Deduplicación automática
+Precisión de diseño del 15 de agosto de 2026, hasta ahora no documentada en
+ningún archivo (corrige una imprecisión de `efadam.md` y de la tabla anterior
+de este mismo documento, que decían "lo escribe Efadam").
 
-Índice único parcial sobre `lower(titulo)` para `tipo = 'patron_fallo'`.
-Si Trouble shooter reporta un patrón con el mismo título, en vez de duplicar se
-incrementa `veces_visto`. Esto reemplaza la regla que hoy vive en su prompt
-("si el mismo error ya ocurrió 3 o más veces, márcalo como recurrente"), que
-depende de que el modelo se acuerde de algo que no tiene forma de saber. Ahora
-lo cuenta Postgres y el contador le llega a Trouble shooter en su contexto.
+Cuando un hallazgo de cualquier rama implica que algo en `system_knowledge` o
+`knowledge_log` (tipo `aprendizaje`) debería actualizarse, el flujo es:
 
-## Cómo se inyecta — construido 15/ago
+1. El hallazgo le llega a **Efadam** (vía el reporte consolidado del center
+   correspondiente). Nada llega a Postgres sin pasar primero por Efadam — en
+   ese sentido sigue siendo el cuello de botella único, consistente con su
+   rol de interfaz central.
+2. Efadam **no redacta el contenido**. Le solicita a **Upgrade & review
+   center** que lo produzca — es el dueño natural de esto: su misión ya
+   documentada es "Observar → Analizar → Mejorar", y su regla ya documentada
+   es "no aprobar nada por default", evaluando cada hallazgo contra evidencia
+   real antes de dejarlo pasar. Redactar el `aprendizaje` o la actualización
+   de `arquitectura`/`stack_y_convenciones`/`reglas_generales` es una
+   extensión directa de ese rol, no una responsabilidad nueva.
+3. Upgrade & review center entrega el contenido ya evaluado; Efadam lo
+   inserta/actualiza en Postgres y confirma. Efadam no re-audita el fondo —
+   igual que ya hace con el resto de lo que U&R center le reporta, solo
+   revisa que no haya discrepancia con la meta de negocio establecida.
 
-Nodo `Cargar contexto` en el ejecutor genérico, entre "Obtener contexto de
-tarea padre" y "Llamar a omniroute" (ver [[ejecutor_generico]]). Devuelve una
-sola fila con dos columnas de texto ya armadas.
+Esto mantiene la simetría del diseño existente (los 3 centers retienen y
+auditan su rama; Efadam enruta y no re-audita el detalle) en vez de crear una
+excepción especial para el conocimiento del sistema.
+
+## Cómo Efadam conoce el proyecto (dos mecanismos distintos)
+
+Precisión de diseño del 15 de agosto de 2026, tarde — quedaba implícito pero
+no estaba escrito en ningún lado, y es la pregunta obvia una vez que Efadam
+se construye antes que las ramas.
+
+Efadam necesita dos tipos de conocimiento, y usa un mecanismo distinto para
+cada uno — no los mezcla:
+
+1. **Qué es el sistema (estático, cambia poco): `system_knowledge` vía
+   `contexto_slugs`.** Igual que cualquier otro bot, Efadam declara en
+   `bots.contexto_slugs` qué slugs se le inyectan al arrancar cada corrida.
+   Asignación: `{arquitectura, stack_y_convenciones}` (ver tabla de
+   asignación abajo). Sin esto, Efadam no sabría qué ramas existen, qué hace
+   cada center, ni cómo está armada la infraestructura — necesitaría
+   adivinar o preguntar en cada mensaje, lo cual es inaceptable para el bot
+   de mayor frecuencia del sistema.
+2. **Qué está pasando ahora mismo (dinámico, cambia todo el tiempo): lectura
+   directa de `tasks` y `agent_runs`.** Esto NO pasa por `contexto_slugs` —
+   sería absurdo tratar de "sincronizar" el estado de las tareas de hoy como
+   si fuera conocimiento estático. Efadam tiene permiso de lectura directa de
+   estas dos tablas (excepción al principio general de que ningún bot lee
+   Postgres directo — ver "Lo que este diseño deliberadamente NO hace" más
+   abajo; Efadam es el único caso, porque su trabajo de enrutar y resumir
+   requiere visión en vivo de las 3 ramas a la vez, cosa que ningún workflow
+   podría curar de antemano sin saber qué va a preguntar el usuario).
+
+**Lo que Efadam NO hace para conocer el proyecto:** no lee `docs/context/*.md`
+del repo directamente (mecanismo descartado, ver más abajo), no lee el
+detalle interno de cada bot individual de una rama, y no re-audita lo que
+cada center ya consolidó.
+
+## Cómo se inyecta
+
+Un nodo `Cargar contexto` en el ejecutor genérico, entre "Obtener config del bot"
+y "Llamar a OmniRoute", que devuelve dos bloques de texto ya armados.
 
 **No se le inyecta lo mismo a todos.** El diseño anterior decía que
 `system_knowledge` se inyecta igual para cada bot. Eso significa que Abogado
@@ -94,6 +147,7 @@ Asignación inicial:
 
 | bot | contexto_slugs |
 |---|---|
+| `efadam` | `{arquitectura, stack_y_convenciones}` — el estado en vivo del sistema (tareas pendientes, qué reportó cada center) lo lee directo de `tasks`/`agent_runs`, no de aquí (ver sección anterior) |
 | `tecnico_jefe` | `{arquitectura, stack_y_convenciones}` |
 | `coder` | `{stack_y_convenciones}` |
 | Legal (cuando entren) | `{}` — no necesitan saber cómo está armado el sistema |
@@ -101,31 +155,21 @@ Asignación inicial:
 Las reglas generales NO van por aquí: viajan dentro del `system_prompt` de cada
 bot, compuestas por un trigger de Postgres a partir de `prompt_especifico`.
 
-## Sincronización repo → tabla — corregido 15/ago (segunda vuelta)
+## Repo como seed, no como fuente de verdad
 
-**Primer intento (revertido el mismo día):** montar `./docs` como volumen de
-solo lectura en el contenedor de n8n y leer con un nodo de disco. Falló en la
-práctica (n8n bloquea por default el acceso a rutas arbitrarias del sistema
-de archivos — `"Access to the file is not allowed."`) y estaba mal planteado
-de fondo, señalado por Mateo antes de que el error lo confirmara: la fuente de
-verdad declarada es **el repo**, no "lo que haya en el disco de esta máquina
-en este momento". Un montaje local rompe en silencio en cuanto alguien edita
-desde otra máquina sin que la que corre n8n haga `git pull`, y no generaliza
-limpio a un VPS sin esa misma dependencia oculta.
+Reemplaza la sección "Sincronización repo → tabla" original (ver "Diseño
+descartado" abajo).
 
-**Diseño correcto:** leer los archivos vía la API de GitHub, con una
-credencial de solo lectura (Fine-grained PAT, permiso `Contents: Read-only`,
-limitado al repo `Infinite_Power`) — guardada directo en n8n por Mateo, nunca
-pasada por chat. Workflow **"Sync conocimiento del sistema"**
-(`jWylnrFYalt5vrOB`), Manual Trigger, 3 ramas en paralelo:
+El repo (`docs/context/*.md`, `reglas_generales.md`) se usa **una sola vez**,
+al arrancar el sistema, para poblar `system_knowledge` con su estado inicial.
+Esto se hace corriendo a mano el mismo upsert que antes disparaba el workflow
+de n8n, directo en terminal, en el mismo acto de tener los archivos ya
+editados y Postgres a la mano — sin credencial nueva, sin ventana de desfase.
 
-```
-Manual Trigger → [GitHub: Get file content] → [Guardar en system_knowledge]
-```
-
-- `GitHub: Get file content` — nodo GitHub, operación *Get file*, repo
-  `Madafe/Infinite_Power`, ruta según el archivo (`docs/context/arquitectura.md`, etc.).
-- `Guardar en system_knowledge` — mismo upsert de siempre:
+**Nota 15 de agosto:** este upsert se pospone hasta que haya un producto
+final real que probar — no es un paso a correr durante la construcción de
+Efadam ni de las ramas (ver `plan_de_accion_completo.md`, actualización de la
+noche del 15 de agosto).
 
 ```sql
 insert into system_knowledge (slug, titulo, contenido, source_file)
@@ -137,22 +181,58 @@ on conflict (slug) do update
        updated_at = now();
 ```
 
-Correrlo a mano cada vez que se edite un archivo de `docs/context/` o
-`docs/reglas_generales.md` **y se haga push**. Si cambia `reglas_generales`,
-además hay que tocar `prompt_especifico` de cada bot para que el trigger de
-Postgres recomponga: `update bots set prompt_especifico = prompt_especifico;`
+Después de ese seed inicial, **no hay ningún mecanismo automático que vuelva
+a leer el repo**. El repo puede quedar desactualizado respecto a la tabla —
+es esperado. Si en algún momento se quiere revisar "qué tanto se alejó el
+sistema de su estado inicial", se compara la tabla contra el repo manualmente;
+no es un proceso que el sistema corra solo.
 
-**Nota:** la carga inicial de `arquitectura` y `stack_y_convenciones` en
-`system_knowledge` se hizo a mano (vía `docker cp` + `psql -f`) el mismo día
-que se construyó este workflow, porque hasta ese momento la tabla solo tenía
-`reglas_generales`. De aquí en adelante, correr el workflow es suficiente.
+**Por qué se abandonó la sincronización recurrente por API de GitHub:** el
+diseño original (Manual Trigger en n8n, credencial de GitHub con PAT leyendo
+el repo privado, upsert a Postgres) tenía dos problemas una vez que el
+sistema se piensa para más de un operador:
+
+1. Seguía dependiendo de que un humano se acordara de disparar el sync después
+   de cada edición — no ganaba automatización real frente a correr el upsert
+   en la misma sesión de terminal donde ya se edita el archivo.
+2. El PAT quedaba como credencial persistente en n8n con acceso de lectura a
+   todo el repo privado. En un sistema de un solo operador es un riesgo
+   aceptable; en un sistema pensado para más gente con acceso a n8n, cualquiera
+   con acceso al editor de workflows hereda de facto acceso al repo completo.
+   Y de cualquier forma, dado que el conocimiento real ya no vive en el repo
+   sino que lo genera Upgrade & review center directo en Postgres, mantener
+   viva esa credencial dejó de tener función.
 
 ## Lo que este diseño deliberadamente NO hace
 
-- No le da a ningún bot acceso directo de lectura a Postgres. El workflow les
-  entrega el contexto ya curado. (Costo y control.)
+- No le da a ningún bot acceso directo de lectura a Postgres, **salvo
+  Efadam**, que lee `tasks`/`agent_runs` en vivo por la razón explicada en
+  "Cómo Efadam conoce el proyecto" — es la única excepción al principio de
+  "el workflow entrega el contexto ya curado". Para el resto de los bots
+  sigue aplicando sin excepción.
 - No hay banco de conocimiento por center. Se evaluó y se descartó: sería el
   mismo mecanismo repetido tres veces.
 - No hay embeddings ni búsqueda semántica. Con menos de 50 filas en
   `knowledge_log`, un `ORDER BY updated_at DESC LIMIT 15` filtrado por cluster
   es suficiente. Revisar esto cuando la tabla pase de ~200 filas.
+- Ya no mantiene una credencial de GitHub viva en n8n para leer el repo en
+  cada corrida — ver "Repo como seed, no como fuente de verdad".
+
+## Diseño descartado — sincronización recurrente repo → tabla (14 ago 2026)
+
+Se documenta para no perder el razonamiento, no porque siga vigente.
+
+Workflow de n8n "Sync conocimiento del sistema", disparo manual:
+
+1. Manual Trigger.
+2. GitHub → *Get file content* para cada archivo de `docs/context/` y para
+   `reglas_generales.md` (requería credencial de GitHub con un PAT, el repo
+   es privado).
+3. Postgres → *Execute Query*, el mismo upsert que arriba, uno por archivo.
+
+Se decidió correrlo cada vez que se editara un archivo de `docs/context/`. Se
+descartó el 15 de agosto de 2026 por las razones en "Repo como seed, no como
+fuente de verdad". El workflow en n8n (`Sync conocimiento del sistema`,
+desactivado) se borra; el patrón de nodos (Leer GitHub → Extraer texto →
+Guardar Postgres) queda documentado aquí por si algún día vuelve a hacer
+falta releer el repo por algún motivo puntual — no como mecanismo recurrente.
