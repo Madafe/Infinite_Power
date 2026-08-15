@@ -101,26 +101,31 @@ Asignación inicial:
 Las reglas generales NO van por aquí: viajan dentro del `system_prompt` de cada
 bot, compuestas por un trigger de Postgres a partir de `prompt_especifico`.
 
-## Sincronización repo → tabla — construido 15/ago, distinto al plan original
+## Sincronización repo → tabla — corregido 15/ago (segunda vuelta)
 
-El diseño original de esta sección proponía leer los archivos vía la API de
-GitHub (nodo GitHub + credencial PAT). Se construyó más simple: como n8n y el
-repo viven en la misma máquina, `docker-compose.yml` monta `./docs` como
-solo-lectura dentro del contenedor de n8n (`./docs:/data/docs:ro`) — sin
-credencial externa, sin PAT, un paso menos de fricción.
+**Primer intento (revertido el mismo día):** montar `./docs` como volumen de
+solo lectura en el contenedor de n8n y leer con un nodo de disco. Falló en la
+práctica (n8n bloquea por default el acceso a rutas arbitrarias del sistema
+de archivos — `"Access to the file is not allowed."`) y estaba mal planteado
+de fondo, señalado por Mateo antes de que el error lo confirmara: la fuente de
+verdad declarada es **el repo**, no "lo que haya en el disco de esta máquina
+en este momento". Un montaje local rompe en silencio en cuanto alguien edita
+desde otra máquina sin que la que corre n8n haga `git pull`, y no generaliza
+limpio a un VPS sin esa misma dependencia oculta.
 
-Workflow **"Sync conocimiento del sistema"** (`jWylnrFYalt5vrOB`), Manual Trigger,
-3 ramas en paralelo (una por archivo canónico):
+**Diseño correcto:** leer los archivos vía la API de GitHub, con una
+credencial de solo lectura (Fine-grained PAT, permiso `Contents: Read-only`,
+limitado al repo `Infinite_Power`) — guardada directo en n8n por Mateo, nunca
+pasada por chat. Workflow **"Sync conocimiento del sistema"**
+(`jWylnrFYalt5vrOB`), Manual Trigger, 3 ramas en paralelo:
 
 ```
-Manual Trigger → [Leer <archivo>] → [Extraer texto] → [Guardar en system_knowledge]
+Manual Trigger → [GitHub: Get file content] → [Guardar en system_knowledge]
 ```
 
-- `Leer <archivo>`: nodo *Read/Write Files from Disk*, `operation: read`,
-  apuntando a `/data/docs/context/arquitectura.md` (o el archivo que toque).
-- `Extraer texto`: nodo *Extract from File*, `operation: text`, convierte el
-  binario leído a texto plano en la clave `texto`.
-- `Guardar en system_knowledge`: Postgres, mismo upsert que antes:
+- `GitHub: Get file content` — nodo GitHub, operación *Get file*, repo
+  `Madafe/Infinite_Power`, ruta según el archivo (`docs/context/arquitectura.md`, etc.).
+- `Guardar en system_knowledge` — mismo upsert de siempre:
 
 ```sql
 insert into system_knowledge (slug, titulo, contenido, source_file)
@@ -133,9 +138,9 @@ on conflict (slug) do update
 ```
 
 Correrlo a mano cada vez que se edite un archivo de `docs/context/` o
-`docs/reglas_generales.md`. Si cambia `reglas_generales`, además hay que tocar
-`prompt_especifico` de cada bot para que el trigger de Postgres recomponga:
-`update bots set prompt_especifico = prompt_especifico;`
+`docs/reglas_generales.md` **y se haga push**. Si cambia `reglas_generales`,
+además hay que tocar `prompt_especifico` de cada bot para que el trigger de
+Postgres recomponga: `update bots set prompt_especifico = prompt_especifico;`
 
 **Nota:** la carga inicial de `arquitectura` y `stack_y_convenciones` en
 `system_knowledge` se hizo a mano (vía `docker cp` + `psql -f`) el mismo día

@@ -92,3 +92,9 @@ sistema y agotaría el presupuesto solo en decidir a quién mandar las cosas.
   Usar siempre `docker cp archivo.sql <contenedor>:/tmp/ && docker exec -i
   <contenedor> psql ... -f /tmp/archivo.sql` para cualquier SQL con texto en
   español.
+- **No montar el repo local dentro de contenedores para que n8n lo lea.**
+  n8n bloquea por default el acceso a rutas de disco arbitrarias, y aunque no
+  lo bloqueara, es una dependencia oculta que rompe en cuanto alguien más edita
+  desde otra máquina o esto se mueve a un VPS. Todo lo que dependa del
+  contenido del repo (prompts, docs canónicos) se lee vía la API de GitHub,
+  nunca por ruta de archivo local.
