@@ -14,7 +14,6 @@ audita y aprueba antes de reportar hacia arriba.
 ## Estado actual
 
 - [[estado_del_proyecto]] — qué existe de verdad hoy (no lo planeado)
-- [[plan_de_accion_completo]] — el plan y la bitácora de decisiones
 - **Bots activos:** `tecnico_jefe`, `coder`, `trouble_shooter`. Nada más.
   Un bot que no está en la tabla `bots` con `active = true` no existe.
 
@@ -30,8 +29,9 @@ audita y aprueba antes de reportar hacia arriba.
 ## Sistema (implementación)
 
 - [[memoria_del_sistema]] — diseño de `system_knowledge` + `knowledge_log`
-- [[ejecutor_generico]] — el workflow único que corre a cualquier bot
+- [[ejecutor_generico]] — el workflow único que corre a cualquier bot *(pendiente: reescribir para reflejar los 19 nodos reales)*
 - [[reglas_generales]] — las 5 reglas dentro de cada `system_prompt`
+- [[autonomia_progresiva]] — criterio de graduación (aprobación → autonomía)
 
 ## Canónico para bots
 
@@ -45,8 +45,11 @@ Estos son cortos, en presente, solo hechos vigentes. Se sincronizan a la tabla
 
 ## Prompts
 
+- [[plantilla_prompt]] — plantilla estándar, usar para cualquier prompt nuevo
+- [[caso_prueba_1_cluster_investigacion]] — caso de referencia real, útil para
+  escribir los prompts de Investigación (rama Estrategia/Crecimiento)
 - `prompts/_core/` — Efadam (cross-rama)
-- `prompts/dev-tech/` — rama Dev/Tech (escritos)
+- `prompts/dev-tech/` — rama Dev/Tech (escritos, 12 prompts)
 - `prompts/estrategia-crecimiento/` — siguiente rama a escribir
 - `prompts/operacion-proyectos/`, `prompts/legal/`, `prompts/negocios-propios/`,
   `prompts/investigacion-skills/` — pendientes
@@ -58,7 +61,9 @@ Estos son cortos, en presente, solo hechos vigentes. Se sincronizan a la tabla
 
 ## Archivo
 
-`docs/archivo/` — documentos superados que se conservan por trazabilidad.
+`docs/archivo/` — documentos superados, conservados por trazabilidad:
+`plan_de_accion.md`, `plan_de_accion_completo.md`,
+`explicacion_general_y_paso_0.md`, `contexto_proyecto_infinite_power_v5.md`.
 No son fuente de verdad de nada. Si algo de ahí contradice a lo de arriba,
 gana lo de arriba.
 
