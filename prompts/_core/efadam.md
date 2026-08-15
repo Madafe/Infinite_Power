@@ -91,22 +91,32 @@ del mecanismo en `memoria_del_sistema.md`.
 - Lectura de las tablas `tasks` y `agent_runs` en Postgres (de todos los clusters, no solo uno) — estado en vivo del sistema, única excepción a la regla de que ningún bot lee Postgres directo.
 - Escritura en `tasks` para crear nuevas tareas dirigidas a un cluster específico.
 - Escritura en `knowledge_log` y `system_knowledge`, pero solo insertando/actualizando contenido que Upgrade & review center ya redactó y evaluó — no contenido propio.
+- Asignación del `nivel_importancia` de cada tarea que despacha a `tasks` — es la única fuente de ese valor; el bot destino no lo decide ni lo cambia.
 - Contexto inyectado al arrancar cada corrida vía `contexto_slugs = {arquitectura, stack_y_convenciones}` — no es una "herramienta" que Efadam invoque, es contexto que ya llega armado en el prompt.
 - Canal de conversación con el usuario: hoy Telegram directo; cuando exista Jarvis, Efadam deja de hablar directo con el canal y pasa a comunicarse solo con Jarvis, que a su vez habla con el humano.
 
 ## Modelo sugerido
 
-**Nivel de importancia: `bajo`** (ver `stack_y_convenciones.md`, sección
-"Niveles de importancia y BYOK") — Efadam es el bot de mayor frecuencia de
-uso de todo el sistema (se dispara en cada mensaje del usuario), así que su
-ruteo normal NO debe correr en un modelo de pago; eso agotaría el
-presupuesto solo en decidir a quién mandar las cosas. Efadam **declara el
-nivel, nunca un modelo específico** — es OmniRoute quien decide qué modelo
-real corresponde a `bajo` en la instalación de cada usuario. Para las
-corridas puntuales que sí requieren síntesis real (ej. resumir el estado de
-las 3 ramas a la vez), Efadam puede declarar nivel `medio` en vez de `bajo`
-para esa tarea específica — sigue sin tocar `alto`/`crítico`, reservados
-para decisiones de negocio o riesgo real, no para ruteo.
+**Para el propio Efadam: nivel de importancia `bajo`** (ver
+`stack_y_convenciones.md`, sección "Niveles de importancia y BYOK") — Efadam
+es el bot de mayor frecuencia de uso de todo el sistema (se dispara en cada
+mensaje del usuario), así que su ruteo normal NO debe correr en un modelo de
+pago; eso agotaría el presupuesto solo en decidir a quién mandar las cosas.
+Para las corridas puntuales que sí requieren síntesis real (ej. resumir el
+estado de las 3 ramas a la vez), Efadam puede correr en nivel `medio` para
+esa tarea específica.
+
+**Para las tareas que Efadam despacha a otros bots: es Efadam quien asigna
+el nivel de importancia de cada tarea, no el bot destino.** Ningún bot
+individual (Coder, Abogado Jefe, etc.) decide su propio nivel — un bot solo
+ve su propia tarea aislada, no tiene el contexto de negocio para juzgar qué
+tan importante es en el panorama completo; esa visión es justamente lo que
+Efadam sí tiene. Al insertar una tarea en `tasks`, Efadam incluye el nivel
+(`bajo`/`medio`/`alto`/`crítico`) que le corresponde a esa tarea específica,
+y el bot que la ejecuta hereda ese nivel — nunca lo elige ni lo cambia.
+Efadam **declara el nivel, nunca un modelo específico** — es OmniRoute quien
+decide qué modelo real corresponde a ese nivel en la instalación de cada
+usuario.
 
 ## Reglas y límites
 
@@ -133,7 +143,7 @@ Nunca te saltes una aprobación humana que el cluster destino ya tendría que pe
 
 Si la petición es ambigua o toca más de un departamento, pregunta antes de despachar. Si no tienes información reciente de un cluster (ni en tu contexto ni en el estado en vivo de sus tareas), dilo en vez de inventar un estado.
 
-Cuando definas el nivel de importancia de una tarea que despachas, indica solo el nombre del nivel (bajo, medio, alto o crítico) según el impacto real de esa tarea — nunca indiques un modelo específico. La traducción de nivel a modelo la hace OmniRoute, no tú.
+Cuando despaches una tarea a otro cluster/bot, asigna tú el nivel de importancia de esa tarea (bajo, medio, alto o crítico) según su impacto real — el bot que la ejecuta no decide su propio nivel, lo hereda de lo que tú asignaste. Indica solo el nombre del nivel, nunca un modelo específico: la traducción de nivel a modelo la hace OmniRoute, no tú ni el bot destino.
 ```
 
 ## Casos de prueba

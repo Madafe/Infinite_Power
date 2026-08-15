@@ -5,15 +5,36 @@ Para: Mateo + amigo · 7 de agosto de 2026
 
 ---
 
+## Actualización — 15 de agosto de 2026, noche, segunda ronda (corrección: Efadam asigna el nivel, no cada bot) — VIGENTE, léase primero
+
+Corrige un error de la actualización inmediata de abajo: decía "cada bot
+declara su nivel de importancia", lo cual contradice el resto del diseño de
+Efadam (un bot individual no tiene visión de negocio para juzgar su propia
+importancia; esa visión es justamente lo que hace Efadam). Corregido: es
+**Efadam** quien asigna el `nivel_importancia` de cada tarea al despacharla
+— el bot destino lo hereda, no lo decide. Detalle en `efadam.md` y
+`stack_y_convenciones.md`.
+
+**Pendiente de diseño, sin resolver:** Efadam corre en nivel `bajo` (modelo
+barato) para no agotar presupuesto en ruteo, pero es él quien tiene que
+juzgar si una tarea amerita `alto`/`crítico` — un modelo barato clasificando
+qué tan importante es algo es un riesgo real. Falta decidir si esa
+clasificación queda a criterio libre de Efadam caso por caso, o si se fija
+con reglas explícitas por tipo de tarea/cluster que Efadam solo aplica. Ver
+`stack_y_convenciones.md` para el detalle completo.
+
+---
+
 ## Actualización — 15 de agosto de 2026, noche (niveles de importancia + BYOK + empaquetado de OmniRoute/n8n) — VIGENTE, léase primero
 
 Se rediseña de fondo cómo el sistema decide qué modelo usa cada bot, y cómo
 se distribuye OmniRoute como parte del producto. Detalle completo en
 `stack_y_convenciones.md`, sección "Niveles de importancia y BYOK":
 
-- 4 niveles fijos del sistema (`bajo`, `medio`, `alto`, `crítico`). Cada bot
-  declara en `bots.nivel_importancia` uno de estos 4 valores — nunca un
-  modelo específico. OmniRoute es el único que traduce nivel → modelo real.
+- 4 niveles fijos del sistema (`bajo`, `medio`, `alto`, `crítico`). **Efadam**
+  asigna a cada tarea el nivel que le corresponde — ningún bot decide el
+  suyo propio, y nunca se declara un modelo específico (ver corrección de
+  arriba). OmniRoute es el único que traduce nivel → modelo real.
 - OmniRoute (y n8n, con el Ejecutor genérico ya importado) se distribuyen
   empaquetados — mismo `docker-compose.yml` del sistema — con un modelo
   gratis ya asignado por default a cada nivel. El setup deja de requerir
@@ -232,6 +253,7 @@ para el razonamiento completo.
 12. Eliminar o resolver la duplicación de la nota `docs/vision/Efadam/Efadam.md` en Obsidian — su contenido ya se fusionó a `memoria_del_sistema.md` y `efadam.md`, pero el archivo original sigue existiendo por separado. Pendiente de que Mateo lo revise antes de borrarlo (solicitud explícita suya).
 13. Localizar y leer la referencia "Infinite power.md > Método > Multiproyecto", mencionada en la nota antigua de Efadam como pendiente sobre la cadencia con la que Efadam revisa proyectos activos — no localizada todavía.
 14. Decidir qué hacer con dos archivos sueltos sin commitear en el repo local (`schema/_tmp_diag_github.ps1`, `schema/_tmp_inspect_schedule.js`), que parecen debris de una sesión anterior.
+15. Decidir cómo Efadam clasifica el nivel de importancia con confiabilidad (corre en modelo barato, pero tiene que juzgar decisiones de alto impacto) — criterio libre vs. reglas explícitas por tipo de tarea/cluster. Ver actualización del 15 de agosto, noche, segunda ronda, arriba.
 
 **Nota 15 de agosto:** la API key de n8n del paso 8 (Auto-expansión) ya existe
 y está en uso desde hoy (es la misma que permite conectarse a n8n local desde

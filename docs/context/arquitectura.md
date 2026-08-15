@@ -27,7 +27,9 @@ su rama antes de reportar a Efadam.
   Efadam no redacta ese contenido — se lo solicita a Upgrade & review center
   e inserta lo que este produce. La única excepción documentada es
   `bots.conocimiento_directo` (hoy, solo Trouble shooter — ver
-  `memoria_del_sistema.md`). Conoce el sistema por dos vías: `system_knowledge`
+  `memoria_del_sistema.md`). Es también quien asigna el nivel de importancia
+  de cada tarea que despacha (ver "Quién decide el modelo" más abajo) — los
+  bots destino no deciden su propio nivel. Conoce el sistema por dos vías: `system_knowledge`
   inyectado vía `contexto_slugs` (qué es el sistema; no cambia mensaje a
   mensaje, pero sí evoluciona con el tiempo vía Upgrade & review center) y
   lectura directa de `tasks`/`agent_runs` (qué está pasando ahora, cambia
@@ -86,13 +88,16 @@ no necesita el schema de Postgres para un dictamen legal).
 Detalle completo de este mecanismo (incluyendo por qué Efadam es la única
 excepción con lectura directa de Postgres) en `memoria_del_sistema.md`.
 
-## Cómo cada bot declara su costo — niveles de importancia
+## Quién decide el modelo — niveles de importancia
 
 Ningún bot, incluido Efadam, referencia un modelo específico en su prompt.
-Cada bot/tarea declara un **nivel de importancia** fijo del sistema (`bajo`,
-`medio`, `alto`, `crítico`); OmniRoute traduce ese nivel al modelo real
-configurado para esa instalación. Detalle completo (incluyendo el
-empaquetado de OmniRoute y BYOK por nivel) en `stack_y_convenciones.md`.
+**Efadam es quien asigna el nivel de importancia** (`bajo`, `medio`, `alto`,
+`crítico`, valores fijos del sistema) a cada tarea que despacha — un bot
+individual no decide el suyo propio, porque solo ve su tarea aislada y no
+tiene la visión de negocio que sí tiene Efadam. El bot que ejecuta hereda el
+nivel ya asignado. OmniRoute traduce ese nivel al modelo real configurado
+para esa instalación. Detalle completo (incluyendo el empaquetado de
+OmniRoute y BYOK por nivel) en `stack_y_convenciones.md`.
 
 ## Rama Dev/Tech (prompts escritos)
 

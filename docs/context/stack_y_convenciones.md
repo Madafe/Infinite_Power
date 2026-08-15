@@ -69,11 +69,16 @@ sola instancia de OmniRoute compartida, lo cual no aplica a un producto
 distribuible — cada instalación necesita su propio OmniRoute, con sus
 propias llaves, no la de Mateo.
 
-**Principio central: los bots nunca declaran un modelo, declaran un nivel.**
-Ningún prompt de ningún bot (ni Efadam) menciona el nombre de un modelo. Cada
-bot tiene una columna `bots.nivel_importancia` con uno de 4 valores fijos del
-sistema — no configurables en cantidad ni nombre, solo en qué modelo resuelve
-cada uno:
+**Principio central: los bots nunca declaran un modelo, y no deciden su
+propio nivel — Efadam lo asigna.** Ningún prompt de ningún bot (ni Efadam)
+menciona el nombre de un modelo. Y, a diferencia de una versión anterior de
+este documento, **el nivel tampoco lo decide cada bot por sí mismo**: un bot
+individual solo ve su propia tarea aislada, sin el contexto de negocio para
+juzgar qué tan importante es en el panorama completo. Es **Efadam** quien
+asigna el `nivel_importancia` (columna en `tasks`, heredada por el bot que
+ejecuta) al despachar cada tarea — igual que ya decide a qué cluster va, ya
+decide qué tan importante es. Los 4 valores son fijos del sistema — no
+configurables en cantidad ni nombre, solo en qué modelo resuelve cada uno:
 
 | nivel | uso típico |
 |---|---|
@@ -110,6 +115,25 @@ instalador de Infinite Power obtiene su propia instancia de OmniRoute, con
 sus propias llaves, aislada de cualquier otra instalación — incluida la de
 Mateo. Esto es lo que hace posible que el producto se distribuya a terceros
 sin que cada quien dependa de las credenciales de otra persona.
+
+**Riesgo abierto, sin resolver todavía: qué tan confiable es que Efadam
+clasifique el nivel.** OmniRoute resuelve con certeza la parte mecánica
+(nivel → modelo real) — eso no es lo dudoso. Lo dudoso es la clasificación
+misma: Efadam corre en nivel `bajo` (modelo barato/rápido) para no agotar
+presupuesto en ruteo, y es ese mismo modelo barato el que tiene que decidir
+si una tarea es `alto` o `crítico`. Un modelo barato juzgando qué tan
+importante es algo es, por construcción, el peor juez posible para esa
+decisión específica — mismo problema ya documentado para `patron_fallo`
+("el peor juez posible de qué vale la pena recordar"), aplicado aquí a una
+decisión con más consecuencia real (elegir modelo caro vs. gratis en algo
+potencialmente legal o financiero). Dos caminos posibles, sin decidir
+todavía cuál: (a) Efadam clasifica con criterio libre en cada caso, más
+flexible pero más propenso a subestimar algo importante; (b) reglas
+explícitas por tipo de tarea/cluster que Efadam solo aplica (ej. "todo lo
+que toque Legal o gasto de dinero es mínimo `alto`, sin excepción"), más
+predecible y auditable pero menos flexible. Decidir esto antes de construir
+la lógica de asignación en Efadam — no bloqueante para el resto del diseño,
+pero sí para implementarlo bien.
 
 ## Gotchas de n8n ya documentados (no repetirlos)
 
