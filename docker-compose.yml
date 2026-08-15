@@ -26,6 +26,7 @@ services:
       - DB_POSTGRESDB_PASSWORD=infpower154
     volumes:
       - ./data/n8n:/home/node/.n8n
+      - ./docs:/data/docs:ro
     depends_on:
       - postgres
 

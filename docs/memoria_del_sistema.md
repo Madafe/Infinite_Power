@@ -77,10 +77,11 @@ incrementa `veces_visto`. Esto reemplaza la regla que hoy vive en su prompt
 depende de que el modelo se acuerde de algo que no tiene forma de saber. Ahora
 lo cuenta Postgres y el contador le llega a Trouble shooter en su contexto.
 
-## Cómo se inyecta
+## Cómo se inyecta — construido 15/ago
 
-Un nodo `Cargar contexto` en el ejecutor genérico, entre "Obtener config del bot"
-y "Llamar a OmniRoute", que devuelve dos bloques de texto ya armados.
+Nodo `Cargar contexto` en el ejecutor genérico, entre "Obtener contexto de
+tarea padre" y "Llamar a omniroute" (ver [[ejecutor_generico]]). Devuelve una
+sola fila con dos columnas de texto ya armadas.
 
 **No se le inyecta lo mismo a todos.** El diseño anterior decía que
 `system_knowledge` se inyecta igual para cada bot. Eso significa que Abogado
@@ -100,14 +101,26 @@ Asignación inicial:
 Las reglas generales NO van por aquí: viajan dentro del `system_prompt` de cada
 bot, compuestas por un trigger de Postgres a partir de `prompt_especifico`.
 
-## Sincronización repo → tabla
+## Sincronización repo → tabla — construido 15/ago, distinto al plan original
 
-Workflow de n8n **"Sync conocimiento del sistema"**, disparo manual:
+El diseño original de esta sección proponía leer los archivos vía la API de
+GitHub (nodo GitHub + credencial PAT). Se construyó más simple: como n8n y el
+repo viven en la misma máquina, `docker-compose.yml` monta `./docs` como
+solo-lectura dentro del contenedor de n8n (`./docs:/data/docs:ro`) — sin
+credencial externa, sin PAT, un paso menos de fricción.
 
-1. Manual Trigger.
-2. GitHub → *Get file content* para cada archivo de `docs/context/` y para
-   `reglas_generales.md` (requiere credencial de GitHub con un PAT, el repo es privado).
-3. Postgres → *Execute Query*, un upsert por archivo:
+Workflow **"Sync conocimiento del sistema"** (`jWylnrFYalt5vrOB`), Manual Trigger,
+3 ramas en paralelo (una por archivo canónico):
+
+```
+Manual Trigger → [Leer <archivo>] → [Extraer texto] → [Guardar en system_knowledge]
+```
+
+- `Leer <archivo>`: nodo *Read/Write Files from Disk*, `operation: read`,
+  apuntando a `/data/docs/context/arquitectura.md` (o el archivo que toque).
+- `Extraer texto`: nodo *Extract from File*, `operation: text`, convierte el
+  binario leído a texto plano en la clave `texto`.
+- `Guardar en system_knowledge`: Postgres, mismo upsert que antes:
 
 ```sql
 insert into system_knowledge (slug, titulo, contenido, source_file)
@@ -119,10 +132,15 @@ on conflict (slug) do update
        updated_at = now();
 ```
 
-Correrlo cada vez que se edite un archivo de `docs/context/`. Si al editar el
-prompt de un bot cambia `reglas_generales`, hay que además tocar
-`prompt_especifico` de cada bot para que el trigger recomponga:
+Correrlo a mano cada vez que se edite un archivo de `docs/context/` o
+`docs/reglas_generales.md`. Si cambia `reglas_generales`, además hay que tocar
+`prompt_especifico` de cada bot para que el trigger de Postgres recomponga:
 `update bots set prompt_especifico = prompt_especifico;`
+
+**Nota:** la carga inicial de `arquitectura` y `stack_y_convenciones` en
+`system_knowledge` se hizo a mano (vía `docker cp` + `psql -f`) el mismo día
+que se construyó este workflow, porque hasta ese momento la tabla solo tenía
+`reglas_generales`. De aquí en adelante, correr el workflow es suficiente.
 
 ## Lo que este diseño deliberadamente NO hace
 
