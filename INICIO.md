@@ -29,7 +29,7 @@ audita y aprueba antes de reportar hacia arriba.
 ## Sistema (implementación)
 
 - [[memoria_del_sistema]] — diseño de `system_knowledge` + `knowledge_log`
-- [[ejecutor_generico]] — el workflow único que corre a cualquier bot *(pendiente: reescribir para reflejar los 19 nodos reales)*
+- [[ejecutor_generico]] — el workflow real, 19 nodos, con hallazgos pendientes de corregir
 - [[reglas_generales]] — las 5 reglas dentro de cada `system_prompt`
 - [[autonomia_progresiva]] — criterio de graduación (aprobación → autonomía)
 
@@ -63,7 +63,8 @@ Estos son cortos, en presente, solo hechos vigentes. Se sincronizan a la tabla
 
 `docs/archivo/` — documentos superados, conservados por trazabilidad:
 `plan_de_accion.md`, `plan_de_accion_completo.md`,
-`explicacion_general_y_paso_0.md`, `contexto_proyecto_infinite_power_v5.md`.
+`explicacion_general_y_paso_0.md`, `contexto_proyecto_infinite_power_v5.md`,
+`ejecutor_generico_v1_diseno.md`.
 No son fuente de verdad de nada. Si algo de ahí contradice a lo de arriba,
 gana lo de arriba.
 
