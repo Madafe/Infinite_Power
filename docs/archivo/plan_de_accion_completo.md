@@ -5,7 +5,7 @@ Para: Mateo + amigo · 7 de agosto de 2026
 
 ---
 
-## Actualización — 16 de agosto de 2026 (mecanismo concreto nivel → modelo, `schema/005_nivel_importancia.sql`) — VIGENTE, léase primero
+## Actualización — 16 de agosto de 2026 (mecanismo concreto nivel → modelo, `schema/005_nivel_importancia.sql`) — histórica, ver corrección y auditoría más arriba/abajo
 
 Quedaba un hueco real señalado por Mateo: se documentaba "OmniRoute traduce
 nivel → modelo" como principio, sin especificar nunca el mecanismo. Resuelto:
@@ -15,17 +15,22 @@ nivel → modelo" como principio, sin especificar nunca el mecanismo. Resuelto:
   `schema/005_nivel_importancia.sql` (columna + check constraint). Reemplaza
   a `bots.default_model` como fuente del modelo a llamar (esa columna queda
   sin uso activo, no se elimina por ahora).
-- **OmniRoute es LiteLLM self-hosted.** El nodo "Llamar a OmniRoute" del
-  Ejecutor manda el nivel tal cual en el campo `model` del request (ej.
-  `model: "alto"`); LiteLLM resuelve ese valor vía **alias de modelo**
-  (feature nativa, `model_name` = nivel en su `config.yaml`) al modelo real
-  configurado para esa instalación. No hay tabla de lookup nueva ni lógica
-  de ruteo propia que construir. Ejemplo completo de `config.yaml` en
-  `stack_y_convenciones.md`.
+- ~~**OmniRoute es LiteLLM self-hosted.**~~ — **Falso, corregido el 16 de
+  agosto por la tarde (ver actualización de arriba). Esto se escribió sin
+  verificarlo contra el contenedor real y era un error.** OmniRoute es un
+  proyecto open-source distinto y no relacionado (`diegosouzapw/OmniRoute`),
+  no LiteLLM. El mecanismo real de nivel → modelo es via **"combos"
+  nombrados** de OmniRoute, referenciables directo por nombre en el campo
+  `model` del request, más el endpoint `/api/model-combo-mappings` para
+  mapear un patrón de modelo a un combo. El esquema exacto de creación de un
+  combo (`POST /api/combos`) todavía no está confirmado — pendiente de
+  verificar via la UI del dashboard antes de configurarlo. Detalle completo
+  en `stack_y_convenciones.md`.
 - **Corrección de encoding:** los 4 valores literales del sistema
-  (`tasks.nivel_importancia`, alias de LiteLLM, lo que Efadam escribe en el
-  JSON de la tarea) son `bajo`/`medio`/`alto`/`critico` — **sin tilde en
-  "critico"**, porque son identificadores de sistema, no texto para leer.
+  (`tasks.nivel_importancia`, el nombre del combo de OmniRoute, lo que Efadam
+  escribe en el JSON de la tarea) son `bajo`/`medio`/`alto`/`critico` —
+  **sin tilde en "critico"**, porque son identificadores de sistema, no
+  texto para leer.
   El prompt de Efadam (`efadam.md`) tenía "crítico" con tilde, lo cual
   habría roto el `INSERT` en cuanto Efadam generara una tarea crítica de
   verdad — corregido antes de activarlo, no después. La prosa de los
@@ -40,12 +45,92 @@ campo `model` del request ahora lee
 `$('Obtener config del bot').first().json.default_model` — verificado con
 un `GET` posterior al `PUT`. El pendiente #16 de abajo queda completo.
 
-**Todavía falta, no incluido en este cambio:** configurar los 4 alias de
-modelo del lado de LiteLLM/OmniRoute (`config.yaml`), e insertar a Efadam
+**Todavía falta, no incluido en este cambio:** configurar los 4 combos de
+OmniRoute (uno por nivel) y sus `model-combo-mappings`, e insertar a Efadam
 en la tabla `bots` — el nodo ya está listo para recibir `nivel_importancia`,
 pero hoy ninguna tarea trae ese campo poblado porque nada lo está asignando
 todavía (Efadam no existe como bot activo). Sin esos dos pasos, cualquier
 tarea nueva llegaría a OmniRoute con `model: null`.
+
+---
+
+## Actualización — 16 de agosto de 2026, tarde/noche (auditoría externa, corrección OmniRoute/LiteLLM, rama `correcciones`, reconstrucción de `schema/001_init.sql`) — VIGENTE, léase primero
+
+Mateo subió una auditoría completa del estado del vault/repo/schema
+(`auditoria_infinite_power_16ago2026.md`), con 31 hallazgos numerados y un
+plan de remediación en 4 bloques. Se verificaron independientemente los
+hallazgos más graves (no se aceptó la auditoría de fe) — todos los
+verificables resultaron correctos, y uno resultó **peor** de lo que la
+propia auditoría sospechaba:
+
+**1. Corrección: OmniRoute NO es LiteLLM.** La actualización del 16 de
+agosto de arriba (y `stack_y_convenciones.md`, `efadam.md`, `arquitectura.md`,
+los tres ya corregidos) afirmaban que OmniRoute era LiteLLM self-hosted, con
+un `config.yaml` de alias de modelo. Eso se escribió sin verificarlo contra
+el contenedor real y era falso. Verificado directo dentro del contenedor
+(`docker exec infinite-power-omniroute-1 ...`): OmniRoute es un proyecto
+open-source real y distinto, `diegosouzapw/OmniRoute`. El mecanismo real:
+providers conectados vía su propio dashboard (`http://localhost:20128`),
+ruteo nativo `auto/<categoria>:<tier>`, y **"combos" nombrados**
+(`GET/POST /api/combos*`) referenciables directo por nombre en el campo
+`model` del request, más `/api/model-combo-mappings` para mapear un patrón
+de modelo id a un combo. **No confirmado todavía:** el schema exacto de
+`POST /api/combos` (crear un combo) — pendiente verificar via la UI del
+dashboard antes de configurar los 4 combos por nivel, no adivinar.
+
+**2. Decisión de Mateo — nunca borrar ni mergear ramas.** Sobre cómo
+ejecutar el Bloque 0 de la auditoría (que incluía mergear `efadam` → `main`
+y borrar ramas viejas): Mateo corrigió — "todo el punto de github es un
+control de versiones" — nunca se borran ni mergean ramas sin instrucción
+explícita futura. En su lugar, se creó una rama nueva **`correcciones`**
+desde `efadam` (commit `80b7391`), y ahí vive todo el trabajo de respuesta
+a la auditoría. `main`, `alphav0.1`, `alphav0.2`, `efadam` quedan intactas.
+
+**3. Decisión de Mateo — NO congelar el alcance de "producto distribuible".**
+La auditoría (sección G) sugería congelar temporalmente el trabajo de
+empaquetado/distribución (Revert, Multiproyecto, empaquetado de OmniRoute)
+para enfocar el esfuerzo en la operación de un solo operador. Mateo lo
+rechazó explícitamente: hacerlo arriesga construir una mala base, porque
+producto distribuible **es el objetivo final** y tiene que seguir en la
+vista aunque no sea el foco inmediato — no se pausa ningún punto 17/18/19
+de la lista de pendientes de abajo por esto.
+
+**4. Bloque 0 — ejecutado hasta ahora (en la rama `correcciones`):**
+reconstruido `schema/001_init.sql` — **nunca se había commiteado** (hallazgo
+central e independientemente confirmado de la auditoría: `git log` muestra
+que `schema/*.sql` en git solo tuvo migraciones `ALTER TABLE` desde el
+002, nunca un `CREATE TABLE` — un clon nuevo del repo no podía levantar la
+base de datos). Se reconstruyó via `pg_dump --schema-only` contra la base
+real, restando lo que 002-005 agregan encima, y se **verificó de verdad**
+corriendo 001→006 en orden contra una base Postgres vacía de prueba
+(`test_repro`, borrada después) — sin errores, misma estructura que la base
+real. De paso se encontró y corrigió un bug real, no solo de documentación:
+dos `COMMENT ON COLUMN` (`bots.conocimiento_directo`,
+`tasks.nivel_importancia`) habían quedado con mojibake **dentro de la base
+de datos real** porque se aplicaron anteriormente vía `psql`/PowerShell sin
+forzar UTF-8 en el pipe — nueva migración `schema/006_fix_encoding_comments.sql`,
+ya corrida contra la base real y verificada byte por byte. Todo commiteado
+y pusheado a `origin/correcciones` (commit `f09880b`).
+
+**Nota de proceso, para no repetir el mismo bug:** escribir archivos con
+acentos/caracteres especiales al vault vía el puente a la máquina de Mateo
+resultó intermitentemente poco confiable durante esta sesión (el mismo
+archivo `006_fix_encoding_comments.sql` salió corrupto dos veces antes de
+salir limpio, sin cambiar el método). Regla adoptada: verificar siempre con
+un chequeo de codepoints (`[int[]][char[]]$string`) antes de aplicar
+cualquier texto en español contra Postgres, y preferir `docker cp` +
+`psql -f` dentro del contenedor en vez de pipes de PowerShell para
+cualquier contenido no-ASCII.
+
+**Pendiente inmediato:** seguir el Bloque 0 (exportar los workflows de n8n
+a `n8n-workflows/*.json`, script de backup de Postgres, `.gitattributes` +
+normalizar los 4 archivos "sucios" solo por line endings, mover la
+contraseña de Postgres a `.env`, `N8N_ENCRYPTION_KEY` explícito,
+`GENERIC_TIMEZONE`), después Bloque 1 (reparación de contradicciones de
+documentación), Bloque 2 (combos de OmniRoute, propagar `nivel_importancia`
+a tareas hijas, ingestión de Telegram, seed de `system_knowledge`, límite
+de profundidad, prueba end-to-end) y Bloque 3 (activar Efadam, resto del
+roster) — todo en la rama `correcciones`, en ese orden.
 
 ---
 
@@ -932,7 +1017,8 @@ para el razonamiento completo.
 13. ~~Localizar y leer "Infinite power.md > Método > Multiproyecto"~~ — **hecho (15 de agosto, noche, cuarta ronda):** localizada en `docs/vision/Infinite power.md`, fusionada a este documento (ver actualización correspondiente arriba) y la nota original eliminada.
 14. ~~Decidir qué hacer con dos archivos sueltos sin commitear~~ — **hecho (15 de agosto, noche):** `schema/_tmp_diag_github.ps1` (apuntaba al workflow "Sync conocimiento del sistema" ya borrado) y `schema/_tmp_inspect_schedule.js` (exploración puntual de internals de `ScheduleTrigger`, ya resuelta) se revisaron — sin secretos en texto plano — y se borraron del disco. Nunca estuvieron trackeados en git, así que no generaron commit.
 15. ~~Decidir cómo Efadam clasifica el nivel de importancia con confiabilidad~~ — **hecho (15 de agosto, noche, tercera ronda):** reglas explícitas por dominio/tema, no criterio libre — ver `stack_y_convenciones.md`, "Reglas de asignación", y actualización correspondiente arriba.
-16. ~~Implementar en n8n la lógica real de aplicar la tabla de reglas de nivel~~ — **hecho (16 de agosto):** migración `schema/005_nivel_importancia.sql` corrida contra Postgres; nodo "Llamar a omniroute" del Ejecutor genérico editado vía API de n8n para leer `tasks.nivel_importancia` en vez de `bots.default_model`. Lo que queda (no cubierto por este punto): configurar los alias de LiteLLM/OmniRoute y activar Efadam para que empiece a poblar `nivel_importancia` de verdad — ver punto 1.
+16. ~~Implementar en n8n la lógica real de aplicar la tabla de reglas de nivel~~ — **hecho (16 de agosto):** migración `schema/005_nivel_importancia.sql` corrida contra Postgres; nodo "Llamar a omniroute" del Ejecutor genérico editado vía API de n8n para leer `tasks.nivel_importancia` en vez de `bots.default_model`. Lo que queda (no cubierto por este punto): configurar los 4 combos de OmniRoute (uno por nivel) y activar Efadam para que empiece a poblar `nivel_importancia` de verdad — ver punto 1.
+20. **Nuevo (16 de agosto, tarde/noche — respuesta a auditoría externa):** completar Bloque 0 de la auditoría en la rama `correcciones` (exportar workflows de n8n a `n8n-workflows/*.json`, script de backup de Postgres, `.gitattributes`, mover password a `.env`, `N8N_ENCRYPTION_KEY`, `GENERIC_TIMEZONE`); después Bloque 1 (reparar contradicciones de documentación: `estado_del_proyecto.md`, 5 lugares con "fuente de verdad" contradictoria, sección obsoleta de `ejecutor_generico.md`, enlaces rotos, duplicados en el Claude Project); Bloque 2 (confirmar schema de creación de combos en OmniRoute y configurar los 4 niveles, propagar `nivel_importancia` a tareas hijas en "Parsear asignaciones"/"Crear tareas hijas", ingestión de Telegram, límite de profundidad, prueba end-to-end real); Bloque 3 (activar Efadam en `bots`, resto del roster). Ver actualización del 16 de agosto, tarde/noche, arriba para el detalle completo y las decisiones de Mateo (nunca borrar/mergear ramas; no congelar el alcance de producto distribuible).
 17. **Nuevo (post Fase 2, no ahora):** construir Multiproyecto — schema por proyecto en Postgres, tabla `proyectos`, nodos Postgres con schema dinámico. Antes: confirmar que los workflows actuales de n8n no tienen el schema hardcodeado.
 18. **Nuevo:** construir el mecanismo de Revert (tabla `reverts`, `archived_at`/`archived_reason` en `knowledge_log` y demás tablas relevantes) — sin fecha fija, pero vale la pena tenerlo antes de que el sistema empiece a tomar decisiones con consecuencia real que alguien quiera poder revisar/archivar.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).
