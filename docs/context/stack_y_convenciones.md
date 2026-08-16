@@ -121,60 +121,73 @@ edición al prompt del bot ni a las reglas de asignación.
 
 ### Cómo se traduce nivel → modelo real (mecanismo concreto)
 
-Quedaba sin especificar, hasta el 16 de agosto de 2026, *cómo* exactamente
-OmniRoute recibe el nivel y decide el modelo — se documentaba el principio
-("OmniRoute traduce") sin el mecanismo. Resuelto así:
+**Corrección del 16 de agosto de 2026, tarde — la versión anterior de esta
+sección estaba mal.** Decía "OmniRoute es LiteLLM self-hosted" y describía
+un `config.yaml` con alias de modelo al estilo LiteLLM. Eso se escribió sin
+verificarlo contra lo que corre en la máquina de Mateo, y es falso: se
+verificó entrando al contenedor `infinite-power-omniroute-1` y leyendo su
+documentación interna (`/app/docs`). **OmniRoute no es LiteLLM — es un
+proyecto de código abierto distinto y genuino**, literalmente llamado
+OmniRoute (`diegosouzapw/OmniRoute`, "The Free AI Gateway": ~290
+proveedores, 90+ capas gratis, dashboard propio en `:20128`). El
+`config.yaml`/`litellm_params` documentado antes no existe en esta
+instalación — es una fabricación, hay que descartarlo por completo.
 
-- **OmniRoute es LiteLLM self-hosted** (proxy open-source, expone un
-  endpoint `/v1/chat/completions` compatible con OpenAI, ya soporta
-  múltiples proveedores y **alias de modelo** de forma nativa — no hay que
-  construir lógica de ruteo propia). Corre empaquetado en el mismo
-  `docker-compose.yml` del sistema (ver más abajo, "OmniRoute viene
-  empaquetado").
+**Lo que sí está confirmado (leído directo de `/app/docs/reference/API_REFERENCE.md`
+dentro del contenedor):**
+
+- Los proveedores (Groq, Gemini, etc.) se conectan vía el dashboard de
+  OmniRoute (`http://localhost:20128`), no vía un archivo de config editado
+  a mano — algunos ni siquiera piden API key (Kiro, OpenCode Free,
+  Pollinations).
+- OmniRoute soporta **combos con nombre**: `GET/POST /api/combos*` para
+  administrarlos, y una petición de chat puede referenciar un combo
+  directamente por su nombre en el campo `model` (coincide primero por
+  nombre, luego por id — documentado en `API_REFERENCE.md` línea ~99).
+- Existe además `/api/model-combo-mappings` (`POST` con body
+  `{pattern, comboId, priority?, enabled?, description?}`) para redirigir
+  un id de modelo estilo OpenAI hacia un combo — un segundo camino para
+  lograr lo mismo.
+- El sistema también trae ruteo automático nativo por prefijo
+  (`auto`, `auto/coding`, `auto/cheap`, `auto/fast`, etc. — ver
+  `/app/docs/routing/AUTO-COMBO.md`), que no es lo que este proyecto
+  necesita (no deja nombrar 4 niveles fijos con sus propios modelos), pero
+  confirma que el concepto de "nombre → modelo real" sí es nativo aquí,
+  solo que con otro nombre (combo) y otra API.
+
+**Lo que NO está confirmado todavía — pendiente, no inventar:** el esquema
+exacto para crear un combo (qué campos acepta `POST /api/combos`, cómo se
+fija que el combo `alto` siempre resuelva a un proveedor/modelo específico
+sin fallback automático a otro). La forma más segura de averiguarlo es
+crear un combo de prueba desde el dashboard (`:20128` → sección Combos) y
+leer el `POST /api/combos` que dispara el navegador, en vez de asumir el
+body. Este dato falta y bloquea configurar los 4 niveles — es el pendiente
+inmediato antes de dar por completo el mecanismo.
+
+**Lo que no cambia con esta corrección (el principio de diseño sigue
+vigente, solo cambió la herramienta que lo implementa):**
+
 - El nodo "Llamar a OmniRoute" del Ejecutor genérico manda el valor de
-  `tasks.nivel_importancia` **tal cual, en el campo `model` del request**
-  (ej. `model: "alto"`) — no un campo separado, no una tabla de lookup
-  adicional en Postgres.
-- Del lado de LiteLLM (`config.yaml` del proxy, parte del empaquetado), hay
-  **4 alias de modelo configurados**, uno por nivel — `bajo`, `medio`,
-  `alto`, `critico` — cada uno apuntando al modelo real (proveedor +
-  nombre) que corresponde en esa instalación. Ese archivo de config es
-  exactamente lo que cambia cuando el usuario hace BYOK o sube de nivel: se
-  reasigna a qué modelo apunta el alias, nunca se toca n8n ni los prompts.
-- Consecuencia práctica para el schema: `tasks.nivel_importancia` reemplaza
-  a `bots.default_model` como fuente del modelo a usar (`default_model`
-  queda en la tabla sin uso activo por ahora — no se elimina la columna
-  hasta decidir si sirve para algún caso de forzar modelo fuera de
-  niveles, lo cual no está decidido). Ver `schema/005_nivel_importancia.sql`.
+  `tasks.nivel_importancia` tal cual en el campo `model` del request (ej.
+  `model: "alto"`) — eso no depende de si el receptor es LiteLLM o
+  OmniRoute, cualquier proxy compatible con el formato OpenAI puede recibir
+  ese campo igual.
+- `tasks.nivel_importancia` sigue reemplazando a `bots.default_model` como
+  fuente del modelo a usar. Ver `schema/005_nivel_importancia.sql`.
+- Cambiar qué modelo resuelve un nivel sigue siendo, en principio, una
+  edición del lado del router (ahora: reconfigurar el combo `alto` en
+  OmniRoute), nunca un cambio a un prompt de bot ni al workflow de n8n —
+  eso se mantiene una vez que se confirme el esquema real de combos.
 
-**Ejemplo de `config.yaml` de LiteLLM (default gratis de instalación):**
-
-```yaml
-model_list:
-  - model_name: bajo
-    litellm_params:
-      model: groq/llama-3.1-8b-instant
-      api_key: os.environ/GROQ_API_KEY
-  - model_name: medio
-    litellm_params:
-      model: groq/llama-3.3-70b-versatile
-      api_key: os.environ/GROQ_API_KEY
-  - model_name: alto
-    litellm_params:
-      model: gemini/gemini-2.0-flash
-      api_key: os.environ/GEMINI_API_KEY
-  - model_name: critico
-    litellm_params:
-      model: gemini/gemini-2.0-flash
-      api_key: os.environ/GEMINI_API_KEY
-```
-
-Los modelos reales del ejemplo son placeholders de la capa gratis
-(ajustar al catálogo vigente de cada proveedor al momento de empaquetar) —
-lo que importa del ejemplo es la forma: `model_name` es literalmente el
-nivel (lo que el Ejecutor manda en `model`), `litellm_params.model` es el
-modelo/proveedor real. Si el usuario agrega su propia llave de pago para
-`alto`/`critico`, lo único que cambia es el bloque de esos dos niveles.
+> **Nota del 16 de agosto, tarde:** todo lo que sigue de aquí hasta
+> "Decidido... reglas explícitas" describe el escenario de producto
+> distribuible (empaquetado, setup con BYOK, "un OmniRoute por instalación").
+> La auditoría del mismo día señaló que ese scope se coló en decisiones de
+> diseño antes de que el sistema completara una sola corrida autónoma real,
+> contradiciendo el propio criterio de Mateo ("solo los bots que de verdad
+> usarías esta semana"). Pendiente de decisión explícita si esta sección se
+> congela hasta que el sistema para un solo operador funcione una semana
+> seguida — ver `plan_de_accion_completo.md`.
 
 **OmniRoute viene empaquetado, no configurado a mano.** OmniRoute (y n8n,
 junto con el workflow del Ejecutor genérico ya importado) se distribuyen

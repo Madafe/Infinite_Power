@@ -138,17 +138,20 @@ esas reglas, y el bot que la ejecuta hereda ese nivel — nunca lo elige ni lo
 cambia. Efadam **declara el nivel, nunca un modelo específico**.
 
 **Cómo se traduce nivel → modelo real (mecanismo concreto, no solo
-principio):** el nodo "Llamar a OmniRoute" del Ejecutor genérico manda el
+principio):** el nodo "Llamar a omniroute" del Ejecutor genérico manda el
 valor de `tasks.nivel_importancia` tal cual en el campo `model` del request
-a OmniRoute (ej. `model: "alto"`), en vez de `bots.default_model` como
-hacía la v1. OmniRoute (LiteLLM self-hosted, empaquetado junto con el
-sistema — ver `stack_y_convenciones.md`) tiene 4 **alias de modelo**
-configurados de su lado, uno por nivel, cada uno apuntando al modelo real
-que corresponde en esa instalación (ej. alias `alto` → `groq/llama-3.3-70b`
-hoy, o el modelo de pago que el usuario haya configurado). Esto es una
-feature nativa de LiteLLM (model aliasing), no lógica nueva que construir:
-cambiar qué modelo resuelve un nivel es editar la config de LiteLLM, nunca
-tocar el prompt de un bot ni el workflow de n8n.
+(ej. `model: "alto"`), en vez de `bots.default_model` como hacía la v1.
+**Corrección del 16 de agosto, tarde:** versiones anteriores de este
+documento decían que OmniRoute era LiteLLM y describían un `config.yaml`
+de alias — verificado directo contra el contenedor real y es falso.
+OmniRoute es un proyecto distinto (`diegosouzapw/OmniRoute`) con su propio
+mecanismo de **combos con nombre** (`/api/combos*`, referenciables por
+nombre en el campo `model`) y un endpoint de mapeo
+(`/api/model-combo-mappings`) para redirigir un id de modelo hacia un
+combo. El esquema exacto para crear los 4 combos (`bajo`/`medio`/`alto`/
+`critico`) todavía no está confirmado — detalle completo y qué falta
+verificar en `stack_y_convenciones.md`, sección "Cómo se traduce nivel →
+modelo real".
 
 ## Reglas y límites
 

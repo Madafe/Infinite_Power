@@ -67,7 +67,10 @@ al siguiente — ya no por fase horizontal ("escribir los 40 prompts primero"):
 
 ## Bots activos hoy en la tabla `bots`
 
-`tecnico_jefe` (despacha), `coder`.
+**Corrección del 16 de agosto, tarde — verificado directo contra Postgres,
+esta sección tenía un bot de menos.** `tecnico_jefe` (despacha), `coder`,
+`trouble_shooter` (despacha, `conocimiento_directo = true` — ver
+`memoria_del_sistema.md`).
 Todo lo demás del roster está escrito pero **no activo**. Un bot que no está
 en `bots` con `active = true` no existe para el sistema.
 
@@ -83,6 +86,7 @@ no necesita el schema de Postgres para un dictamen legal).
 | `efadam` | `{arquitectura, stack_y_convenciones}` — el estado en vivo del sistema (tareas pendientes, qué reportó cada center) lo lee directo de `tasks`/`agent_runs`, no de aquí |
 | `tecnico_jefe` | `{arquitectura, stack_y_convenciones}` |
 | `coder` | `{stack_y_convenciones}` |
+| `trouble_shooter` | `{}` — no necesita saber cómo está armado el sistema, solo el diagnóstico de la tarea fallida que recibe |
 | Legal (cuando entren) | `{}` — no necesitan saber cómo está armado el sistema |
 
 Detalle completo de este mecanismo (incluyendo por qué Efadam es la única
