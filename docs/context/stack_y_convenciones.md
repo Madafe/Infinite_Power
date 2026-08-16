@@ -179,15 +179,18 @@ vigente, solo cambió la herramienta que lo implementa):**
   OmniRoute), nunca un cambio a un prompt de bot ni al workflow de n8n —
   eso se mantiene una vez que se confirme el esquema real de combos.
 
-> **Nota del 16 de agosto, tarde:** todo lo que sigue de aquí hasta
-> "Decidido... reglas explícitas" describe el escenario de producto
-> distribuible (empaquetado, setup con BYOK, "un OmniRoute por instalación").
-> La auditoría del mismo día señaló que ese scope se coló en decisiones de
-> diseño antes de que el sistema completara una sola corrida autónoma real,
-> contradiciendo el propio criterio de Mateo ("solo los bots que de verdad
-> usarías esta semana"). Pendiente de decisión explícita si esta sección se
-> congela hasta que el sistema para un solo operador funcione una semana
-> seguida — ver `plan_de_accion_completo.md`.
+> **Nota del 16 de agosto, tarde — decidido, ya no pendiente.** Todo lo que
+> sigue de aquí hasta "Decidido... reglas explícitas" describe el escenario
+> de producto distribuible (empaquetado, setup con BYOK, "un OmniRoute por
+> instalación"). La auditoría del mismo día señaló que ese scope se coló en
+> decisiones de diseño antes de que el sistema completara una sola corrida
+> autónoma real, y preguntó si esta sección debía congelarse hasta que el
+> sistema para un solo operador funcione una semana seguida. **Mateo
+> respondió que no** — congelarlo arriesga construir una mala base, porque
+> producto distribuible es el objetivo final del proyecto y tiene que
+> seguir en la vista aunque no sea el foco de trabajo inmediato. La sección
+> sigue vigente como diseño, sin fecha de implementación forzada — ver
+> actualización del 16 de agosto, tarde/noche, en `plan_de_accion_completo.md`.
 
 **OmniRoute viene empaquetado, no configurado a mano.** OmniRoute (y n8n,
 junto con el workflow del Ejecutor genérico ya importado) se distribuyen
