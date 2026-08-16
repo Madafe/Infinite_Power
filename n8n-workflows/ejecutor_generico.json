@@ -1,0 +1,1024 @@
+﻿{
+    "updatedAt":  "2026-08-16T05:01:49.686Z",
+    "createdAt":  "2026-08-11T23:09:01.171Z",
+    "id":  "aVORciBJl52lTxTU",
+    "name":  "Ejecutor genérico",
+    "description":  null,
+    "active":  false,
+    "isArchived":  false,
+    "nodes":  [
+                  {
+                      "parameters":  {
+
+                                     },
+                      "type":  "n8n-nodes-base.manualTrigger",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -96,
+                                       0
+                                   ],
+                      "id":  "aeb520fe-566a-4201-9d98-780d896b7d0c",
+                      "name":  "When clicking ‘Execute workflow’"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "UPDATE tasks\nSET status = \u0027running\u0027, updated_at = now()\nWHERE id = (\n  SELECT id FROM tasks\n  WHERE status = \u0027pending\u0027\n  ORDER BY created_at\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n)\nRETURNING *;",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       128,
+                                       0
+                                   ],
+                      "id":  "d48e6e6c-56e2-4160-b8f2-19533ee6c02f",
+                      "name":  "Reclamar tarea pendiente",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "d118eff9-ab2d-453e-b2ed-1fba1550bc6f",
+                                                                                   "leftValue":  "={{ $json.id }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "notEmpty",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "looseTypeValidation":  true,
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       352,
+                                       64
+                                   ],
+                      "id":  "dcfbcc91-1aaf-492e-a1cf-cfd07cf60965",
+                      "name":  "¿Hay tarea?"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT * FROM bots WHERE slug = \u0027{{ $json.bot }}\u0027 AND active = true LIMIT 1;",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       576,
+                                       64
+                                   ],
+                      "id":  "4bbaaa71-68a8-47cd-8ce5-91762f17e624",
+                      "name":  "Obtener config del bot",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "http://omniroute:20128/v1/chat/completions",
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ JSON.stringify({\n  model: $(\u0027Reclamar tarea pendiente\u0027).first().json.nivel_importancia,\n  messages: [\n    { role: \"system\", content: $(\u0027Obtener config del bot\u0027).first().json.system_prompt },\n    { role: \"system\", content: $(\u0027Obtener contexto de tarea padre\u0027).first().json.parent_input ? `Contexto: esta tarea fue asignada por ${$(\u0027Obtener contexto de tarea padre\u0027).first().json.parent_bot} a partir de: ${$(\u0027Obtener contexto de tarea padre\u0027).first().json.parent_input}` : \"Esta tarea no tiene contexto previo; es la primera de su cadena.\" },\n    ...($(\u0027Cargar contexto\u0027).first().json.system_knowledge ? [{ role: \"system\", content: \"## Conocimiento del sistema\\n\\n\" + $(\u0027Cargar contexto\u0027).first().json.system_knowledge }] : []),\n    ...($(\u0027Cargar contexto\u0027).first().json.knowledge_log ? [{ role: \"system\", content: \"## Casos y patrones ya conocidos - usalos, no los re-investigues\\n\\n\" + $(\u0027Cargar contexto\u0027).first().json.knowledge_log }] : []),\n    { role: \"user\", content: $(\u0027Reclamar tarea pendiente\u0027).first().json.input.text }\n  ]\n}) }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.5,
+                      "position":  [
+                                       1248,
+                                       112
+                                   ],
+                      "id":  "d3023428-2a64-490f-9308-ab94ba77fc2f",
+                      "name":  "Llamar a omniroute",
+                      "retryOnFail":  true,
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "UPDATE tasks SET status = $1, output = $2, updated_at = now() WHERE id = $3;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$(\u0027Obtener config del bot\u0027).first().json.requires_approval ? \u0027needs_approval\u0027 : \u0027done\u0027, $json.choices[0].message.content, $(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       1696,
+                                       48
+                                   ],
+                      "id":  "48b34caf-1148-4c3c-9c96-b6da5265271d",
+                      "name":  "Guardar resultado",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "3f1503c4-c5e6-476d-87ca-48dc01467a96",
+                                                                                   "leftValue":  "={{ $(\u0027Obtener config del bot\u0027).first().json.dispatches_tasks }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               },
+                                                                               {
+                                                                                   "id":  "3860e7e7-8f91-458d-8dc2-4e27ea3b91e2",
+                                                                                   "leftValue":  "={{ $(\u0027Obtener config del bot\u0027).first().json.requires_approval }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "false",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "looseTypeValidation":  true,
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       1920,
+                                       32
+                                   ],
+                      "id":  "98032e6c-4969-42aa-983b-eeba58d8bce5",
+                      "name":  "¿Este bot despacha tareas?",
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const salida = JSON.parse($(\u0027Llamar a omniroute\u0027).first().json.choices[0].message.content);\nconst parentId = $(\u0027Reclamar tarea pendiente\u0027).first().json.id;\nconst clusterPropio = $(\u0027Obtener config del bot\u0027).first().json.cluster;\nreturn salida.asignaciones.map(a =\u003e ({\n  json: {\n    cluster: a.cluster || clusterPropio,\n    bot: a.bot,\n    status: \"pending\",\n    input: { text: a.input, modo: a.modo },\n    parent_task_id: parentId\n  }\n}));"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2368,
+                                       464
+                                   ],
+                      "id":  "f5dc8107-d5b3-4d80-922a-c6f438a0452f",
+                      "name":  "Parsear asignaciones",
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "INSERT INTO tasks (cluster, bot, status, input, parent_task_id) VALUES ($1, $2, $3, $4, $5);",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$json.cluster, $json.bot, $json.status, JSON.stringify($json.input), $json.parent_task_id] }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       2592,
+                                       512
+                                   ],
+                      "id":  "b55ab6a0-ff74-483e-8d10-9086afc0aea3",
+                      "name":  "Crear tareas hijas",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "9a9f103d-aeed-4d6f-a61e-f286159ea884",
+                                                                                   "leftValue":  "={{ $(\u0027Obtener config del bot\u0027).first().json.requires_approval }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       2144,
+                                       240
+                                   ],
+                      "id":  "b44f788d-adbe-490c-8c54-07decd9df92e",
+                      "name":  "¿Requiere aprobación?",
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "chatId":  "-5436560130",
+                                         "text":  "={{ $(\u0027Llamar a omniroute\u0027).item.json.choices[0].message.content }}",
+                                         "additionalFields":  {
+
+                                                              }
+                                     },
+                      "type":  "n8n-nodes-base.telegram",
+                      "typeVersion":  1.2,
+                      "position":  [
+                                       2368,
+                                       -688
+                                   ],
+                      "id":  "bc2ffe26-8704-43dd-869e-6543a6ab1a15",
+                      "name":  "Send a text message",
+                      "webhookId":  "1455de8c-8b23-4329-8937-0077dbcc8832",
+                      "credentials":  {
+                                          "telegramApi":  {
+                                                              "id":  "ERjVpxAa0CTVNhll",
+                                                              "name":  "Telegram account"
+                                                          }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "UPDATE tasks SET status = \u0027failed\u0027, output = $1, updated_at = now() WHERE id = $2;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$json.error?.message ?? JSON.stringify($json), $(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       2816,
+                                       16
+                                   ],
+                      "id":  "95516d5e-db42-4334-a28b-bf8192613ddd",
+                      "name":  "Marcar como fallida",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "9a9f103d-aeed-4d6f-a61e-f286159ea884",
+                                                                                   "leftValue":  "={{ $(\u0027Obtener config del bot\u0027).first().json.requires_approval }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       2144,
+                                       -144
+                                   ],
+                      "id":  "fa16ab11-b8b1-4439-a34a-32a0740db5af",
+                      "name":  "¿Requiere aprobación?1",
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "36078b7f-60f7-4a0e-88b3-8babfb15ff28",
+                                                                                   "leftValue":  "={{ $json.choices[0].message.content.startsWith(\u0027NECESITA_ACLARACION:\u0027) }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       1472,
+                                       -320
+                                   ],
+                      "id":  "bc495257-1401-4e36-a2ba-528899dc74f0",
+                      "name":  "¿Necesita aclaración?"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT p.bot AS bot_padre, p.cluster AS cluster_padre\nFROM tasks t\nLEFT JOIN tasks p ON p.id = t.parent_task_id\nWHERE t.id = $1;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       1920,
+                                       -560
+                                   ],
+                      "id":  "f817ea73-a92d-4f38-808e-3440375d90ad",
+                      "name":  "Obtener bot que asignó",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "d346c925-3bc3-46dc-91aa-f8aa14f8b794",
+                                                                                   "leftValue":  "={{ $json.bot_padre }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "notEmpty",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "looseTypeValidation":  true,
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       2144,
+                                       -704
+                                   ],
+                      "id":  "77a3a807-2412-44c3-b2ea-50e59d0d9f55",
+                      "name":  "¿Tiene padre?",
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "INSERT INTO tasks (cluster, bot, status, input, parent_task_id) VALUES ($1, $2, \u0027pending\u0027, $3, $4);",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$json.cluster_padre, $json.bot_padre, JSON.stringify({ text: $(\u0027Llamar a omniroute\u0027).first().json.choices[0].message.content.replace(\u0027NECESITA_ACLARACION: \u0027, \u0027\u0027) }), $(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       2368,
+                                       -896
+                                   ],
+                      "id":  "0ddea90a-5e0d-4709-a6d9-12c362d2e655",
+                      "name":  "Crear tarea de aclaración",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "UPDATE tasks SET status = \u0027blocked\u0027, updated_at = now() WHERE id = $1 AND status \u003c\u003e \u0027needs_approval\u0027;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       2592,
+                                       -976
+                                   ],
+                      "id":  "ecebdd47-4cfc-45c6-b6a3-8cd2cc1ad890",
+                      "name":  "Bloquear tarea original",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT p.input-\u003e\u003e\u0027text\u0027 AS parent_input, p.bot AS parent_bot\nFROM tasks t\nLEFT JOIN tasks p ON p.id = t.parent_task_id\nWHERE t.id = $1;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       800,
+                                       0
+                                   ],
+                      "id":  "7b245428-7cff-4112-b88b-b48086e6c8a0",
+                      "name":  "Obtener contexto de tarea padre",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "with sk as (\n  select coalesce(string_agg(titulo || E\u0027\\n\u0027 || contenido, E\u0027\\n\\n---\\n\\n\u0027 order by slug), \u0027\u0027) as txt\n  from system_knowledge\n  where slug = any($1::text[])\n),\nkl_rows as (\n  select tipo, titulo, resumen_corto, detalle_completo, veces_visto, updated_at\n  from knowledge_log\n  where activo and (cluster is null or cluster = $2)\n  order by updated_at desc\n  limit 15\n),\nkl as (\n  select coalesce(string_agg(\n      \u0027- [\u0027 || tipo || \u0027 - visto \u0027 || veces_visto || \u0027x] \u0027 || titulo || \u0027 -\u003e \u0027 || resumen_corto\n      || coalesce(E\u0027\\n  Fix conocido: \u0027 || detalle_completo, \u0027\u0027),\n      E\u0027\\n\u0027 order by updated_at desc), \u0027\u0027) as txt\n  from kl_rows\n)\nselect sk.txt as system_knowledge, kl.txt as knowledge_log from sk, kl;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$(\u0027Obtener config del bot\u0027).first().json.contexto_slugs, $(\u0027Reclamar tarea pendiente\u0027).first().json.cluster] }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       1024,
+                                       -80
+                                   ],
+                      "id":  "6593bfb6-e66a-4c68-84d8-2a4393c8909a",
+                      "name":  "Cargar contexto",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const cfg = $(\u0027Obtener config del bot\u0027).first().json;\nif (!cfg.conocimiento_directo) return [];\nlet out;\ntry { out = JSON.parse($(\u0027Llamar a omniroute\u0027).first().json.choices[0].message.content); }\ncatch (e) { return []; }\nconst p = out.patron_aprendido;\nif (!p || !p.patron) return [];\nconst tarea = $(\u0027Reclamar tarea pendiente\u0027).first().json;\nreturn [{ json: {\n  titulo: String(p.patron).slice(0, 200),\n  resumen_corto: p.causa_raiz || \u0027\u0027,\n  detalle_completo: p.fix || \u0027\u0027,\n  cluster: tarea.cluster,\n  origen_bot: tarea.bot,\n  task_id: tarea.id\n}}];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2368,
+                                       752
+                                   ],
+                      "id":  "db055c0e-5528-4120-a3bc-309a199c8fd5",
+                      "name":  "Extraer patron",
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "insert into knowledge_log (tipo, titulo, resumen_corto, detalle_completo, cluster, origen_bot, task_id)\nvalues (\u0027patron_fallo\u0027, $1, $2, $3, $4, $5, $6)\non conflict (lower(titulo)) where tipo = \u0027patron_fallo\u0027\ndo update set veces_visto = knowledge_log.veces_visto + 1, updated_at = now();",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$json.titulo, $json.resumen_corto, $json.detalle_completo, $json.cluster, $json.origen_bot, $json.task_id] }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       2592,
+                                       800
+                                   ],
+                      "id":  "c7cf01a5-a259-463c-b0ed-f8e9e6494bbf",
+                      "name":  "Guardar patron",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  }
+              ],
+    "connections":  {
+                        "When clicking ‘Execute workflow’":  {
+                                                                 "main":  [
+                                                                              [
+                                                                                  {
+                                                                                      "node":  "Reclamar tarea pendiente",
+                                                                                      "type":  "main",
+                                                                                      "index":  0
+                                                                                  }
+                                                                              ]
+                                                                          ]
+                                                             },
+                        "Reclamar tarea pendiente":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "¿Hay tarea?",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ],
+                                                                      [
+                                                                          {
+                                                                              "node":  "Marcar como fallida",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                        "¿Hay tarea?":  {
+                                            "main":  [
+                                                         [
+                                                             {
+                                                                 "node":  "Obtener config del bot",
+                                                                 "type":  "main",
+                                                                 "index":  0
+                                                             }
+                                                         ]
+                                                     ]
+                                        },
+                        "Obtener config del bot":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Obtener contexto de tarea padre",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ],
+                                                                    [
+                                                                        {
+                                                                            "node":  "Marcar como fallida",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "Llamar a omniroute":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "¿Necesita aclaración?",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ],
+                                                                [
+                                                                    {
+                                                                        "node":  "Marcar como fallida",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Guardar resultado":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "¿Este bot despacha tareas?",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   },
+                                                                   {
+                                                                       "node":  "Extraer patron",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ],
+                                                               [
+                                                                   {
+                                                                       "node":  "Marcar como fallida",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "¿Este bot despacha tareas?":  {
+                                                           "main":  [
+                                                                        [
+                                                                            {
+                                                                                "node":  "¿Requiere aprobación?",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ],
+                                                                        [
+                                                                            {
+                                                                                "node":  "¿Requiere aprobación?1",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ],
+                                                                        [
+                                                                            {
+                                                                                "node":  "Marcar como fallida",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ]
+                                                                    ]
+                                                       },
+                        "Parsear asignaciones":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Crear tareas hijas",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ],
+                                                                  [
+                                                                      {
+                                                                          "node":  "Marcar como fallida",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "Crear tareas hijas":  {
+                                                   "main":  [
+                                                                [
+
+                                                                ],
+                                                                [
+                                                                    {
+                                                                        "node":  "Marcar como fallida",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "¿Requiere aprobación?":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Send a text message",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ],
+                                                                   [
+                                                                       {
+                                                                           "node":  "Parsear asignaciones",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ],
+                                                                   [
+                                                                       {
+                                                                           "node":  "Marcar como fallida",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Send a text message":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Bloquear tarea original",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ],
+                                                                 [
+                                                                     {
+                                                                         "node":  "Marcar como fallida",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "¿Requiere aprobación?1":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Send a text message",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ],
+                                                                    [
+
+                                                                    ],
+                                                                    [
+                                                                        {
+                                                                            "node":  "Marcar como fallida",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "¿Necesita aclaración?":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Obtener bot que asignó",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ],
+                                                                   [
+                                                                       {
+                                                                           "node":  "Guardar resultado",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Obtener bot que asignó":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "¿Tiene padre?",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ],
+                                                                    [
+                                                                        {
+                                                                            "node":  "Marcar como fallida",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "¿Tiene padre?":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Crear tarea de aclaración",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ],
+                                                           [
+                                                               {
+                                                                   "node":  "Send a text message",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ],
+                                                           [
+                                                               {
+                                                                   "node":  "Marcar como fallida",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Crear tarea de aclaración":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "Bloquear tarea original",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ],
+                                                                       [
+                                                                           {
+                                                                               "node":  "Marcar como fallida",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                        "Bloquear tarea original":  {
+                                                        "main":  [
+                                                                     [
+
+                                                                     ],
+                                                                     [
+                                                                         {
+                                                                             "node":  "Marcar como fallida",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "Obtener contexto de tarea padre":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Cargar contexto",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ],
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Marcar como fallida",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                        "Cargar contexto":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Llamar a omniroute",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ],
+                                                             [
+                                                                 {
+                                                                     "node":  "Marcar como fallida",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Extraer patron":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Guardar patron",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ],
+                                                            [
+                                                                {
+                                                                    "node":  "Marcar como fallida",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Guardar patron":  {
+                                               "main":  [
+                                                            [
+
+                                                            ],
+                                                            [
+                                                                {
+                                                                    "node":  "Marcar como fallida",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "binaryMode":  "separate",
+                     "availableInMCP":  false
+                 },
+    "staticData":  null,
+    "meta":  {
+                 "templateCredsSetupCompleted":  true
+             },
+    "nodeGroups":  [
+
+                   ],
+    "pinData":  {
+
+                },
+    "versionId":  "6700d452-5bf0-4d1f-bd59-c2d097c1b82d",
+    "activeVersionId":  null,
+    "versionCounter":  245,
+    "triggerCount":  0,
+    "sourceWorkflowId":  null,
+    "shared":  [
+                   {
+                       "updatedAt":  "2026-08-11T23:09:01.171Z",
+                       "createdAt":  "2026-08-11T23:09:01.171Z",
+                       "role":  "workflow:owner",
+                       "workflowId":  "aVORciBJl52lTxTU",
+                       "projectId":  "mr3ONFLuLoDFG9LP",
+                       "project":  {
+                                       "updatedAt":  "2026-08-11T16:44:47.998Z",
+                                       "createdAt":  "2026-08-11T16:41:49.033Z",
+                                       "id":  "mr3ONFLuLoDFG9LP",
+                                       "name":  "Mateo Varela \u003cmvarela@bintix.mx\u003e",
+                                       "type":  "personal",
+                                       "icon":  null,
+                                       "description":  null,
+                                       "customTelemetryTags":  [
+
+                                                               ],
+                                       "creatorId":  "a271e2bc-ff73-41ca-9dfd-a55cb54ad81f"
+                                   }
+                   }
+               ],
+    "tags":  [
+
+             ],
+    "activeVersion":  null
+}
