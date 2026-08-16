@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: infpower
-      POSTGRES_PASSWORD: infpower154
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: infinite_power
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
@@ -23,7 +23,10 @@ services:
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_DATABASE=infinite_power
       - DB_POSTGRESDB_USER=infpower
-      - DB_POSTGRESDB_PASSWORD=infpower154
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=America/Mexico_City
+      - TZ=America/Mexico_City
     volumes:
       - ./data/n8n:/home/node/.n8n
     depends_on:
