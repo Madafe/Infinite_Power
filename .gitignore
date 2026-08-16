@@ -4,3 +4,5 @@ data/
 backups/
 # Obsidian workspace local (no compartir estado de ventanas)
 .obsidian/workspace.json
+
+.obsidian/graph.json

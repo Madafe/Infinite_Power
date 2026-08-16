@@ -1,0 +1,13 @@
+# Normaliza line endings a LF en el repo (Git los convierte a CRLF al
+# hacer checkout en Windows si hace falta, pero el repo mismo queda
+# consistente) - evita diffs falsos por line-endings vistos en la
+# auditoria del 16 de agosto de 2026 (docker-compose.yml,
+# memoria_del_sistema.md, "Upgrade & review center.md", .gitignore).
+* text=auto eol=lf
+
+# Binarios: no tocar
+*.xlsx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
