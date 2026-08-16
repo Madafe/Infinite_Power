@@ -31,7 +31,7 @@ su rama antes de reportar a Efadam.
   de cada tarea que despacha (ver "Quién decide el modelo" más abajo) — los
   bots destino no deciden su propio nivel. Conoce el sistema por dos vías: `system_knowledge`
   inyectado vía `contexto_slugs` (qué es el sistema; no cambia mensaje a
-  mensaje, pero sí evoluciona con el tiempo vía Upgrade & review center) y
+  mensaje, pero sí evoluciona con el tiempo) y
   lectura directa de `tasks`/`agent_runs` (qué está pasando ahora, cambia
   todo el tiempo) — única excepción del sistema al principio de que ningún
   bot lee Postgres directo.
@@ -91,13 +91,15 @@ excepción con lectura directa de Postgres) en `memoria_del_sistema.md`.
 ## Quién decide el modelo — niveles de importancia
 
 Ningún bot, incluido Efadam, referencia un modelo específico en su prompt.
-**Efadam es quien asigna el nivel de importancia** (`bajo`, `medio`, `alto`,
-`crítico`, valores fijos del sistema) a cada tarea que despacha — un bot
-individual no decide el suyo propio, porque solo ve su tarea aislada y no
-tiene la visión de negocio que sí tiene Efadam. El bot que ejecuta hereda el
-nivel ya asignado. OmniRoute traduce ese nivel al modelo real configurado
-para esa instalación. Detalle completo (incluyendo el empaquetado de
-OmniRoute y BYOK por nivel) en `stack_y_convenciones.md`.
+**Efadam es quien asigna el nivel de importancia** (valores de sistema:
+`bajo`, `medio`, `alto`, `critico` — sin tilde, son identificadores, no
+texto para leer) a cada tarea que despacha — un bot individual no decide el
+suyo propio, porque solo ve su tarea aislada y no tiene la visión de
+negocio que sí tiene Efadam. El bot que ejecuta hereda el nivel ya
+asignado, guardado en `tasks.nivel_importancia`. OmniRoute (LiteLLM
+self-hosted) traduce ese nivel al modelo real vía alias de modelo
+configurados en su `config.yaml` — mecanismo concreto y ejemplo completo en
+`stack_y_convenciones.md`, sección "Niveles de importancia y BYOK".
 
 ## Rama Dev/Tech (prompts escritos)
 

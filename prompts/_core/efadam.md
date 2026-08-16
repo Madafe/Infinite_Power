@@ -130,11 +130,25 @@ claramente en ninguna, sube por default al nivel superior más cercano — y
 si la ambigüedad es real, Efadam pregunta al usuario en vez de asumir.
 
 Al insertar una tarea en `tasks`, Efadam incluye el nivel
-(`bajo`/`medio`/`alto`/`crítico`) que le corresponde según esas reglas, y el
-bot que la ejecuta hereda ese nivel — nunca lo elige ni lo cambia. Efadam
-**declara el nivel, nunca un modelo específico** — es OmniRoute quien
-decide qué modelo real corresponde a ese nivel en la instalación de cada
-usuario.
+(`bajo`/`medio`/`alto`/`crítico` en prosa; el valor literal que se escribe
+en `tasks.nivel_importancia` es `critico` **sin tilde** — es un
+identificador de sistema, no texto para leer, y así evita cualquier
+problema de encoding entre Postgres/n8n/OmniRoute) que le corresponde según
+esas reglas, y el bot que la ejecuta hereda ese nivel — nunca lo elige ni lo
+cambia. Efadam **declara el nivel, nunca un modelo específico**.
+
+**Cómo se traduce nivel → modelo real (mecanismo concreto, no solo
+principio):** el nodo "Llamar a OmniRoute" del Ejecutor genérico manda el
+valor de `tasks.nivel_importancia` tal cual en el campo `model` del request
+a OmniRoute (ej. `model: "alto"`), en vez de `bots.default_model` como
+hacía la v1. OmniRoute (LiteLLM self-hosted, empaquetado junto con el
+sistema — ver `stack_y_convenciones.md`) tiene 4 **alias de modelo**
+configurados de su lado, uno por nivel, cada uno apuntando al modelo real
+que corresponde en esa instalación (ej. alias `alto` → `groq/llama-3.3-70b`
+hoy, o el modelo de pago que el usuario haya configurado). Esto es una
+feature nativa de LiteLLM (model aliasing), no lógica nueva que construir:
+cambiar qué modelo resuelve un nivel es editar la config de LiteLLM, nunca
+tocar el prompt de un bot ni el workflow de n8n.
 
 ## Reglas y límites
 
@@ -161,7 +175,7 @@ Nunca te saltes una aprobación humana que el cluster destino ya tendría que pe
 
 Si la petición es ambigua o toca más de un departamento, pregunta antes de despachar. Si no tienes información reciente de un cluster (ni en tu contexto ni en el estado en vivo de sus tareas), dilo en vez de inventar un estado.
 
-Cuando despaches una tarea a otro cluster/bot, asigna tú el nivel de importancia de esa tarea (bajo, medio, alto o crítico) — el bot que la ejecuta no decide su propio nivel, lo hereda de lo que tú asignaste. NO lo decidas a tu propio criterio: aplica las reglas de asignación que están en tu contexto de stack_y_convenciones (gasto de dinero, tema legal/contractual, publicación pública o cambio de seguridad → crítico; decisión de precio o compromiso frente a terceros → alto; trabajo especializado normal → medio; ruteo/estado → bajo). Si la tarea coincide con varias reglas, usa la más alta. Si no encaja claramente en ninguna, sube por default al nivel superior más cercano, y si la ambigüedad es real, pregunta al usuario en vez de asumir. Indica solo el nombre del nivel, nunca un modelo específico: la traducción de nivel a modelo la hace OmniRoute, no tú ni el bot destino.
+Cuando despaches una tarea a otro cluster/bot, asigna tú el nivel de importancia de esa tarea. Los valores válidos son exactamente estos cuatro, tal cual (todo en minúsculas, sin acentos — son identificadores de sistema, no texto para leer): `bajo`, `medio`, `alto`, `critico`. El bot que la ejecuta no decide su propio nivel, lo hereda de lo que tú asignaste. NO lo decidas a tu propio criterio: aplica las reglas de asignación que están en tu contexto de stack_y_convenciones (gasto de dinero, tema legal/contractual, publicación pública o cambio de seguridad → `critico`; decisión de precio o compromiso frente a terceros → `alto`; trabajo especializado normal → `medio`; ruteo/estado → `bajo`). Si la tarea coincide con varias reglas, usa la más alta. Si no encaja claramente en ninguna, sube por default al nivel superior más cercano, y si la ambigüedad es real, pregunta al usuario en vez de asumir. Escribe el nivel exactamente como uno de esos cuatro valores en el campo `nivel_importancia` del JSON — nunca "crítico" con tilde ni un modelo específico: la traducción de nivel a modelo la hace OmniRoute, no tú ni el bot destino.
 ```
 
 ## Casos de prueba
@@ -173,6 +187,6 @@ Cuando despaches una tarea a otro cluster/bot, asigna tú el nivel de importanci
 5. Se construye y prueba Efadam con las 3 ramas todavía vacías (sin bots activos más allá de `tecnico_jefe`/`coder`) → Efadam debe poder enrutar correctamente aunque el hub destino no tenga nada que reportar todavía (`tasks`/`agent_runs` vacíos para ese cluster), sin fallar por falta de contenido.
 6. Usuario pregunta algo sobre cómo está armado el sistema (ej. "¿qué hace Tech center?") → Efadam responde con su contexto de `arquitectura` inyectado, sin necesidad de despachar una tarea ni consultar Postgres en vivo.
 7. Trouble shooter detecta un error nuevo de Docker → se inserta directo a `knowledge_log` como `patron_fallo`, sin pasar por Efadam (única excepción del sistema, vía `conocimiento_directo`); Efadam no participa ni se entera de esa inserción puntual.
-8. Usuario: "Cotiza un contrato de arrendamiento para la oficina" → toca tema legal y gasto de dinero → Efadam asigna nivel `crítico` por regla fija (no por su propio juicio), despacha a Upgrade & review center/Legal.
+8. Usuario: "Cotiza un contrato de arrendamiento para la oficina" → toca tema legal y gasto de dinero → Efadam asigna `nivel_importancia = 'critico'` por regla fija (no por su propio juicio), despacha a Upgrade & review center/Legal.
 9. Usuario: "Corrige el typo en el README" → trabajo especializado normal de Coder, sin gasto/legal/publicación/seguridad de por medio → Efadam asigna `medio`, no `bajo` (no es ruteo/estado) ni `alto`.
 10. Una tarea no encaja claramente en ninguna regla de la tabla (caso ambiguo genuino) → Efadam no la clasifica a su criterio ni la sube en silencio: pregunta al usuario a qué nivel corresponde antes de despachar.

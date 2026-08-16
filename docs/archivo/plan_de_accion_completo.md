@@ -5,7 +5,40 @@ Para: Mateo + amigo · 7 de agosto de 2026
 
 ---
 
-## Actualización — 15 de agosto de 2026, noche, cuarta ronda (Setup, Revert, Multiproyecto — fusionados desde nota de visión aislada) — VIGENTE, léase primero
+## Actualización — 16 de agosto de 2026 (mecanismo concreto nivel → modelo, `schema/005_nivel_importancia.sql`) — VIGENTE, léase primero
+
+Quedaba un hueco real señalado por Mateo: se documentaba "OmniRoute traduce
+nivel → modelo" como principio, sin especificar nunca el mecanismo. Resuelto:
+
+- **`nivel_importancia` vive en `tasks`, no en `bots`** — coherente con que
+  Efadam asigna el nivel por tarea, no por bot fijo. Migración nueva:
+  `schema/005_nivel_importancia.sql` (columna + check constraint). Reemplaza
+  a `bots.default_model` como fuente del modelo a llamar (esa columna queda
+  sin uso activo, no se elimina por ahora).
+- **OmniRoute es LiteLLM self-hosted.** El nodo "Llamar a OmniRoute" del
+  Ejecutor manda el nivel tal cual en el campo `model` del request (ej.
+  `model: "alto"`); LiteLLM resuelve ese valor vía **alias de modelo**
+  (feature nativa, `model_name` = nivel en su `config.yaml`) al modelo real
+  configurado para esa instalación. No hay tabla de lookup nueva ni lógica
+  de ruteo propia que construir. Ejemplo completo de `config.yaml` en
+  `stack_y_convenciones.md`.
+- **Corrección de encoding:** los 4 valores literales del sistema
+  (`tasks.nivel_importancia`, alias de LiteLLM, lo que Efadam escribe en el
+  JSON de la tarea) son `bajo`/`medio`/`alto`/`critico` — **sin tilde en
+  "critico"**, porque son identificadores de sistema, no texto para leer.
+  El prompt de Efadam (`efadam.md`) tenía "crítico" con tilde, lo cual
+  habría roto el `INSERT` en cuanto Efadam generara una tarea crítica de
+  verdad — corregido antes de activarlo, no después. La prosa de los
+  documentos sigue usando tilde donde es solo lectura humana.
+
+**Consecuencia práctica:** el pendiente #16 de abajo queda parcialmente
+resuelto (el mecanismo de traducción ya está diseñado y accionable); lo que
+falta ahí es solo correr la migración y ajustar el nodo 5 del Ejecutor en
+n8n — se hace junto con el punto 1 (activar Efadam).
+
+---
+
+## Actualización — 15 de agosto de 2026, noche, cuarta ronda (Setup, Revert, Multiproyecto — fusionados desde nota de visión aislada) — histórica, ver actualización de arriba para lo más reciente
 
 Se fusionó a este documento el contenido que no estaba cubierto en ningún
 otro lado de una nota de visión antigua y aislada (`docs/vision/Infinite
@@ -888,7 +921,7 @@ para el razonamiento completo.
 13. ~~Localizar y leer "Infinite power.md > Método > Multiproyecto"~~ — **hecho (15 de agosto, noche, cuarta ronda):** localizada en `docs/vision/Infinite power.md`, fusionada a este documento (ver actualización correspondiente arriba) y la nota original eliminada.
 14. ~~Decidir qué hacer con dos archivos sueltos sin commitear~~ — **hecho (15 de agosto, noche):** `schema/_tmp_diag_github.ps1` (apuntaba al workflow "Sync conocimiento del sistema" ya borrado) y `schema/_tmp_inspect_schedule.js` (exploración puntual de internals de `ScheduleTrigger`, ya resuelta) se revisaron — sin secretos en texto plano — y se borraron del disco. Nunca estuvieron trackeados en git, así que no generaron commit.
 15. ~~Decidir cómo Efadam clasifica el nivel de importancia con confiabilidad~~ — **hecho (15 de agosto, noche, tercera ronda):** reglas explícitas por dominio/tema, no criterio libre — ver `stack_y_convenciones.md`, "Reglas de asignación", y actualización correspondiente arriba.
-16. Implementar en n8n la lógica real de aplicar la tabla de reglas de nivel (leer `system_knowledge`, evaluar la tarea contra las reglas, escribir `nivel_importancia` en `tasks`) — hoy solo existe el diseño en prosa, falta el nodo/lógica concreta. Puede construirse junto con el punto 1 (activar Efadam) ya que es parte de su función de despacho.
+16. ~~Implementar en n8n la lógica real de aplicar la tabla de reglas de nivel~~ — **parcialmente hecho (16 de agosto):** el mecanismo nivel → modelo ya está diseñado y accionable (`schema/005_nivel_importancia.sql`, alias de LiteLLM, ver actualización de arriba). Falta: correr la migración contra Postgres, y ajustar el nodo 5 ("Llamar a OmniRoute") del Ejecutor genérico en n8n para que mande `tasks.nivel_importancia` en vez de `bots.default_model`. Se hace junto con el punto 1 (activar Efadam).
 17. **Nuevo (post Fase 2, no ahora):** construir Multiproyecto — schema por proyecto en Postgres, tabla `proyectos`, nodos Postgres con schema dinámico. Antes: confirmar que los workflows actuales de n8n no tienen el schema hardcodeado.
 18. **Nuevo:** construir el mecanismo de Revert (tabla `reverts`, `archived_at`/`archived_reason` en `knowledge_log` y demás tablas relevantes) — sin fecha fija, pero vale la pena tenerlo antes de que el sistema empiece a tomar decisiones con consecuencia real que alguien quiera poder revisar/archivar.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).

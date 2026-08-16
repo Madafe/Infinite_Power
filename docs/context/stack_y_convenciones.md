@@ -18,13 +18,16 @@
 ## Tablas
 
 - `tasks` — cola compartida. `id, cluster, bot, status, input jsonb, output text,
-  parent_task_id, created_at, updated_at`.
+  parent_task_id, nivel_importancia, created_at, updated_at`.
   Estados: `pending, running, done, failed, blocked, needs_approval`.
-  `output` es **text**, no jsonb.
+  `output` es **text**, no jsonb. `nivel_importancia` (`bajo`/`medio`/`alto`/`critico`,
+  sin tilde) la asigna Efadam al despachar — ver "Niveles de importancia y BYOK".
 - `bots` — configuración de cada bot: `slug, cluster, prompt_especifico,
-  system_prompt (derivado), nivel_importancia, contexto_slugs,
-  conocimiento_directo, requires_approval, dispatches_tasks, active`.
+  system_prompt (derivado), contexto_slugs, conocimiento_directo,
+  requires_approval, dispatches_tasks, active`. `default_model` sigue en la
+  tabla pero sin uso activo desde que `nivel_importancia` pasó a `tasks`.
 - `approvals`, `agent_runs` — aprobaciones y logs (agent_runs se llena en Fase 4).
+
 - `system_knowledge` — autoconciencia del sistema: arquitectura, stack, reglas.
   No cambia mensaje a mensaje, pero sí evoluciona con el tiempo — la fuente
   de verdad es la tabla misma (el repo es solo el seed inicial, cargado una
@@ -58,7 +61,7 @@ asignaciones en JSON estricto que el ejecutor convierte en tareas hijas.
   herramientas, reglas y límites, cuándo pedir aprobación humana, prompt de
   sistema final, casos de prueba.
 
-## Niveles de importancia y BYOK (rediseño del 15 de agosto de 2026, noche)
+## Niveles de importancia y BYOK (rediseño del 15 de agosto de 2026, noche; mecanismo concreto añadido el 16 de agosto)
 
 **Reemplaza el modelo anterior de "Presupuesto"** (una sola instancia de
 OmniRoute cargada a mano con las llaves de Mateo, capas gratis por default,
@@ -86,14 +89,20 @@ clasificar, no juzgar.
 ### Reglas de asignación (por dominio/tema, no por cluster destino)
 
 Efadam evalúa la tarea contra estas reglas, en orden — si una tarea coincide
-con varias, **gana la de nivel más alto**:
+con varias, **gana la de nivel más alto**. Los 4 nombres en prosa
+(`bajo`/`medio`/`alto`/`crítico`) son para lectura humana; el **valor
+literal** que Efadam escribe en `tasks.nivel_importancia` y que
+`bots.default_model` deja de usar es, siempre, sin tilde y en minúsculas —
+`bajo` / `medio` / `alto` / `critico` — porque es un identificador de
+sistema (check constraint de Postgres + alias de modelo en OmniRoute), no
+texto que un humano lee. Ver "Cómo se traduce nivel → modelo real" abajo.
 
-| si la tarea implica... | nivel mínimo |
-|---|---|
-| gasto de dinero (cualquier monto), tema legal/contractual, publicación de contenido público, cambio de configuración de seguridad | `crítico` |
-| decisión de precio, contratación/despido, dictamen que compromete al negocio frente a un tercero (cliente, proveedor, autoridad) | `alto` |
-| trabajo especializado de un bot dentro de su dominio normal (código, investigación, redacción interna, análisis) sin las condiciones de arriba | `medio` |
-| ruteo, resumen de estado, tareas mecánicas de alta frecuencia (el modo normal de Efadam mismo) | `bajo` |
+| si la tarea implica... | nivel mínimo | valor literal |
+|---|---|---|
+| gasto de dinero (cualquier monto), tema legal/contractual, publicación de contenido público, cambio de configuración de seguridad | crítico | `critico` |
+| decisión de precio, contratación/despido, dictamen que compromete al negocio frente a un tercero (cliente, proveedor, autoridad) | alto | `alto` |
+| trabajo especializado de un bot dentro de su dominio normal (código, investigación, redacción interna, análisis) sin las condiciones de arriba | medio | `medio` |
+| ruteo, resumen de estado, tareas mecánicas de alta frecuencia (el modo normal de Efadam mismo) | bajo | `bajo` |
 
 Estas reglas viven en `system_knowledge` (no hardcodeadas en el prompt de
 Efadam) para que Upgrade & review center pueda proponer ajustes con el
@@ -109,6 +118,63 @@ OmniRoute es el **único** traductor de nivel → modelo real. Esto mantiene los
 prompts de los bots estables aunque el usuario cambie de proveedor: cambiar
 qué modelo resuelve `alto` es una configuración de OmniRoute, nunca una
 edición al prompt del bot ni a las reglas de asignación.
+
+### Cómo se traduce nivel → modelo real (mecanismo concreto)
+
+Quedaba sin especificar, hasta el 16 de agosto de 2026, *cómo* exactamente
+OmniRoute recibe el nivel y decide el modelo — se documentaba el principio
+("OmniRoute traduce") sin el mecanismo. Resuelto así:
+
+- **OmniRoute es LiteLLM self-hosted** (proxy open-source, expone un
+  endpoint `/v1/chat/completions` compatible con OpenAI, ya soporta
+  múltiples proveedores y **alias de modelo** de forma nativa — no hay que
+  construir lógica de ruteo propia). Corre empaquetado en el mismo
+  `docker-compose.yml` del sistema (ver más abajo, "OmniRoute viene
+  empaquetado").
+- El nodo "Llamar a OmniRoute" del Ejecutor genérico manda el valor de
+  `tasks.nivel_importancia` **tal cual, en el campo `model` del request**
+  (ej. `model: "alto"`) — no un campo separado, no una tabla de lookup
+  adicional en Postgres.
+- Del lado de LiteLLM (`config.yaml` del proxy, parte del empaquetado), hay
+  **4 alias de modelo configurados**, uno por nivel — `bajo`, `medio`,
+  `alto`, `critico` — cada uno apuntando al modelo real (proveedor +
+  nombre) que corresponde en esa instalación. Ese archivo de config es
+  exactamente lo que cambia cuando el usuario hace BYOK o sube de nivel: se
+  reasigna a qué modelo apunta el alias, nunca se toca n8n ni los prompts.
+- Consecuencia práctica para el schema: `tasks.nivel_importancia` reemplaza
+  a `bots.default_model` como fuente del modelo a usar (`default_model`
+  queda en la tabla sin uso activo por ahora — no se elimina la columna
+  hasta decidir si sirve para algún caso de forzar modelo fuera de
+  niveles, lo cual no está decidido). Ver `schema/005_nivel_importancia.sql`.
+
+**Ejemplo de `config.yaml` de LiteLLM (default gratis de instalación):**
+
+```yaml
+model_list:
+  - model_name: bajo
+    litellm_params:
+      model: groq/llama-3.1-8b-instant
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: medio
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: alto
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+  - model_name: critico
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+```
+
+Los modelos reales del ejemplo son placeholders de la capa gratis
+(ajustar al catálogo vigente de cada proveedor al momento de empaquetar) —
+lo que importa del ejemplo es la forma: `model_name` es literalmente el
+nivel (lo que el Ejecutor manda en `model`), `litellm_params.model` es el
+modelo/proveedor real. Si el usuario agrega su propia llave de pago para
+`alto`/`critico`, lo único que cambia es el bloque de esos dos niveles.
 
 **OmniRoute viene empaquetado, no configurado a mano.** OmniRoute (y n8n,
 junto con el workflow del Ejecutor genérico ya importado) se distribuyen
