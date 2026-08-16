@@ -43,6 +43,9 @@ Efadam se construye **primero**, antes que las 3 ramas — es el destino al que 
    preguntarlo ni adivinarlo. Este contenido no es fijo para siempre: cambia
    cuando Upgrade & review center lo actualiza (ver "Output que entrega" más
    abajo) — solo que no cambia en cada corrida, a diferencia del punto 2.
+   Dentro de `stack_y_convenciones` vienen también las **reglas de
+   asignación de nivel de importancia** (ver "Modelo sugerido" más abajo):
+   Efadam las aplica, no las inventa caso por caso.
 2. **Qué está pasando ahora (cambia todo el tiempo, se lee en vivo) —
    lectura directa de `tasks` y `agent_runs`.** Esto es la única excepción
    del sistema al principio de que ningún bot lee Postgres directo: el resto
@@ -107,14 +110,29 @@ estado de las 3 ramas a la vez), Efadam puede correr en nivel `medio` para
 esa tarea específica.
 
 **Para las tareas que Efadam despacha a otros bots: es Efadam quien asigna
-el nivel de importancia de cada tarea, no el bot destino.** Ningún bot
-individual (Coder, Abogado Jefe, etc.) decide su propio nivel — un bot solo
-ve su propia tarea aislada, no tiene el contexto de negocio para juzgar qué
-tan importante es en el panorama completo; esa visión es justamente lo que
-Efadam sí tiene. Al insertar una tarea en `tasks`, Efadam incluye el nivel
-(`bajo`/`medio`/`alto`/`crítico`) que le corresponde a esa tarea específica,
-y el bot que la ejecuta hereda ese nivel — nunca lo elige ni lo cambia.
-Efadam **declara el nivel, nunca un modelo específico** — es OmniRoute quien
+el nivel de importancia de cada tarea, aplicando reglas fijas — no
+criterio libre.** Ningún bot individual (Coder, Abogado Jefe, etc.) decide
+su propio nivel — un bot solo ve su propia tarea aislada, no tiene el
+contexto de negocio para juzgar qué tan importante es en el panorama
+completo. Pero tampoco lo decide Efadam a su propio juicio caso por caso:
+Efadam corre en nivel `bajo` (modelo barato), y pedirle que además juzgue
+con criterio libre qué tan importante es cada tarea lo haría el peor juez
+posible para esa decisión — mismo problema que ya existe con Trouble
+shooter y `patron_fallo`, aquí con más consecuencia real. Por eso Efadam
+**aplica una tabla de reglas por dominio/tema** (ver
+`stack_y_convenciones.md`, sección "Niveles de importancia y BYOK" →
+"Reglas de asignación"), no inventa el nivel: gasto de dinero, tema
+legal/contractual, publicación pública o cambio de seguridad son siempre
+`crítico`; decisiones de precio o compromisos frente a terceros son
+`alto`; trabajo especializado normal es `medio`; ruteo/estado es `bajo`. Si
+una tarea coincide con varias reglas, gana la más alta; si no encaja
+claramente en ninguna, sube por default al nivel superior más cercano — y
+si la ambigüedad es real, Efadam pregunta al usuario en vez de asumir.
+
+Al insertar una tarea en `tasks`, Efadam incluye el nivel
+(`bajo`/`medio`/`alto`/`crítico`) que le corresponde según esas reglas, y el
+bot que la ejecuta hereda ese nivel — nunca lo elige ni lo cambia. Efadam
+**declara el nivel, nunca un modelo específico** — es OmniRoute quien
 decide qué modelo real corresponde a ese nivel en la instalación de cada
 usuario.
 
@@ -143,7 +161,7 @@ Nunca te saltes una aprobación humana que el cluster destino ya tendría que pe
 
 Si la petición es ambigua o toca más de un departamento, pregunta antes de despachar. Si no tienes información reciente de un cluster (ni en tu contexto ni en el estado en vivo de sus tareas), dilo en vez de inventar un estado.
 
-Cuando despaches una tarea a otro cluster/bot, asigna tú el nivel de importancia de esa tarea (bajo, medio, alto o crítico) según su impacto real — el bot que la ejecuta no decide su propio nivel, lo hereda de lo que tú asignaste. Indica solo el nombre del nivel, nunca un modelo específico: la traducción de nivel a modelo la hace OmniRoute, no tú ni el bot destino.
+Cuando despaches una tarea a otro cluster/bot, asigna tú el nivel de importancia de esa tarea (bajo, medio, alto o crítico) — el bot que la ejecuta no decide su propio nivel, lo hereda de lo que tú asignaste. NO lo decidas a tu propio criterio: aplica las reglas de asignación que están en tu contexto de stack_y_convenciones (gasto de dinero, tema legal/contractual, publicación pública o cambio de seguridad → crítico; decisión de precio o compromiso frente a terceros → alto; trabajo especializado normal → medio; ruteo/estado → bajo). Si la tarea coincide con varias reglas, usa la más alta. Si no encaja claramente en ninguna, sube por default al nivel superior más cercano, y si la ambigüedad es real, pregunta al usuario en vez de asumir. Indica solo el nombre del nivel, nunca un modelo específico: la traducción de nivel a modelo la hace OmniRoute, no tú ni el bot destino.
 ```
 
 ## Casos de prueba
@@ -155,3 +173,6 @@ Cuando despaches una tarea a otro cluster/bot, asigna tú el nivel de importanci
 5. Se construye y prueba Efadam con las 3 ramas todavía vacías (sin bots activos más allá de `tecnico_jefe`/`coder`) → Efadam debe poder enrutar correctamente aunque el hub destino no tenga nada que reportar todavía (`tasks`/`agent_runs` vacíos para ese cluster), sin fallar por falta de contenido.
 6. Usuario pregunta algo sobre cómo está armado el sistema (ej. "¿qué hace Tech center?") → Efadam responde con su contexto de `arquitectura` inyectado, sin necesidad de despachar una tarea ni consultar Postgres en vivo.
 7. Trouble shooter detecta un error nuevo de Docker → se inserta directo a `knowledge_log` como `patron_fallo`, sin pasar por Efadam (única excepción del sistema, vía `conocimiento_directo`); Efadam no participa ni se entera de esa inserción puntual.
+8. Usuario: "Cotiza un contrato de arrendamiento para la oficina" → toca tema legal y gasto de dinero → Efadam asigna nivel `crítico` por regla fija (no por su propio juicio), despacha a Upgrade & review center/Legal.
+9. Usuario: "Corrige el typo en el README" → trabajo especializado normal de Coder, sin gasto/legal/publicación/seguridad de por medio → Efadam asigna `medio`, no `bajo` (no es ruteo/estado) ni `alto`.
+10. Una tarea no encaja claramente en ninguna regla de la tabla (caso ambiguo genuino) → Efadam no la clasifica a su criterio ni la sube en silencio: pregunta al usuario a qué nivel corresponde antes de despachar.

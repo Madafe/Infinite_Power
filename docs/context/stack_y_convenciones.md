@@ -70,27 +70,45 @@ distribuible — cada instalación necesita su propio OmniRoute, con sus
 propias llaves, no la de Mateo.
 
 **Principio central: los bots nunca declaran un modelo, y no deciden su
-propio nivel — Efadam lo asigna.** Ningún prompt de ningún bot (ni Efadam)
-menciona el nombre de un modelo. Y, a diferencia de una versión anterior de
-este documento, **el nivel tampoco lo decide cada bot por sí mismo**: un bot
-individual solo ve su propia tarea aislada, sin el contexto de negocio para
-juzgar qué tan importante es en el panorama completo. Es **Efadam** quien
-asigna el `nivel_importancia` (columna en `tasks`, heredada por el bot que
-ejecuta) al despachar cada tarea — igual que ya decide a qué cluster va, ya
-decide qué tan importante es. Los 4 valores son fijos del sistema — no
-configurables en cantidad ni nombre, solo en qué modelo resuelve cada uno:
+propio nivel — Efadam lo asigna aplicando reglas fijas, no criterio libre.**
+Ningún prompt de ningún bot (ni Efadam) menciona el nombre de un modelo. Y,
+a diferencia de dos versiones anteriores de este documento, **el nivel no lo
+decide cada bot por sí mismo, ni lo juzga Efadam caso por caso**: Efadam
+corre en nivel `bajo` (modelo barato/rápido) para no agotar presupuesto en
+ruteo, y pedirle que además juzgue con criterio libre qué tan importante es
+cada tarea lo convertiría en el peor juez posible para esa decisión — mismo
+problema ya documentado para `patron_fallo` ("el peor juez posible de qué
+vale la pena recordar"), aquí con más consecuencia real (elegir modelo caro
+vs. gratis en algo potencialmente legal o financiero). Por eso el nivel se
+fija con **reglas explícitas por dominio/tema**, que Efadam solo aplica —
+clasificar, no juzgar.
 
-| nivel | uso típico |
+### Reglas de asignación (por dominio/tema, no por cluster destino)
+
+Efadam evalúa la tarea contra estas reglas, en orden — si una tarea coincide
+con varias, **gana la de nivel más alto**:
+
+| si la tarea implica... | nivel mínimo |
 |---|---|
-| `bajo` | ruteo de alta frecuencia, tareas mecánicas (ej. Efadam en su modo normal) |
-| `medio` | trabajo estándar de un bot especializado (ej. Coder, Trouble shooter) |
-| `alto` | decisiones con impacto de negocio real (ej. Consultor de negocios, Abogado Jefe) |
-| `crítico` | máximo riesgo o síntesis compleja (ej. Council, Out of the box thinker) |
+| gasto de dinero (cualquier monto), tema legal/contractual, publicación de contenido público, cambio de configuración de seguridad | `crítico` |
+| decisión de precio, contratación/despido, dictamen que compromete al negocio frente a un tercero (cliente, proveedor, autoridad) | `alto` |
+| trabajo especializado de un bot dentro de su dominio normal (código, investigación, redacción interna, análisis) sin las condiciones de arriba | `medio` |
+| ruteo, resumen de estado, tareas mecánicas de alta frecuencia (el modo normal de Efadam mismo) | `bajo` |
+
+Estas reglas viven en `system_knowledge` (no hardcodeadas en el prompt de
+Efadam) para que Upgrade & review center pueda proponer ajustes con el
+mismo flujo de "cuello de botella" ya documentado (Efadam solicita, U&R
+center evalúa y redacta, Efadam inserta) — igual que cualquier otra pieza de
+`system_knowledge`, no una excepción nueva al mecanismo. Cualquier caso que
+no encaje claramente en ninguna fila **sube por default al nivel superior
+más cercano** (nunca se redondea hacia abajo en caso de duda) y, si la
+ambigüedad es real, Efadam pregunta al usuario en vez de asumir — mismo
+principio que ya aplica para enrutar a un cluster ambiguo.
 
 OmniRoute es el **único** traductor de nivel → modelo real. Esto mantiene los
 prompts de los bots estables aunque el usuario cambie de proveedor: cambiar
 qué modelo resuelve `alto` es una configuración de OmniRoute, nunca una
-edición al prompt del bot.
+edición al prompt del bot ni a las reglas de asignación.
 
 **OmniRoute viene empaquetado, no configurado a mano.** OmniRoute (y n8n,
 junto con el workflow del Ejecutor genérico ya importado) se distribuyen
@@ -116,24 +134,15 @@ sus propias llaves, aislada de cualquier otra instalación — incluida la de
 Mateo. Esto es lo que hace posible que el producto se distribuya a terceros
 sin que cada quien dependa de las credenciales de otra persona.
 
-**Riesgo abierto, sin resolver todavía: qué tan confiable es que Efadam
-clasifique el nivel.** OmniRoute resuelve con certeza la parte mecánica
-(nivel → modelo real) — eso no es lo dudoso. Lo dudoso es la clasificación
-misma: Efadam corre en nivel `bajo` (modelo barato/rápido) para no agotar
-presupuesto en ruteo, y es ese mismo modelo barato el que tiene que decidir
-si una tarea es `alto` o `crítico`. Un modelo barato juzgando qué tan
-importante es algo es, por construcción, el peor juez posible para esa
-decisión específica — mismo problema ya documentado para `patron_fallo`
-("el peor juez posible de qué vale la pena recordar"), aplicado aquí a una
-decisión con más consecuencia real (elegir modelo caro vs. gratis en algo
-potencialmente legal o financiero). Dos caminos posibles, sin decidir
-todavía cuál: (a) Efadam clasifica con criterio libre en cada caso, más
-flexible pero más propenso a subestimar algo importante; (b) reglas
-explícitas por tipo de tarea/cluster que Efadam solo aplica (ej. "todo lo
-que toque Legal o gasto de dinero es mínimo `alto`, sin excepción"), más
-predecible y auditable pero menos flexible. Decidir esto antes de construir
-la lógica de asignación en Efadam — no bloqueante para el resto del diseño,
-pero sí para implementarlo bien.
+**Decidido (15 de agosto de 2026, noche): reglas explícitas, no criterio
+libre.** Quedaba abierto si la clasificación de nivel debía ser criterio
+libre de Efadam o reglas fijas — se resolvió a favor de reglas fijas por
+dominio/tema (ver tabla arriba), justo por el riesgo de que un modelo barato
+juzgue con criterio libre algo con consecuencia real. Esto no elimina el
+riesgo por completo (las reglas mismas podrían tener huecos, y el "sube por
+default" es la mitigación para ese caso), pero sí lo acota a algo auditable
+y corregible vía el mecanismo normal de `system_knowledge`, en vez de
+depender del juicio momento a momento de un modelo gratuito.
 
 ## Gotchas de n8n ya documentados (no repetirlos)
 

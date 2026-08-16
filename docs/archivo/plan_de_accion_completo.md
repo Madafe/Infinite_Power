@@ -5,23 +5,30 @@ Para: Mateo + amigo · 7 de agosto de 2026
 
 ---
 
-## Actualización — 15 de agosto de 2026, noche, segunda ronda (corrección: Efadam asigna el nivel, no cada bot) — VIGENTE, léase primero
+## Actualización — 15 de agosto de 2026, noche, tercera ronda (reglas explícitas de nivel — resuelto) — VIGENTE, léase primero
+
+Se resolvió el pendiente de diseño de la actualización inmediata de abajo:
+Efadam **no** clasifica el nivel de importancia con criterio libre — aplica
+una tabla de reglas fijas por dominio/tema (`stack_y_convenciones.md`,
+"Reglas de asignación"): gasto de dinero/legal/publicación/seguridad →
+`crítico`; precio/contratación/compromiso con terceros → `alto`; trabajo
+especializado normal → `medio`; ruteo/estado → `bajo`. Gana la regla más
+alta si hay varias; si no encaja en ninguna, sube por default; si la
+ambigüedad es real, Efadam pregunta. Las reglas viven en `system_knowledge`,
+ajustables por el mismo mecanismo de cuello de botella. Detalle en
+`stack_y_convenciones.md` y `efadam.md`.
+
+---
+
+## Actualización — 15 de agosto de 2026, noche, segunda ronda (corrección: Efadam asigna el nivel, no cada bot) — histórica, ver arriba
 
 Corrige un error de la actualización inmediata de abajo: decía "cada bot
 declara su nivel de importancia", lo cual contradice el resto del diseño de
-Efadam (un bot individual no tiene visión de negocio para juzgar su propia
-importancia; esa visión es justamente lo que hace Efadam). Corregido: es
-**Efadam** quien asigna el `nivel_importancia` de cada tarea al despacharla
-— el bot destino lo hereda, no lo decide. Detalle en `efadam.md` y
-`stack_y_convenciones.md`.
-
-**Pendiente de diseño, sin resolver:** Efadam corre en nivel `bajo` (modelo
-barato) para no agotar presupuesto en ruteo, pero es él quien tiene que
-juzgar si una tarea amerita `alto`/`crítico` — un modelo barato clasificando
-qué tan importante es algo es un riesgo real. Falta decidir si esa
-clasificación queda a criterio libre de Efadam caso por caso, o si se fija
-con reglas explícitas por tipo de tarea/cluster que Efadam solo aplica. Ver
-`stack_y_convenciones.md` para el detalle completo.
+Efadam. Corregido: es **Efadam** quien asigna el `nivel_importancia` de cada
+tarea al despacharla — el bot destino lo hereda, no lo decide. Detalle en
+`efadam.md` y `stack_y_convenciones.md`. Este documento dejó abierto, en su
+momento, si esa clasificación debía ser criterio libre o reglas fijas —
+resuelto arriba: reglas fijas.
 
 ---
 
@@ -250,10 +257,11 @@ para el razonamiento completo.
 9. Activar más bots en la tabla `bots` conforme cada componente vertical lo requiera — hoy solo `tecnico_jefe` y `coder` están activos.
 10. Corregir `consultor-de-arquitectura.md` y `trouble-scouter.md`, que aún referencian `project_knowledge`/`trouble_shooter_knowledge` (nombres ya descartados) — corregir antes de activarlos.
 11. **Implementar el empaquetado de OmniRoute + n8n para distribución** (diseño ya definido, ver actualización del 15 de agosto, noche, arriba y `stack_y_convenciones.md`): agregar la columna `bots.nivel_importancia` al schema, definir los defaults gratis por nivel dentro de la config de OmniRoute, y diseñar la pantalla/paso de setup donde el usuario ve los 4 niveles y puede añadir sus llaves. No es bloqueante para construir Efadam.
-12. Eliminar o resolver la duplicación de la nota `docs/vision/Efadam/Efadam.md` en Obsidian — su contenido ya se fusionó a `memoria_del_sistema.md` y `efadam.md`, pero el archivo original sigue existiendo por separado. Pendiente de que Mateo lo revise antes de borrarlo (solicitud explícita suya).
-13. Localizar y leer la referencia "Infinite power.md > Método > Multiproyecto", mencionada en la nota antigua de Efadam como pendiente sobre la cadencia con la que Efadam revisa proyectos activos — no localizada todavía.
+12. ~~Eliminar o resolver la duplicación de la nota `docs/vision/Efadam/Efadam.md`~~ — **hecho:** ya estaba fusionada, el archivo original se eliminó del repo (revisado y aprobado por Mateo).
+13. Localizar y leer la referencia "Infinite power.md > Método > Multiproyecto", mencionada en la nota antigua de Efadam (ya borrada) como pendiente sobre la cadencia con la que Efadam revisa proyectos activos — no localizada todavía.
 14. Decidir qué hacer con dos archivos sueltos sin commitear en el repo local (`schema/_tmp_diag_github.ps1`, `schema/_tmp_inspect_schedule.js`), que parecen debris de una sesión anterior.
-15. Decidir cómo Efadam clasifica el nivel de importancia con confiabilidad (corre en modelo barato, pero tiene que juzgar decisiones de alto impacto) — criterio libre vs. reglas explícitas por tipo de tarea/cluster. Ver actualización del 15 de agosto, noche, segunda ronda, arriba.
+15. ~~Decidir cómo Efadam clasifica el nivel de importancia~~ — **hecho:** reglas explícitas por dominio/tema, no criterio libre. Ver actualización del 15 de agosto, noche, tercera ronda, arriba.
+16. **Nuevo:** implementar en n8n la lógica real de aplicar la tabla de reglas de nivel (leer `system_knowledge`, evaluar la tarea, escribir `nivel_importancia` en `tasks`) — hoy solo existe el diseño en prosa; puede construirse junto con activar Efadam (punto 1).
 
 **Nota 15 de agosto:** la API key de n8n del paso 8 (Auto-expansión) ya existe
 y está en uso desde hoy (es la misma que permite conectarse a n8n local desde
