@@ -122,15 +122,36 @@ cualquier texto en español contra Postgres, y preferir `docker cp` +
 `psql -f` dentro del contenedor en vez de pipes de PowerShell para
 cualquier contenido no-ASCII.
 
-**Pendiente inmediato:** seguir el Bloque 0 (exportar los workflows de n8n
-a `n8n-workflows/*.json`, script de backup de Postgres, `.gitattributes` +
-normalizar los 4 archivos "sucios" solo por line endings, mover la
-contraseña de Postgres a `.env`, `N8N_ENCRYPTION_KEY` explícito,
-`GENERIC_TIMEZONE`), después Bloque 1 (reparación de contradicciones de
-documentación), Bloque 2 (combos de OmniRoute, propagar `nivel_importancia`
-a tareas hijas, ingestión de Telegram, seed de `system_knowledge`, límite
-de profundidad, prueba end-to-end) y Bloque 3 (activar Efadam, resto del
-roster) — todo en la rama `correcciones`, en ese orden.
+**Bloque 0 — completo (16 de agosto, noche).** Los 6 puntos, todos
+verificados de verdad, no solo aplicados a ciegas:
+
+- Workflows de n8n exportados a `n8n-workflows/*.json` (Ejecutor genérico,
+  Reanudador de bloqueados) — revisados, sin secretos embebidos.
+- `scripts/backup_postgres.ps1` — probado, generó un respaldo real de 3MB;
+  retiene los últimos 8, uso manual o programable via Windows Task
+  Scheduler (semanal recomendado).
+- `.gitattributes` (`* text=auto eol=lf`) para el ruido de line-endings que
+  señalaba la auditoría; de paso se gitignoró `.obsidian/graph.json`
+  (mismo tipo de estado local que `workspace.json`, no contenido real).
+- Password de Postgres y `N8N_ENCRYPTION_KEY` sacados de `docker-compose.yml`
+  en texto plano, movidos a `.env` (gitignored) + `.env.example` como
+  plantilla para instalaciones nuevas. La `N8N_ENCRYPTION_KEY` puesta es la
+  **misma** que n8n ya tenía auto-generada — no se rotó, solo se hizo
+  explícita, para no invalidar credenciales existentes.
+- `GENERIC_TIMEZONE`/`TZ=America/Mexico_City` agregado a n8n.
+- Aplicado con `docker compose up -d`: recreó el contenedor de n8n, se
+  verificó que subió limpio (migraciones corridas, mismo `encryptionKey`
+  confirmado dentro del contenedor) y que los 3 workflows existentes siguen
+  ahí y responden vía API sin haber perdido nada.
+
+**Pendiente inmediato:** Bloque 1 (reparación de contradicciones de
+documentación: `estado_del_proyecto.md`, 5 lugares con "fuente de verdad"
+contradictoria, sección obsoleta de `ejecutor_generico.md`, enlaces rotos,
+duplicados en el Claude Project), después Bloque 2 (combos de OmniRoute,
+propagar `nivel_importancia` a tareas hijas, ingestión de Telegram, seed de
+`system_knowledge`, límite de profundidad, prueba end-to-end) y Bloque 3
+(activar Efadam, resto del roster) — todo en la rama `correcciones`, en ese
+orden.
 
 ---
 
@@ -1018,7 +1039,7 @@ para el razonamiento completo.
 14. ~~Decidir qué hacer con dos archivos sueltos sin commitear~~ — **hecho (15 de agosto, noche):** `schema/_tmp_diag_github.ps1` (apuntaba al workflow "Sync conocimiento del sistema" ya borrado) y `schema/_tmp_inspect_schedule.js` (exploración puntual de internals de `ScheduleTrigger`, ya resuelta) se revisaron — sin secretos en texto plano — y se borraron del disco. Nunca estuvieron trackeados en git, así que no generaron commit.
 15. ~~Decidir cómo Efadam clasifica el nivel de importancia con confiabilidad~~ — **hecho (15 de agosto, noche, tercera ronda):** reglas explícitas por dominio/tema, no criterio libre — ver `stack_y_convenciones.md`, "Reglas de asignación", y actualización correspondiente arriba.
 16. ~~Implementar en n8n la lógica real de aplicar la tabla de reglas de nivel~~ — **hecho (16 de agosto):** migración `schema/005_nivel_importancia.sql` corrida contra Postgres; nodo "Llamar a omniroute" del Ejecutor genérico editado vía API de n8n para leer `tasks.nivel_importancia` en vez de `bots.default_model`. Lo que queda (no cubierto por este punto): configurar los 4 combos de OmniRoute (uno por nivel) y activar Efadam para que empiece a poblar `nivel_importancia` de verdad — ver punto 1.
-20. **Nuevo (16 de agosto, tarde/noche — respuesta a auditoría externa):** completar Bloque 0 de la auditoría en la rama `correcciones` (exportar workflows de n8n a `n8n-workflows/*.json`, script de backup de Postgres, `.gitattributes`, mover password a `.env`, `N8N_ENCRYPTION_KEY`, `GENERIC_TIMEZONE`); después Bloque 1 (reparar contradicciones de documentación: `estado_del_proyecto.md`, 5 lugares con "fuente de verdad" contradictoria, sección obsoleta de `ejecutor_generico.md`, enlaces rotos, duplicados en el Claude Project); Bloque 2 (confirmar schema de creación de combos en OmniRoute y configurar los 4 niveles, propagar `nivel_importancia` a tareas hijas en "Parsear asignaciones"/"Crear tareas hijas", ingestión de Telegram, límite de profundidad, prueba end-to-end real); Bloque 3 (activar Efadam en `bots`, resto del roster). Ver actualización del 16 de agosto, tarde/noche, arriba para el detalle completo y las decisiones de Mateo (nunca borrar/mergear ramas; no congelar el alcance de producto distribuible).
+20. ~~Completar Bloque 0 de la auditoría externa~~ — **hecho (16 de agosto, noche):** workflows de n8n exportados, script de backup probado, `.gitattributes`, password de Postgres y `N8N_ENCRYPTION_KEY` fuera de `docker-compose.yml` en texto plano (movidos a `.env`, misma key que ya existía — no se rotó), `GENERIC_TIMEZONE`. Todo en la rama `correcciones`, verificado (docker compose up -d recreó n8n sin perder workflows). Ver detalle en la actualización del 16 de agosto, tarde/noche, arriba. **Sigue pendiente, no cubierto por este punto:** Bloque 1 (reparar contradicciones de documentación: `estado_del_proyecto.md`, 5 lugares con "fuente de verdad" contradictoria, sección obsoleta de `ejecutor_generico.md`, enlaces rotos, duplicados en el Claude Project); Bloque 2 (confirmar schema de creación de combos en OmniRoute y configurar los 4 niveles, propagar `nivel_importancia` a tareas hijas en "Parsear asignaciones"/"Crear tareas hijas", ingestión de Telegram, límite de profundidad, prueba end-to-end real); Bloque 3 (activar Efadam en `bots`, resto del roster).
 17. **Nuevo (post Fase 2, no ahora):** construir Multiproyecto — schema por proyecto en Postgres, tabla `proyectos`, nodos Postgres con schema dinámico. Antes: confirmar que los workflows actuales de n8n no tienen el schema hardcodeado.
 18. **Nuevo:** construir el mecanismo de Revert (tabla `reverts`, `archived_at`/`archived_reason` en `knowledge_log` y demás tablas relevantes) — sin fecha fija, pero vale la pena tenerlo antes de que el sistema empiece a tomar decisiones con consecuencia real que alguien quiera poder revisar/archivar.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).
