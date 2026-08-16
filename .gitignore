@@ -1,5 +1,6 @@
 data/
 .env
 *.log
+backups/
 # Obsidian workspace local (no compartir estado de ventanas)
 .obsidian/workspace.json
