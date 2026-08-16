@@ -31,10 +31,21 @@ nivel → modelo" como principio, sin especificar nunca el mecanismo. Resuelto:
   verdad — corregido antes de activarlo, no después. La prosa de los
   documentos sigue usando tilde donde es solo lectura humana.
 
-**Consecuencia práctica:** el pendiente #16 de abajo queda parcialmente
-resuelto (el mecanismo de traducción ya está diseñado y accionable); lo que
-falta ahí es solo correr la migración y ajustar el nodo 5 del Ejecutor en
-n8n — se hace junto con el punto 1 (activar Efadam).
+**Ejecutado el mismo 16 de agosto:** la migración ya corrió contra Postgres
+(`ALTER TABLE`/`COMMENT` confirmados, `tasks.nivel_importancia` existe con
+su check constraint) y el nodo "Llamar a omniroute" del Ejecutor genérico
+(workflow `aVORciBJl52lTxTU` en n8n) ya se editó vía la API de n8n: el
+campo `model` del request ahora lee
+`$('Reclamar tarea pendiente').first().json.nivel_importancia` en vez de
+`$('Obtener config del bot').first().json.default_model` — verificado con
+un `GET` posterior al `PUT`. El pendiente #16 de abajo queda completo.
+
+**Todavía falta, no incluido en este cambio:** configurar los 4 alias de
+modelo del lado de LiteLLM/OmniRoute (`config.yaml`), e insertar a Efadam
+en la tabla `bots` — el nodo ya está listo para recibir `nivel_importancia`,
+pero hoy ninguna tarea trae ese campo poblado porque nada lo está asignando
+todavía (Efadam no existe como bot activo). Sin esos dos pasos, cualquier
+tarea nueva llegaría a OmniRoute con `model: null`.
 
 ---
 
@@ -921,7 +932,7 @@ para el razonamiento completo.
 13. ~~Localizar y leer "Infinite power.md > Método > Multiproyecto"~~ — **hecho (15 de agosto, noche, cuarta ronda):** localizada en `docs/vision/Infinite power.md`, fusionada a este documento (ver actualización correspondiente arriba) y la nota original eliminada.
 14. ~~Decidir qué hacer con dos archivos sueltos sin commitear~~ — **hecho (15 de agosto, noche):** `schema/_tmp_diag_github.ps1` (apuntaba al workflow "Sync conocimiento del sistema" ya borrado) y `schema/_tmp_inspect_schedule.js` (exploración puntual de internals de `ScheduleTrigger`, ya resuelta) se revisaron — sin secretos en texto plano — y se borraron del disco. Nunca estuvieron trackeados en git, así que no generaron commit.
 15. ~~Decidir cómo Efadam clasifica el nivel de importancia con confiabilidad~~ — **hecho (15 de agosto, noche, tercera ronda):** reglas explícitas por dominio/tema, no criterio libre — ver `stack_y_convenciones.md`, "Reglas de asignación", y actualización correspondiente arriba.
-16. ~~Implementar en n8n la lógica real de aplicar la tabla de reglas de nivel~~ — **parcialmente hecho (16 de agosto):** el mecanismo nivel → modelo ya está diseñado y accionable (`schema/005_nivel_importancia.sql`, alias de LiteLLM, ver actualización de arriba). Falta: correr la migración contra Postgres, y ajustar el nodo 5 ("Llamar a OmniRoute") del Ejecutor genérico en n8n para que mande `tasks.nivel_importancia` en vez de `bots.default_model`. Se hace junto con el punto 1 (activar Efadam).
+16. ~~Implementar en n8n la lógica real de aplicar la tabla de reglas de nivel~~ — **hecho (16 de agosto):** migración `schema/005_nivel_importancia.sql` corrida contra Postgres; nodo "Llamar a omniroute" del Ejecutor genérico editado vía API de n8n para leer `tasks.nivel_importancia` en vez de `bots.default_model`. Lo que queda (no cubierto por este punto): configurar los alias de LiteLLM/OmniRoute y activar Efadam para que empiece a poblar `nivel_importancia` de verdad — ver punto 1.
 17. **Nuevo (post Fase 2, no ahora):** construir Multiproyecto — schema por proyecto en Postgres, tabla `proyectos`, nodos Postgres con schema dinámico. Antes: confirmar que los workflows actuales de n8n no tienen el schema hardcodeado.
 18. **Nuevo:** construir el mecanismo de Revert (tabla `reverts`, `archived_at`/`archived_reason` en `knowledge_log` y demás tablas relevantes) — sin fecha fija, pero vale la pena tenerlo antes de que el sistema empiece a tomar decisiones con consecuencia real que alguien quiera poder revisar/archivar.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).
