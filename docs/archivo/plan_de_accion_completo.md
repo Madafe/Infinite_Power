@@ -173,6 +173,40 @@ pusheó `correcciones` sin problema — confirmado contra `origin/correcciones`.
 `Desktop_Commander` disponible — no depende de correr la tarea "en tu
 computadora" salvo que `Desktop_Commander` se vuelva a desconectar.
 
+**Limpieza de duplicados en el Claude Project — hecho (17 de agosto).**
+`trouble-shooter.md`, `tecnico-jefe.md`, `plan_de_accion_completo.md` y
+`ejecutor_generico.md` tenían dos copias cada uno (una vieja del 14/15 de
+agosto, una nueva). `project_delete` por path borró primero la copia más
+reciente en vez de la vieja (comportamiento no documentado de la
+herramienta) — se detectó de inmediato al verificar y se corrigió
+re-escribiendo el contenido correcto antes de tocar los otros tres archivos.
+Confirmado: 30 docs únicos en el Project, uno por path, contenido correcto
+en los 4 verificado por lectura directa.
+
+**Archivos faltantes subidos al Project — hecho (17 de agosto):**
+`docker-compose.yml`, `003_trouble_shooter_v2.sql`, `004_conocimiento_directo.sql`.
+
+**Hallazgo al subirlos:** `004_conocimiento_directo.sql` tiene un
+encabezado de comentario que dice `003_conocimiento_directo.sql` — quedó mal
+renumerado en algún punto anterior (el archivo en disco es el 004, el
+comentario adentro sigue diciendo 003). No corregido todavía — es cosmético
+(el nombre de archivo real en el filesystem es el que manda), se deja
+anotado para no perder el rastro.
+
+**`roster_agentes_v4.xlsx` — confirmado NO commiteado, y ni siquiera existe
+en el vault.** Búsqueda completa en `C:\Users\2\Documents` (vía
+`Desktop_Commander`, recursiva) no encontró ningún archivo con "roster" en
+el nombre. El único lugar donde existe es como blob subido directo al
+Claude Project el 14 de agosto — nunca llegó al repo. Además, ya está
+marcado como desactualizado en la sección "Deuda documentada" de
+`estado_del_proyecto.md` (organización por los 6 clusters planos viejos,
+"Project center" en vez de "Proyect center", faltan bots). **No lo subí al
+vault/git sin preguntar** porque no es obvio que tenga sentido versionar un
+archivo que ya se sabe que está mal — la duda real es si (a) se actualiza
+primero y luego se sube, o (b) se sube tal cual con una nota de que está
+desactualizado, o (c) se descarta y el roster vive solo en `arquitectura.md`
+de aquí en adelante.
+
 ---
 
 ## Actualización — 15 de agosto de 2026, noche, cuarta ronda (Setup, Revert, Multiproyecto — fusionados desde nota de visión aislada) — histórica, ver actualización de arriba para lo más reciente
