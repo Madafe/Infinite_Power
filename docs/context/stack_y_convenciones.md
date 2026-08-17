@@ -1,7 +1,10 @@
 # Stack y convenciones de Infinite Power (canónico)
 
-> Fuente de verdad. Se sincroniza a `system_knowledge.slug = 'stack_y_convenciones'`.
-> Solo hechos vigentes, en presente, sin historia.
+> Seed inicial de `system_knowledge.slug = 'stack_y_convenciones'` — se usa
+> una sola vez para poblar la tabla al arrancar el sistema (ver
+> `memoria_del_sistema.md`, sección "Repo como seed, no como fuente de
+> verdad"); no hay sync automático. Una vez seedeada, la tabla es la fuente
+> de verdad viva. Solo hechos vigentes, en presente, sin historia.
 
 ## Stack
 

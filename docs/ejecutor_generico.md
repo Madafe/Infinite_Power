@@ -114,7 +114,7 @@ necesitan saber cómo está armado el sistema.
 ```
 POST http://omniroute:20128/v1/chat/completions
 {
-  "model": <default_model del bot>,
+  "model": <tasks.nivel_importancia de la tarea — bajo/medio/alto/critico>,
   "messages": [
     { "role": "system", "content": <system_prompt del bot> },
     { "role": "system", "content": <contexto de linaje, o "primera de su cadena"> },
@@ -124,6 +124,11 @@ POST http://omniroute:20128/v1/chat/completions
   ]
 }
 ```
+Efadam asigna `nivel_importancia` al despachar la tarea; el bot que la
+ejecuta lo hereda, nunca lo decide. OmniRoute resuelve ese valor al modelo
+real vía sus "combos" (ver `stack_y_convenciones.md`, sección "Niveles de
+importancia y BYOK").
+
 `retryOnFail: true`. Todas las referencias son por nombre de nodo
 (`$('Obtener config del bot')`, `$('Obtener contexto de tarea padre')`,
 `$('Cargar contexto')`, `$('Reclamar tarea pendiente')`), no por `$json` — así
@@ -285,14 +290,6 @@ ya son todos los que pueden fallar de forma relevante (ver hallazgos corregidos 
 3. Prueba end-to-end en vivo del loop completo (memoria + aclaración +
    reanudador) — construido y verificado en estructura, falta correrlo con una
    tarea real y confirmar el resultado.
-
-## Workflow "Sync conocimiento del sistema" — nuevo, 15/ago
-
-Ver [[memoria_del_sistema]] sección "Sincronización repo → tabla" para el
-diseño completo. Resumen: `docker-compose.yml` monta `./docs` de solo-lectura
-en el contenedor de n8n (`/data/docs`), y un workflow separado
-(`jWylnrFYalt5vrOB`) lee los 3 archivos canónicos y hace upsert en
-`system_knowledge`. Manual Trigger también, mismo criterio que el ejecutor.
 
 ## Cómo probarlo hoy
 

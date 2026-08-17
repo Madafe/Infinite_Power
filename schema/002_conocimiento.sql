@@ -9,9 +9,12 @@
 
 -- ---------------------------------------------------------------------
 -- 1) system_knowledge — autoconciencia del sistema
---    NO se escribe a mano aquí. La fuente de verdad son los archivos
---    docs/context/*.md del repo; esta tabla es una copia sincronizada
---    para que los bots la lean sin salir a GitHub en cada corrida.
+--    Se puebla UNA SOLA VEZ (seed) desde los archivos docs/context/*.md y
+--    reglas_generales.md del repo, al arrancar el sistema. No hay sync
+--    automatico ni recurrente: despues del seed, esta tabla es la fuente
+--    de verdad viva y el repo puede quedar desactualizado respecto a ella
+--    (ver docs/memoria_del_sistema.md, seccion "Repo como seed, no como
+--    fuente de verdad").
 -- ---------------------------------------------------------------------
 create table if not exists system_knowledge (
     slug        text primary key,              -- 'arquitectura', 'stack_y_convenciones', 'reglas_generales'
@@ -27,7 +30,8 @@ create table if not exists system_knowledge (
 --    Dos tipos, con dueño y ritmo distintos (ver docs/memoria_del_sistema.md):
 --      'patron_fallo'  → lo escribe el ejecutor automáticamente desde
 --                        el campo patron_aprendido de Trouble shooter.
---      'aprendizaje'   → lo escribe Efadam, tras el reporte de un center.
+--      'aprendizaje'   → lo redacta Upgrade & review center a pedido de
+--                        Efadam; Efadam solo lo inserta, nunca lo redacta.
 -- ---------------------------------------------------------------------
 create table if not exists knowledge_log (
     id               serial primary key,

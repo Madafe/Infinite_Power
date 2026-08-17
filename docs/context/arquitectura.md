@@ -1,10 +1,13 @@
 # Arquitectura de Infinite Power (canónico)
 
-> Este archivo es la **fuente de verdad** de los hechos de arquitectura y se
-> sincroniza a `system_knowledge.slug = 'arquitectura'`. Se inyecta en el
-> contexto de los bots que lo necesitan. Escribir corto y en presente: solo
-> lo que es cierto HOY, sin historia ni justificaciones. La narrativa y el
-> porqué de cada decisión viven en `arquitectura_general.md`.
+> Seed inicial de `system_knowledge.slug = 'arquitectura'` — se usa una sola
+> vez para poblar la tabla al arrancar el sistema (ver
+> `memoria_del_sistema.md`, sección "Repo como seed, no como fuente de
+> verdad"); no hay sync automático. Una vez seedeada, la tabla es la fuente
+> de verdad viva que se inyecta en el contexto de los bots que la necesitan
+> — este archivo puede quedar desactualizado respecto a ella. Escribir corto
+> y en presente: solo lo que es cierto HOY, sin historia ni justificaciones.
+> La narrativa y el porqué de cada decisión viven en `arquitectura_general.md`.
 
 ## Forma general
 
@@ -128,8 +131,10 @@ Cross department es el agregador interno de esta rama; entrega a Upgrade & revie
 ## Rama Proyect center (prompts pendientes)
 
 Proyectos, Tracker de clientes, Front end, Consultor negocios, Task manager,
-Ventas ideas, Expansión ideas, Mentor. Establecer Metas y Planner son nodos
-compartidos con la rama 2 (dueño: rama 2; Proyect center los consume, no los edita).
+Ventas ideas, Expansión ideas, Mentor, Establecer Metas, Planner — estos dos
+últimos son instancia propia de esta rama, **no compartida** con Upgrade &
+review center: cada rama tiene su propio bot duplicado (ver
+`arquitectura_general.md`, corrección 14/ago/2026).
 Negocios propios (TalentIA, Bintix, Back end/Front end páginas web, Consultor SEO)
 cuelgan de Proyectos.
 
