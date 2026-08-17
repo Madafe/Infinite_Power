@@ -5,7 +5,73 @@ Para: Mateo + amigo · 7 de agosto de 2026
 
 ---
 
-## Actualización — 17 de agosto de 2026 (Bloque 2, primer hallazgo real: schema de combos confirmado + 4 problemas de infraestructura en OmniRoute sin resolver) — VIGENTE, léase primero
+## Actualización — 17 de agosto de 2026, tarde (revisión de la auditoría técnica y de visión, vía Cowork) — VIGENTE, léase primero
+
+Mateo compartió una auditoría externa nueva, independiente de la del 16 de
+agosto (`docs/auditoria_tecnica_y_vision_17ago2026.md`), con hallazgos
+técnicos (C1–C4 críticos, A1–A4 altos, M1–M4 medios) y una sección
+estructural/de visión. Por instrucción de Mateo esta ronda se enfocó solo
+en la parte estructural/visión — los hallazgos técnicos quedan pendientes
+de revisión aparte, no descartados.
+
+**Verificación, no aceptación a ciegas.** Antes de aceptar nada de la
+auditoría se verificó contra el estado real del repo (git real, vía
+Desktop Commander):
+
+- La afirmación de la auditoría de que "el roster XLSX actualizado refleja
+  Jarvis + Efadam + tres ramas" **es correcta** — confirmado con `git log`
+  y lectura directa del Excel: se corrigió y se commiteó por primera vez
+  el 17 de agosto (commit `49b89fd`). Eso dejó desactualizado un pendiente
+  de `estado_del_proyecto.md` que seguía diciendo lo contrario — corregido
+  ahí también en esta ronda.
+- La "Decisión recomendada" de la auditoría — congelar el roster **y el
+  trabajo de distribución para terceros** hasta cerrar sus Bloques 0–1 —
+  se reformuló: la parte de "congelar distribución para terceros" chocaba
+  con la decisión explícita de Mateo del 16 de agosto de no congelar el
+  alcance de producto distribuible (ver actualización de esa fecha, más
+  abajo). En la práctica no hay trabajo activo de empaquetado que congelar
+  (pendiente #11 de la lista de abajo sigue en diseño, sin implementar).
+  Se descarta la palabra "congelar"; queda como lo que ya es de por sí: el
+  pendiente #11 no empieza a implementarse hasta que cierren los hallazgos
+  críticos de seguridad/confiabilidad, sin que eso implique pausar el
+  diseño de producto distribuible.
+- Mateo asumía que los Bloques 0, 1 y 2 de la auditoría del 16 de agosto
+  (la que se viene remediando en este mismo documento, no la nueva) ya
+  estaban cerrados. Se verificó con `git log`: **Bloque 0 y Bloque 1, sí.
+  Bloque 2, no** — arrancó hoy mismo (ver la actualización de Bloque 2
+  inmediatamente abajo) y está bloqueado en un hallazgo real de
+  infraestructura, con una pregunta sin responder de Mateo (qué
+  proveedor/llave conectar primero en OmniRoute). Corregido en
+  `estado_del_proyecto.md`.
+- Los 3 hallazgos críticos de la auditoría del 17 de agosto que hoy **no**
+  están cubiertos por la secuencia de Bloque 2 — contraseña de Postgres
+  expuesta en el historial de git (C1), inyección SQL en el nodo "Obtener
+  config del bot" (C2), y el flujo de aprobación humana que hoy es solo
+  una notificación saliente sin ruta de respuesta (C4) — se agregan a
+  "Pendientes de Bloque 2, en secuencia" más abajo, antes del punto que
+  inserta a Efadam: no tiene sentido activar el cerebro de orquestación
+  encima de esos tres huecos. `nivel_importancia` (C3) ya estaba cubierto
+  por el punto 8 existente.
+- Se descarta el gate de "validar 2 semanas" que proponía la auditoría
+  antes de construir la siguiente rama. Decisión de Mateo: el tiempo
+  transcurrido no es la unidad correcta para validar un cluster — dos
+  semanas con 3 tareas reales no dicen nada y dos semanas con 300 sí. Se
+  corrigió el mismo patrón de criterio-por-tiempo en
+  `docs/autonomia_progresiva.md` (el checklist de graduación de autonomía
+  por cluster, que también usaba "2 semanas") y en la Fase 5 de este mismo
+  documento (que duplicaba ese checklist) — reemplazado por un criterio de
+  volumen de tareas reales, todavía sin número exacto: se calibra cuando
+  haya datos reales de cuánto trabajo mueve cada cluster.
+- **Aclaración de visión:** la frase de la auditoría "sistema operativo de
+  trabajo para dueños de pequeños negocios" no fija un segmento de mercado
+  nuevo — Mateo la confirma como forma de decir que el sistema no está
+  pensado para operaciones grandes que necesiten mucha más capacidad de
+  análisis o logística, sino para uso personal o negocios pequeños.
+  Reflejado en `estado_del_proyecto.md`, sección "Qué es".
+
+---
+
+## Actualización — 17 de agosto de 2026 (Bloque 2, primer hallazgo real: schema de combos confirmado + 4 problemas de infraestructura en OmniRoute sin resolver) — vigente
 
 Empezó Bloque 2 ("pasamos con el bloque 2", instrucción de Mateo). Primer
 resultado: se confirmó, contra el código fuente real del contenedor
@@ -132,9 +198,28 @@ aquí primero, se ejecuta después de la confirmación.
    asignaciones"/"Crear tareas hijas" del Ejecutor genérico en n8n.
 9. Construir el workflow de ingesta Telegram → `tasks`.
 10. Prueba end-to-end en vivo de todo el flujo de Bloque 2.
-11. Bloque 3: insertar y activar Efadam en `bots`, activar Tech center de
-    punta a punta contra un Efadam real.
-12. **Aparcado, no tocar sin instrucción nueva de Mateo:** licencia de n8n
+11. **Nuevo (17/ago, de `auditoria_tecnica_y_vision_17ago2026.md`, hallazgo
+    C1):** rotar la contraseña de Postgres (`ALTER USER`) — la actual quedó
+    expuesta en el historial de git (commits `a14ed39`, `e87fe0a`,
+    alcanzable desde todas las ramas remotas) — y planificar la limpieza de
+    ese historial.
+12. **Nuevo (17/ago, hallazgo C2):** parametrizar la consulta SQL del nodo
+    "Obtener config del bot" del Ejecutor genérico — hoy interpola el
+    campo `bot` directo en `WHERE slug = '{{ $json.bot }}'`, y ese valor
+    puede venir de una tarea hija generada por un modelo. Reemplazar por
+    `slug = $1` vía `queryReplacement`.
+13. **Nuevo (17/ago, hallazgo C4):** completar el flujo de decisión humana
+    — hoy `needs_approval` solo manda un mensaje a Telegram sin ruta de
+    respuesta real (ni fila en `approvals`, ni transición de estado
+    atómica). Sin esto, una tarea sensible queda detenida indefinidamente y
+    "aprobación humana" es una notificación saliente, no un control
+    operativo.
+14. Bloque 3: insertar y activar Efadam en `bots`, activar Tech center de
+    punta a punta contra un Efadam real. **No antes de que cierren los
+    puntos 11–13** — no tiene sentido activar el cerebro de orquestación
+    encima de una contraseña filtrada, una inyección SQL abierta y
+    aprobaciones que no se pueden resolver.
+15. **Aparcado, no tocar sin instrucción nueva de Mateo:** licencia de n8n
     (Sustainable Use License, riesgo de distribución) — deferred a la fase
     de "setup" al final, por instrucción explícita de Mateo del 17 de agosto.
 
@@ -1147,16 +1232,11 @@ Si quieren algo visual, un workflow que expone los datos de `agent_runs` a una h
 
 **Objetivo de la fase:** ir quitando los checkpoints de aprobación humana solo donde ya se ganó la confianza.
 
-**Tiempo estimado:** continuo, revisar cada 2 semanas.
+**Cadencia:** continua, sin plazo fijo — se revisa cuando haya evidencia real que evaluar, no por calendario (corregido el 17 de agosto: la versión original de esta sección usaba "revisar cada 2 semanas" como cadencia y "2 semanas corriendo sin error" como umbral de graduación; Mateo lo descartó — el tiempo transcurrido no es la unidad correcta para validar un cluster).
 
-### Criterio de "graduación" por cluster (checklist a cumplir antes de quitar una aprobación)
+### Criterio de "graduación" por cluster
 
-- [ ] 2 semanas corriendo sin un error no manejado
-- [ ] Costo dentro del rango esperado las 2 semanas
-- [ ] Ningún caso donde el bot haya hecho algo que ustedes no hubieran aprobado
-- [ ] Los dos están de acuerdo en quitar el checkpoint (no solo uno)
-
-Ir cluster por cluster, nunca todos a la vez.
+Checklist completo en [[autonomia_progresiva]] (extraído de aquí, se mantiene ahí para no duplicarlo). Resumen: volumen suficiente de tareas reales sin error no manejado (no tiempo transcurrido), costo dentro de rango, ningún caso no aprobado, y acuerdo explícito de los dos — cluster por cluster, nunca todos a la vez.
 
 **✅ Fin de Fase 5:** es continua, no tiene un final fijo — es el estado de mantenimiento del sistema.
 

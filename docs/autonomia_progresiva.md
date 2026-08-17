@@ -7,8 +7,15 @@
 
 ## Checklist a cumplir antes de quitar una aprobación, por cluster
 
-- [ ] 2 semanas corriendo sin un error no manejado
-- [ ] Costo dentro del rango esperado las 2 semanas
+> **Corregido el 17 de agosto de 2026:** la versión original de este
+> checklist usaba tiempo transcurrido ("2 semanas corriendo sin error")
+> como criterio. Mateo lo descartó explícitamente — el calendario no es la
+> unidad correcta para validar un cluster: dos semanas con 3 tareas reales
+> no dicen nada, y dos semanas con 300 sí. El criterio pasa a ser volumen
+> de trabajo real.
+
+- [ ] Un volumen suficiente de tareas reales completadas sin un error no manejado (número exacto por definir cuando haya datos reales de cuántas tareas mueve cada cluster — no es lo mismo Tech center que Legal; no es una decisión de Mateo todavía, solo un criterio pendiente de calibrar)
+- [ ] Costo dentro del rango esperado durante ese volumen de tareas
 - [ ] Ningún caso donde el bot haya hecho algo que Mateo no hubiera aprobado
 - [ ] Acuerdo explícito de quitar el checkpoint (no una omisión)
 
