@@ -144,14 +144,60 @@ verificados de verdad, no solo aplicados a ciegas:
   confirmado dentro del contenedor) y que los 3 workflows existentes siguen
   ahí y responden vía API sin haber perdido nada.
 
-**Pendiente inmediato:** Bloque 1 (reparación de contradicciones de
-documentación: `estado_del_proyecto.md`, 5 lugares con "fuente de verdad"
-contradictoria, sección obsoleta de `ejecutor_generico.md`, enlaces rotos,
-duplicados en el Claude Project), después Bloque 2 (combos de OmniRoute,
-propagar `nivel_importancia` a tareas hijas, ingestión de Telegram, seed de
-`system_knowledge`, límite de profundidad, prueba end-to-end) y Bloque 3
-(activar Efadam, resto del roster) — todo en la rama `correcciones`, en ese
-orden.
+**Bloque 1 — en progreso (16 de agosto, noche).** 5 de las contradicciones de
+"fuente de verdad" corregidas y committeadas en `correcciones` (commit
+`e97b5fc`, **local, no pusheado — ver bloqueo de red abajo**):
+`docs/reglas_generales.md`, `docs/context/arquitectura.md` (header +
+corrección de la sección Proyect center: Establecer Metas/Planner son
+instancia propia de cada rama, no compartidos — ya estaba corregido en
+`arquitectura_general.md` desde el 14/ago, faltaba propagarlo aquí),
+`docs/context/stack_y_convenciones.md`, `schema/002_conocimiento.sql` (dos
+comentarios: el de `system_knowledge` y el de `'aprendizaje'`, que decía que
+Efadam lo escribe cuando en realidad lo redacta Upgrade & review center y
+Efadam solo inserta), `docs/ejecutor_generico.md` (nodo 6 actualizado a
+`tasks.nivel_importancia`, sección obsoleta "Sync conocimiento del sistema"
+eliminada). Verificado sin corrupción de encoding tras el `device_commit_files`.
+
+**Sigue pendiente de Bloque 1**, con dudas reales que necesitan que Mateo
+decida (no se asumió nada):
+1. `docs/estado_del_proyecto.md` — confirmado gravemente desactualizado
+   (fecha 14/ago, modelo de presupuesto viejo, tabla de fases horizontal
+   vieja, no menciona a Jarvis, y tiene la misma frase contradictoria de
+   "el repo es la fuente de verdad, no la BD"). **Pregunta sin responder
+   aún: ¿se reescribe de cero para reflejar el estado actual, o se marca
+   como obsoleto/archivado?**
+2. `INICIO.md` — los wikilinks `[[Infinite power]]` (línea 8) y `[[Efadam]]`
+   (línea 23) están rotos: confirmado por `git log --diff-filter=D` que
+   ambas notas se eliminaron el 15/ago al fusionarse — `Infinite power.md`
+   se repartió entre varias notas nuevas (Setup/Revert/Multiproyecto, ahora
+   fusionadas en este mismo documento), y `Efadam.md` se fusionó en
+   `prompts/_core/efadam.md` y `memoria_del_sistema.md`. No hay un
+   reemplazo 1:1 obvio para ninguno de los dos — **pregunta sin responder:
+   ¿a qué nota debería apuntar cada enlace ahora, o se quitan los
+   corchetes y quedan como texto plano?**
+3. Duplicados en el Claude Project (`trouble-shooter.md`, `tecnico-jefe.md`,
+   `plan_de_accion_completo.md`, `ejecutor_generico.md` — cada uno x2) —
+   identificados, no eliminados todavía.
+
+**Bloqueo de infraestructura descubierto esta ronda (16 de agosto, noche):**
+las herramientas `Desktop_Commander` (acceso a PowerShell/Docker/git reales
+en Windows) se desconectaron a media sesión y **no volvieron** — ya no
+aparecen ni en el registro de herramientas. Lo único disponible ahora es el
+bridge estándar (`device_bash` y compañía), que corre en **una VM Linux
+aislada dentro del propio equipo**, sin acceso a Docker/n8n/Postgres
+(`docker` no existe en esa VM) y **sin acceso de red** — confirmado con
+`curl` a github.com → `403 blocked-by-allowlist`. Además, esa VM no puede
+borrar archivos (`rm`/`unlink` da `Operation not permitted`, incluso sobre
+sus propios archivos temporales), lo que rompe el manejo normal de locks de
+git; se pudo trabajar alrededor moviendo (`mv`) los `.lock` en vez de
+borrarlos, y el commit `e97b5fc` sí se logró — pero **`git push` falla por
+completo** (mismo bloqueo de red que el resto). El commit de Bloque 1 quedó
+local en la copia de Mateo, no en GitHub. **Esto es exactamente el tipo de
+caso donde correr la tarea "en tu computadora" en vez de "en la nube" —
+selector arriba a la derecha al iniciar una tarea en la app de escritorio —
+resolvería el bloqueo**, porque ahí sí hay Docker/red/git reales. Bloque 2
+completo (combos de OmniRoute, Postgres, n8n) necesita esa misma vía —no se
+puede avanzar Bloque 2 con las herramientas actuales.
 
 ---
 
@@ -1039,7 +1085,9 @@ para el razonamiento completo.
 14. ~~Decidir qué hacer con dos archivos sueltos sin commitear~~ — **hecho (15 de agosto, noche):** `schema/_tmp_diag_github.ps1` (apuntaba al workflow "Sync conocimiento del sistema" ya borrado) y `schema/_tmp_inspect_schedule.js` (exploración puntual de internals de `ScheduleTrigger`, ya resuelta) se revisaron — sin secretos en texto plano — y se borraron del disco. Nunca estuvieron trackeados en git, así que no generaron commit.
 15. ~~Decidir cómo Efadam clasifica el nivel de importancia con confiabilidad~~ — **hecho (15 de agosto, noche, tercera ronda):** reglas explícitas por dominio/tema, no criterio libre — ver `stack_y_convenciones.md`, "Reglas de asignación", y actualización correspondiente arriba.
 16. ~~Implementar en n8n la lógica real de aplicar la tabla de reglas de nivel~~ — **hecho (16 de agosto):** migración `schema/005_nivel_importancia.sql` corrida contra Postgres; nodo "Llamar a omniroute" del Ejecutor genérico editado vía API de n8n para leer `tasks.nivel_importancia` en vez de `bots.default_model`. Lo que queda (no cubierto por este punto): configurar los 4 combos de OmniRoute (uno por nivel) y activar Efadam para que empiece a poblar `nivel_importancia` de verdad — ver punto 1.
-20. ~~Completar Bloque 0 de la auditoría externa~~ — **hecho (16 de agosto, noche):** workflows de n8n exportados, script de backup probado, `.gitattributes`, password de Postgres y `N8N_ENCRYPTION_KEY` fuera de `docker-compose.yml` en texto plano (movidos a `.env`, misma key que ya existía — no se rotó), `GENERIC_TIMEZONE`. Todo en la rama `correcciones`, verificado (docker compose up -d recreó n8n sin perder workflows). Ver detalle en la actualización del 16 de agosto, tarde/noche, arriba. **Sigue pendiente, no cubierto por este punto:** Bloque 1 (reparar contradicciones de documentación: `estado_del_proyecto.md`, 5 lugares con "fuente de verdad" contradictoria, sección obsoleta de `ejecutor_generico.md`, enlaces rotos, duplicados en el Claude Project); Bloque 2 (confirmar schema de creación de combos en OmniRoute y configurar los 4 niveles, propagar `nivel_importancia` a tareas hijas en "Parsear asignaciones"/"Crear tareas hijas", ingestión de Telegram, límite de profundidad, prueba end-to-end real); Bloque 3 (activar Efadam en `bots`, resto del roster).
+20. ~~Completar Bloque 0 de la auditoría externa~~ — **hecho (16 de agosto, noche):** workflows de n8n exportados, script de backup probado, `.gitattributes`, password de Postgres y `N8N_ENCRYPTION_KEY` fuera de `docker-compose.yml` en texto plano (movidos a `.env`, misma key que ya existía — no se rotó), `GENERIC_TIMEZONE`. Todo en la rama `correcciones`, verificado (docker compose up -d recreó n8n sin perder workflows). Ver detalle en la actualización del 16 de agosto, tarde/noche, arriba.
+21. **Bloque 1 — en progreso (16 de agosto, noche):** 5 de las contradicciones de "fuente de verdad" corregidas y committeadas (commit `e97b5fc`, local, no pusheado — ver bloqueo de red en la actualización de arriba). Pendiente: decisión sobre `estado_del_proyecto.md` (reescribir vs. archivar), decisión sobre los wikilinks rotos de `INICIO.md` (repuntar vs. quitar), limpiar duplicados en el Claude Project, y pushear el commit — ver detalle completo en la actualización del 16 de agosto, tarde/noche, arriba.
+22. **Nuevo — descubierto 16 de agosto, noche:** `Desktop_Commander` (acceso real a PowerShell/Docker/git de Windows) desapareció de las herramientas disponibles y no volvió. El bridge que sí queda corre en una VM Linux aislada sin Docker, sin red de salida (bloqueada por allowlist) y sin permiso para borrar archivos — bloquea `git push` y Bloque 2 completo (necesita Postgres/n8n/OmniRoute reales). Ver detalle en la actualización de arriba. Posible solución: correr la tarea "en tu computadora" desde la app de escritorio en vez de en la nube.
 17. **Nuevo (post Fase 2, no ahora):** construir Multiproyecto — schema por proyecto en Postgres, tabla `proyectos`, nodos Postgres con schema dinámico. Antes: confirmar que los workflows actuales de n8n no tienen el schema hardcodeado.
 18. **Nuevo:** construir el mecanismo de Revert (tabla `reverts`, `archived_at`/`archived_reason` en `knowledge_log` y demás tablas relevantes) — sin fecha fija, pero vale la pena tenerlo antes de que el sistema empiece a tomar decisiones con consecuencia real que alguien quiera poder revisar/archivar.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).
