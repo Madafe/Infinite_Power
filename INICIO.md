@@ -5,7 +5,9 @@
 
 ## Qué es esto
 
-[[Infinite power]] — la visión, la propuesta de valor y el Método.
+Infinite power — la visión, la propuesta de valor y el Método (contenido
+fusionado en `docs/archivo/plan_de_accion_completo.md`, 15/ago; la nota
+suelta que existía se eliminó).
 
 Sistema de agentes de IA para operar y hacer crecer los negocios de Mateo.
 Efadam en el centro + 3 ramas, cada una con su bot "center" que consolida,
@@ -19,8 +21,10 @@ audita y aprueba antes de reportar hacia arriba.
 
 ## Arquitectura (visión)
 
-- [[Infinite power]] — método, cadencia, revert, multiproyecto
-- [[Efadam]] — bot cabeza, enrutamiento y memoria
+- Infinite power — método, cadencia, revert, multiproyecto (fusionado en
+  `docs/archivo/plan_de_accion_completo.md`, 15/ago)
+- Efadam — bot cabeza, enrutamiento y memoria (fusionado en
+  `prompts/_core/efadam.md` y [[memoria_del_sistema]], 15/ago)
 	- [[Tech center]] — rama Dev/Tech
 	- [[Upgrade & Review center]] — rama Estrategia + Legal + Investigación
 	- [[Proyect center]] — rama Operación/Proyectos, dueño del Setup
