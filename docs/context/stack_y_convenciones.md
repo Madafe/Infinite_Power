@@ -158,14 +158,33 @@ dentro del contenedor):**
   confirma que el concepto de "nombre → modelo real" sí es nativo aquí,
   solo que con otro nombre (combo) y otra API.
 
-**Lo que NO está confirmado todavía — pendiente, no inventar:** el esquema
-exacto para crear un combo (qué campos acepta `POST /api/combos`, cómo se
-fija que el combo `alto` siempre resuelva a un proveedor/modelo específico
-sin fallback automático a otro). La forma más segura de averiguarlo es
-crear un combo de prueba desde el dashboard (`:20128` → sección Combos) y
-leer el `POST /api/combos` que dispara el navegador, en vez de asumir el
-body. Este dato falta y bloquea configurar los 4 niveles — es el pendiente
-inmediato antes de dar por completo el mecanismo.
+**Esquema de combo — confirmado el 17 de agosto de 2026** (extraído del
+código fuente real dentro del contenedor, no adivinado): `POST/PUT
+/api/combos/{id}` acepta `name`, `description?`, `models[]` (cada entrada
+es un modelo real `{provider, model, weight, ...}` o una referencia a otro
+combo `{kind: "combo-ref", comboName}`), `strategy` (default `"priority"`),
+y un `config` opcional. **Nota de API real:** el endpoint de edición
+responde `405` a `PATCH` — hay que usar `PUT` con el objeto completo de
+`models`, no un parche parcial. Detalle completo y el body exacto usado en
+`plan_de_accion_completo.md`, actualización del 17 de agosto.
+
+Los 4 combos (`bajo`/`medio`/`alto`/`critico`) ya existen en la instalación
+de Mateo, creados con esta forma. **Fallback entre niveles, no solo dentro
+de un nivel:** cada combo, además de sus modelos reales, incluye como
+última entrada una referencia (`combo-ref`) al combo del nivel
+inmediatamente inferior — `critico → alto → medio → bajo` — así que si
+todos los modelos reales de un nivel fallan, la tarea cae al nivel de
+abajo en vez de fallar sin servir nada. Decisión de Mateo, 17 de agosto
+("si no hay un modelo seleccionado... se iría al de abajo"). **Pendiente,
+no construido todavía:** un aviso visible para Mateo cuando una tarea de
+nivel `alto`/`crítico` termina sirviéndose por un modelo de nivel inferior
+vía este fallback — bajar de modelo en algo legal/financiero en silencio
+no es aceptable, aunque el sistema no se caiga. La columna
+`agent_runs.model_used` ya existe y es el lugar natural para detectar el
+desajuste (comparar contra `tasks.nivel_importancia`); falta la lógica en
+el Ejecutor genérico que la lea y dispare la alerta — bloqueado, por ahora,
+en tener acceso de escritura a los workflows de n8n. Ver
+`plan_de_accion_completo.md` para el detalle completo.
 
 **Lo que no cambia con esta corrección (el principio de diseño sigue
 vigente, solo cambió la herramienta que lo implementa):**

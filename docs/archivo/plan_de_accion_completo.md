@@ -5,7 +5,141 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 17 de agosto de 2026, noche, tercera ronda (factibilidad de automatizar la generación de credenciales de OmniRoute en el startup — hallazgo, no implementación) — VIGENTE, léase primero
+## Actualización — 17 de agosto de 2026, noche, cuarta ronda (fallback en cascada entre niveles implementado en OmniRoute, Efadam ya no explica de más, Pollinations resulta gratis de verdad, y bloqueo real: falta acceso a n8n para el resto del backlog) — VIGENTE, léase primero
+
+Mateo hizo una observación de diseño, dio una corrección de tono para
+Efadam, pidió que se elimine el voseo, confirmó que su OmniRoute actual no
+se debe tocar más allá de lo ya documentado, y pidió continuar con el resto
+de pendientes. Se ejecutó todo lo que era técnicamente posible sin acceso
+adicional; se documenta también, sin maquillarlo, lo que quedó bloqueado.
+
+### 1. Fallback en cascada entre niveles — implementado, no solo documentado
+
+Mateo señaló algo correcto y no tan obvio como sonaba: si un nivel de
+importancia no tiene modelo disponible, el sistema debería avisar y caer al
+nivel de abajo, en cascada. Se verificó que OmniRoute ya trae un mecanismo
+nativo para esto (confirmado la ronda pasada en el schema de combos, no
+usado todavía): una entrada de `models[]` puede ser `{kind: "combo-ref",
+comboName}`, una referencia a otro combo tratada como si fuera un modelo
+más de la lista.
+
+**Se aplicó a los 4 combos reales de la instalación de Mateo, vía
+`PUT /api/combos/{id}`** (hallazgo de API: el endpoint de edición responde
+`405` a `PATCH`, hay que mandar `PUT` con el array `models` completo):
+
+- `medio` → agrega referencia a `bajo`.
+- `alto` → agrega referencia a `medio`.
+- `critico` → agrega referencia a `alto`.
+- `bajo` no cambia — es el piso, no tiene a dónde caer.
+
+Cadena resultante: `critico → alto → medio → bajo`. Si todos los modelos
+reales de un nivel fallan, la tarea cae al de abajo en vez de no responder
+nada. **Sin verificar en tráfico real todavía** — los 4 combos siguen sin
+un proveedor funcional detrás (ver punto 3), así que el fallback existe en
+la configuración pero no se ha visto disparar en la práctica.
+
+**Lo que Mateo pidió y que sigue sin construirse: el aviso.** Un fallback
+silencioso está bien para `bajo`/`medio`, pero que una tarea `crítico`
+(dinero, legal, seguridad) termine sirviéndose con el modelo barato de
+`bajo` sin que nadie se entere es un riesgo real, no solo un detalle
+técnico. El lugar natural para detectarlo ya existe en el schema
+(`agent_runs.model_used`, comparado contra `tasks.nivel_importancia`), pero
+la lógica que lo lea y dispare una alerta a Mateo vive en el Ejecutor
+genérico de n8n — y ahí es exactamente donde se topa con el bloqueo del
+punto 4. Queda anotado como pendiente, no resuelto.
+
+Documentado en `docs/context/stack_y_convenciones.md`, sección "Cómo se
+traduce nivel → modelo real", y reflejado en `efadam.md`.
+
+### 2. Efadam: ya no explica de más, y habla en español de México
+
+Dos correcciones de comportamiento, ambas aplicadas directo a
+`prompts/_core/efadam.md` (sección "Reglas y límites" y el prompt de
+sistema que se pega en n8n):
+
+- **No explica detalles técnicos de cómo resolvió algo, por defecto.** La
+  mayoría de quienes usan el sistema no tienen ni necesitan idea de qué bot
+  corrió, qué nivel asignó o en qué tabla quedó algo — responde con el
+  resultado, en lenguaje llano, y solo entra en detalle si se le pide
+  explícitamente.
+- **Habla en español de México, nunca voseo** ("vos", "tenés", "revisás")
+  ni modismos de otro país hispanohablante, salvo que el usuario lo pida.
+  Esto último aplica también a cómo Claude le habla a Mateo en esta
+  conversación — corregido ahí también (memoria de Claude, no un archivo
+  del proyecto).
+
+Se agregó un caso de prueba nuevo (#11) a `efadam.md` que ejemplifica la
+regla de no sobre-explicar.
+
+### 3. Pollinations: sí es gratis, el registro no cuesta nada
+
+Investigado el mecanismo real de `enter.pollinations.ai` (documentación
+oficial del repo, `POLLEN_FAQ.md`): **registrarse es gratis** — no pide
+tarjeta ni pago. Con cuenta creada, los modelos marcados como gratis cuestan
+0 Pollen; solo los modelos de pago consumen el saldo comprado. El 401 que
+se vio la ronda pasada no contradice esto: antes cualquiera podía llamar a
+los modelos gratis sin ninguna cuenta, ahora Pollinations exige al menos
+una API key de una cuenta registrada (gratis) para frenar abuso — el uso
+sigue siendo gratuito, cambió el requisito de identificarse.
+
+**Conclusión: no hace falta buscar un proveedor alternativo.** Basta con
+que Mateo entre a `enter.pollinations.ai`, cree una cuenta gratis, genere
+una API key, y la pegue en el Provider de Pollinations ya creado en
+OmniRoute (`http://127.0.0.1:20128`, contraseña en `.env`). A diferencia de
+Qwen, esto no es scraping de un producto de consumo ni tiene riesgo de
+baneo documentado — es el flujo de registro oficial del proveedor. Aun así
+no se creó la cuenta en nombre de Mateo sin que él lo sepa: es su decisión
+entrar y hacerlo, o pedir que se investigue una alternativa si prefiere no
+registrarse en Pollinations por cualquier motivo.
+
+### 4. Bloqueo real: la mayoría del resto del backlog necesita escribir en n8n, y ese acceso no está disponible esta sesión
+
+Mateo pidió continuar con el resto de pendientes. Al revisarlos uno por
+uno, la mayoría requiere modificar workflows de n8n en vivo (agregar/editar
+nodos, credenciales, o crear un workflow nuevo) — y eso solo es posible por
+dos caminos: la API key de n8n (que, por decisión de Mateo del 15 de
+agosto, vive fuera de sistemas digitales cuando no está en uso — no está
+disponible en este entorno) o el login de la interfaz web de n8n
+(`localhost:5678`), cuyas credenciales tampoco están en `.env` ni en ningún
+lugar al que se tenga acceso esta sesión. Se verificó primero que no
+hubiera una vía indirecta razonable: `docker-compose.yml` no tiene
+`N8N_BASIC_AUTH_*` configurado, así que no hay una contraseña simple que
+probar; editar directo las tablas internas de n8n en Postgres (donde vive
+el JSON de los workflows) es técnicamente posible pero es cirugía sobre el
+almacenamiento interno de una herramienta de terceros sin pasar por su
+API — alto riesgo de corromper un workflow que hoy funciona, así que no se
+intentó sin preguntar primero.
+
+**Quedan bloqueados por esto**, no por falta de intento:
+
+- Propagar `nivel_importancia` a las tareas hijas (nodos "Parsear
+  asignaciones"/"Crear tareas hijas").
+- Parametrizar el SQL del nodo "Obtener config del bot" (la inyección SQL,
+  hallazgo C2).
+- Rotar la contraseña de Postgres de verdad — la mitad de infraestructura
+  (`docker-compose.yml`, `.env`) se puede cambiar sin n8n, pero el
+  workflow tiene su propia credencial de Postgres guardada adentro de n8n;
+  cambiar la contraseña real sin actualizar esa credencial rompe todos los
+  workflows.
+- Construir el workflow de ingesta Telegram → `tasks` (workflow nuevo).
+- Completar el flujo de aprobación humana bidireccional (hallazgo C4).
+
+**Lo que sí se puede seguir haciendo sin este acceso** (y es donde se debe
+seguir empujando mientras se resuelve el acceso a n8n): decisiones y
+research que no tocan n8n, como este mismo hallazgo de Pollinations, el
+fallback de combos en OmniRoute (punto 1), y cualquier documento del
+proyecto.
+
+**Pregunta real para Mateo, no cosmética:** ¿prefiere pasar la API key de
+n8n para esta sesión (se puede usar y no guardarla en ningún lugar
+digital al terminar, igual que él la maneja), dar el login de la interfaz
+web, hacer él mismo estos cambios con instrucciones exactas de qué tocar en
+cada nodo, o alguna otra opción? Sin uno de estos tres, el resto del
+backlog técnico no avanza esta sesión.
+
+---
+
+## Actualización — 17 de agosto de 2026, noche, tercera ronda (factibilidad de automatizar la generación de credenciales de OmniRoute en el startup — hallazgo, no implementación) — vigente
 
 Mateo preguntó si es posible que, en el arranque del sistema, la generación
 de la llave/contraseña de OmniRoute se haga desde la propia interfaz de
