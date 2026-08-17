@@ -110,6 +110,34 @@ distinto) antes de tocar nada del lado de OmniRoute con esa llave.
 **No se ha tocado `docker-compose.yml` ni `.env` todavía** — se documenta
 aquí primero, se ejecuta después de la confirmación.
 
+### Pendientes de Bloque 2, en secuencia (para retomar en otra conversación sin depender de memoria)
+
+1. **Pregunta abierta a Mateo, sin responder todavía:** qué proveedor/llave
+   conectar primero en OmniRoute (Gemini del amigo, Groq, otra ya mencionada
+   en el plan, o decidirlo después). Es el único punto de esta lista que
+   depende de una decisión de Mateo, no de trabajo técnico.
+2. Arreglar `docker-compose.yml`: volumen de OmniRoute de `/app/config` a
+   `/app/data`.
+3. Generar y fijar `JWT_SECRET`/`API_KEY_SECRET` en `.env` (mismo patrón que
+   `N8N_ENCRYPTION_KEY` de Bloque 0: reusar valor existente si se puede
+   rescatar, si no generar uno nuevo seguro).
+4. Loguearse a OmniRoute con la contraseña default `CHANGEME` y cambiarla.
+5. Conectar el/los proveedor(es) que Mateo confirme en el punto 1.
+6. Crear los 4 combos (`bajo`/`medio`/`alto`/`critico`) con el
+   `createComboSchema` ya confirmado arriba.
+7. Confirmar empíricamente si el campo `model` del request puede referenciar
+   el combo directo por nombre, o si hace falta además
+   `/api/model-combo-mappings` — no asumir, probar con una llamada real.
+8. Propagar `nivel_importancia` a las tareas hijas en los nodos "Parsear
+   asignaciones"/"Crear tareas hijas" del Ejecutor genérico en n8n.
+9. Construir el workflow de ingesta Telegram → `tasks`.
+10. Prueba end-to-end en vivo de todo el flujo de Bloque 2.
+11. Bloque 3: insertar y activar Efadam en `bots`, activar Tech center de
+    punta a punta contra un Efadam real.
+12. **Aparcado, no tocar sin instrucción nueva de Mateo:** licencia de n8n
+    (Sustainable Use License, riesgo de distribución) — deferred a la fase
+    de "setup" al final, por instrucción explícita de Mateo del 17 de agosto.
+
 ---
 
 ## Actualización — 16 de agosto de 2026 (mecanismo concreto nivel → modelo, `schema/005_nivel_importancia.sql`) — histórica, ver corrección y auditoría más arriba/abajo
