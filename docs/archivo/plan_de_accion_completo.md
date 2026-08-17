@@ -5,6 +5,113 @@ Para: Mateo + amigo · 7 de agosto de 2026
 
 ---
 
+## Actualización — 17 de agosto de 2026 (Bloque 2, primer hallazgo real: schema de combos confirmado + 4 problemas de infraestructura en OmniRoute sin resolver) — VIGENTE, léase primero
+
+Empezó Bloque 2 ("pasamos con el bloque 2", instrucción de Mateo). Primer
+resultado: se confirmó, contra el código fuente real del contenedor
+(no contra documentación ni supuestos), el schema exacto de
+`POST /api/combos` — el pendiente que quedaba abierto desde el 16 de agosto.
+Pero al investigar el contenedor de OmniRoute para llegar a ese schema,
+salieron **4 problemas de infraestructura sin resolver**, ninguno cosmético,
+que se documentan aquí antes de tocar nada — no se avanzó a configurar los 4
+combos todavía, porque configurarlos encima de una base rota/insegura no
+tiene caso.
+
+### Confirmado: schema de `POST /api/combos` (createComboSchema)
+
+Extraído directo del chunk compilado
+`src_shared_validation_1p53ez_._.js` dentro del contenedor
+(`infinite-power-omniroute-1`), no adivinado ni tomado de documentación que
+podría estar desactualizada:
+
+```
+{
+  name: string, requerido, 1-100 chars, regex [a-zA-Z0-9_/.\-\[\] ] (letras,
+        números, espacios, - _ / . [ ])
+  description?: string, máx 2000
+  models?: array de "model entries" (default []) — cada entry es una de tres formas:
+    - string plano (id de modelo, shorthand)
+    - objeto { provider?, providerId?, model (requerido), connectionId?, tags?[],
+               prompt?, id?, weight? (0-100, default 0), label? }
+    - objeto { kind: "combo-ref" (requerido), comboName (requerido) } — permite
+      que un combo referencie a otro combo como si fuera un "modelo" más
+  strategy?: enum, default "priority" (lista completa de valores del enum
+             ROUTING_STRATEGY_VALUES todavía no extraída — no crítico para el
+             diseño de 4 combos simples, que no necesita cambiar el default)
+  config?: objeto grande (~50 campos opcionales) — para el diseño actual
+           (4 combos por nivel, fallback simple) solo hace falta dejar el
+           default o, como mucho, tocar maxRetries/fallbackDelayMs
+  allowedProviders?, allowedModelFamilies?, system_message?, tool_filter_regex?,
+  context_cache_protection?, context_length?, dimensions?
+}
+```
+
+También confirmados (mismo archivo): `updateComboSchema` (PATCH),
+`reorderCombosSchema`, `testComboSchema` (`POST /api/combos/test`, body
+`{comboName}` — sirve para probar un combo ya creado sin pasar por el
+Ejecutor genérico), `updateComboDefaultsSchema`.
+
+**Pendiente del 16 de agosto (`stack_y_convenciones.md`, `estado_del_proyecto.md`)
+queda resuelto**: el schema de creación de combos ya no es una incógnita.
+
+### 4 hallazgos de infraestructura — sin resolver, bloquean crear combos con confianza
+
+1. **Bug real de persistencia: el volumen de OmniRoute apunta a la carpeta
+   equivocada.** `docker-compose.yml` monta `./data/omniroute:/app/config`,
+   pero los logs del contenedor (`DATA_DIR=/app/data`,
+   `SQLite database ready: /app/data/storage.sqlite`) confirman que la ruta
+   real donde OmniRoute guarda su base de datos (combos, credenciales,
+   providers) es `/app/data`, no `/app/config`. Esto significa que **hoy
+   nada de lo que se configure en OmniRoute vía dashboard o API sobrevive a
+   una recreación del contenedor** (`docker compose up -d` con cambios, o
+   cualquier `docker compose down`) — se perdería en silencio. Mismo tipo de
+   bug que ya se encontró y corrigió en Bloque 0 con `N8N_ENCRYPTION_KEY`,
+   pero este es peor porque no hay ningún síntoma visible hasta que se
+   recrea el contenedor y de repente los combos ya no están.
+
+2. **Faltan `JWT_SECRET` y `API_KEY_SECRET`.** Confirmado con
+   `docker exec ... printenv` que el contenedor solo tiene `DATA_DIR`
+   explícito entre las variables relevantes — `JWT_SECRET`, `API_KEY_SECRET`
+   (y opcionalmente `STORAGE_ENCRYPTION_KEY`) no están seteadas. OmniRoute
+   las documenta como requeridas para producción; sin ellas, probablemente
+   está generando un valor de respaldo efímero por su cuenta, lo que en la
+   práctica significa que **cualquier sesión/token/credencial guardada podría
+   invalidarse en cualquier recreación del contenedor** — mismo problema que
+   el punto 1 mirado desde el ángulo de seguridad, no solo de persistencia.
+
+3. **La contraseña del dashboard sigue siendo la default (`CHANGEME`).**
+   Log del contenedor: `[bootstrap] ⚠️ INITIAL_PASSWORD is not set — using
+   default 'CHANGEME'. Change it in Settings!`. Confirmado, no cambiado
+   todavía. El API de administración (`/api/combos`, etc.) requiere login
+   (`POST /api/auth/login`) o un API key con scope "manage" — con la
+   contraseña en default, cualquiera con acceso a la red donde corre el
+   contenedor podría entrar al dashboard.
+
+4. **No hay ningún proveedor de modelos conectado todavía.** Evidencia en
+   logs: `[AUTO] auto/*:pro matched no connected models`,
+   `[ModelSync] No connections with autoSync enabled`. Aunque se creen los
+   4 combos con el schema ya confirmado, **no van a rutear nada real** hasta
+   que al menos un proveedor (ej. la llave gratis de Gemini del amigo, o
+   Groq, mencionadas en `plan_de_accion_completo.md` §0 y en
+   `stack_y_convenciones.md`) esté conectado dentro de OmniRoute.
+
+### Decisión pendiente de Mateo — no se asumió, se pregunta
+
+Por la instrucción vigente de preguntar en vez de asumir ante duda real: el
+orden lógico antes de crear los 4 combos es (a) arreglar el volumen
+`/app/config` → `/app/data` en `docker-compose.yml`, (b) generar y fijar
+`JWT_SECRET`/`API_KEY_SECRET` en `.env` (mismo patrón que
+`N8N_ENCRYPTION_KEY` en Bloque 0: si se puede rescatar un valor ya en uso,
+reusarlo; si no, generar uno nuevo seguro), (c) loguearse con `CHANGEME` y
+cambiar la contraseña, y solo entonces (d) decidir qué proveedor(es)
+conectar primero — para (d) hace falta que Mateo confirme qué llave(s) usar
+(la de Gemini del amigo, Groq, alguna otra ya mencionada en el plan, o algo
+distinto) antes de tocar nada del lado de OmniRoute con esa llave.
+**No se ha tocado `docker-compose.yml` ni `.env` todavía** — se documenta
+aquí primero, se ejecuta después de la confirmación.
+
+---
+
 ## Actualización — 16 de agosto de 2026 (mecanismo concreto nivel → modelo, `schema/005_nivel_importancia.sql`) — histórica, ver corrección y auditoría más arriba/abajo
 
 Quedaba un hueco real señalado por Mateo: se documentaba "OmniRoute traduce

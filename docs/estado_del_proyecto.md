@@ -67,7 +67,7 @@ Ramas Upgrade & review center y Proyect center: **cero prompts escritos.**
 
 - **Orquestador:** n8n self-hosted (Docker), `localhost:5678`.
 - **Memoria/estado:** Postgres 16 self-hosted (Docker).
-- **Router de modelos:** OmniRoute self-hosted (proyecto independiente, no LiteLLM), `localhost:20128` (`http://omniroute:20128` desde dentro de Docker). Traduce nivel de importancia → modelo real vía "combos"; esquema exacto de creación de combos (`POST /api/combos`) todavía sin confirmar contra el dashboard real.
+- **Router de modelos:** OmniRoute self-hosted (proyecto independiente, no LiteLLM), `localhost:20128` (`http://omniroute:20128` desde dentro de Docker). Traduce nivel de importancia → modelo real vía "combos"; esquema exacto de creación de combos (`POST /api/combos`) **confirmado el 17 de agosto** contra el código fuente real del contenedor (ver `plan_de_accion_completo.md`). Pendiente antes de crear los 4 combos: 4 problemas de infraestructura sin resolver (volumen mal montado, secrets faltantes, password default, cero proveedores conectados) — ver misma actualización.
 - **Infraestructura:** todo local. VPS + dominio después.
 - **Aprobaciones humanas:** bot de Telegram. Checkpoints obligatorios en gasto, publicación, temas legales, seguridad, y acciones fuera del sandbox de un bot con autonomía ampliada.
 - **Modelo de niveles de importancia (reemplaza el viejo modelo de "Presupuesto pagado" de una lista fija de bots, 15/ago noche):** ningún bot declara su propio modelo ni decide su propio nivel. Efadam asigna `bajo`/`medio`/`alto`/`critico` aplicando reglas fijas por dominio/tema (no criterio libre) al despachar cada tarea; el bot que ejecuta hereda ese nivel en `tasks.nivel_importancia`. OmniRoute resuelve el nivel al modelo real — el mecanismo pensado para que cada instalación (BYOK) traiga sus propias llaves, sin depender de una sola instancia compartida cargada con las de Mateo. Detalle completo en `stack_y_convenciones.md`, sección "Niveles de importancia y BYOK".
@@ -111,4 +111,4 @@ Ver `plan_de_accion_completo.md` para el estado completo y actualizado de cada b
 - Tamaño exacto del presupuesto propio de Out of the box thinker.
 - Cadencia exacta (Schedule Trigger) por rama.
 - Agregar al amigo como colaborador del repo.
-- Confirmar esquema exacto de creación de combos en OmniRoute (`POST /api/combos`) y configurar los 4 niveles.
+- ~~Confirmar esquema exacto de creación de combos en OmniRoute~~ — hecho el 17/ago. Falta configurar los 4 niveles, bloqueado por 4 hallazgos de infraestructura sin resolver (ver `plan_de_accion_completo.md`, actualización del 17 de agosto): volumen `/app/config`→`/app/data` mal montado (nada persiste), faltan `JWT_SECRET`/`API_KEY_SECRET`, password del dashboard sigue en default (`CHANGEME`), y cero proveedores de modelos conectados (necesita que Mateo confirme qué llave(s) usar primero).
