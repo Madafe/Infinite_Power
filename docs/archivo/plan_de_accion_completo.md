@@ -5,7 +5,118 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 17 de agosto de 2026, noche (conexión de proveedores en OmniRoute, hallazgos de riesgo, backup de datos, y Mateo confirma que el proyecto es individual) — VIGENTE, léase primero
+## Actualización — 17 de agosto de 2026, noche, segunda ronda (Mateo decide las 3 pendientes: contraseña generada por Claude, Cloudflare descartado, Qwen procede — ejecución real en el contenedor) — VIGENTE, léase primero
+
+Mateo contestó las 3 decisiones pendientes de la actualización inmediata de
+abajo: **(1) contraseña de OmniRoute — "generala tu"; (2) Cloudflare AI —
+"Descartalo"; (3) Qwen — "Procede".** Se ejecutó de inmediato sobre el
+contenedor real, no solo se documentó.
+
+### Hecho: infraestructura de OmniRoute arreglada y verificada
+
+- `docker-compose.yml`: volumen de OmniRoute corregido de `/app/config` a
+  `/app/data`; agregadas `JWT_SECRET`/`API_KEY_SECRET`/
+  `STORAGE_ENCRYPTION_KEY`/`STORAGE_ENCRYPTION_KEY_VERSION` como variables
+  de entorno explícitas en el servicio, reusando los mismos valores que
+  OmniRoute ya había auto-generado (no rotados) — ahora viven en `.env`
+  bajo el prefijo `OMNIROUTE_*`.
+- Contenedor recreado (`docker compose up -d omniroute`) y verificado: el
+  volumen ahora sí persiste en `data/omniroute/` del host
+  (`storage.sqlite` confirmado ahí después de la recreación, en vez de
+  perderse en la capa efímera del contenedor). La base histórica de antes
+  de este cambio no se migró (no tenía nada de valor — cero combos o
+  conexiones existían todavía; el respaldo `.tar.gz` de la actualización
+  anterior conserva esa foto por si hiciera falta).
+- **Contraseña del dashboard generada por Claude** (instrucción de Mateo):
+  `W9KaCeUV0KVuohD3ROv99jfsLGjV0Cs` — fijada vía
+  `POST /api/settings/require-login` (el mecanismo real detrás del
+  asistente de onboarding, confirmado leyendo
+  `dashboard/onboarding/page.tsx`; no hizo falta pasar por el navegador).
+  Login confirmado funcionando. **Guardada en `.env`
+  (`OMNIROUTE_DASHBOARD_PASSWORD`, gitignored) — cámbiala desde Settings →
+  Security si prefieres otra.**
+
+### Hecho: Cloudflare AI descartado
+
+Sin cambios técnicos que hacer — simplemente no se conecta. Queda anotado
+como decisión tomada, no como pendiente abierto.
+
+### Hecho: 4 combos creados (`bajo`/`medio`/`alto`/`critico`)
+
+Con el `createComboSchema` ya confirmado. Todos apuntan a modelos de
+Pollinations por ahora (único proveedor conectado):
+
+- `bajo` → `pol/openai-fast`
+- `medio` → `pol/claude`, `pol/openai` (fallback)
+- `alto` → `pol/claude-large`, `pol/openai-large` (fallback)
+- `critico` → `pol/claude-large`
+
+**Pendiente #7 de la lista de abajo, resuelto empíricamente:** el campo
+`model` de un request de chat completions puede referenciar el combo
+directo por su `name` (ej. `model: "bajo"`) — no hizo falta
+`/api/model-combo-mappings` para este diseño simple de 4 niveles.
+
+### Hallazgo nuevo, no anticipado: Pollinations NO es realmente "sin auth" para uso real
+
+La conexión de Pollinations se creó y el test superficial
+(`POST /api/providers/{id}/test`) dio `valid: true` — pero al probar los
+combos de verdad (`POST /api/combos/test`), **los 3 modelos probados
+(`openai-fast`, `claude`, `openai`) devolvieron 401**: `"A valid API key
+is required. Get one at https://enter.pollinations.ai/keys"`. Es decir:
+Pollinations dejó de ser gratis-sin-registro para inferencia real, al
+menos para estos modelos — contradice tanto la guía de OmniRoute
+(`FREE-TIERS-GUIDE.md`, "no auth needed") como mi propia evaluación de la
+actualización anterior ("sin objeciones, listo para conectar"). **Esa
+evaluación anterior queda corregida aquí: estaba incompleta** — verificaba
+que el código apuntara a un endpoint oficial, pero no que la llamada real
+funcionara sin credencial. No se investigó todavía si
+`enter.pollinations.ai/keys` es un registro gratuito (tipo lista de
+espera/Discord) o de pago — **pendiente de que Mateo lo revise si quiere
+usar Pollinations de verdad**, o de buscar otro proveedor gratis real como
+reemplazo. **Los 4 combos existen pero hoy no rutean tráfico real** — la
+conexión que tienen detrás no está sirviendo.
+
+### Qwen: "Procede" — investigado a fondo, pero el último paso solo lo puede dar Mateo
+
+Confirmado en el código (`web-cookie.ts`, definición de `qwen-web`)
+exactamente qué hace falta para conectarlo: no es una API key normal, es
+"abrir chat.qwen.ai, loguearse, abrir DevTools → Application → Local
+Storage → copiar el valor de `token` (o usar la cookie `tongyi_sso_ticket`
+como Bearer token)". **Esto solo lo puede hacer Mateo (o alguien con una
+cuenta real de Qwen) desde un navegador real logueado** — no es algo que
+Claude pueda generar, adivinar, ni completar por su cuenta. Crear una
+cuenta nueva de Qwen a nombre de Mateo sin que él lo sepa tampoco es una
+decisión que le corresponda tomar a Claude (acepta los términos de
+servicio de un tercero en su nombre). **"Procede" se ejecutó hasta donde
+es técnicamente posible sin esa acción manual de Mateo** — la conexión en
+OmniRoute está lista para recibir el token en cuanto él lo consiga
+(Providers → Add Provider → Qwen Web (Free), pegar el token/cookie ahí).
+Sigue sin conectar.
+
+### Qué falta ahora, en orden
+
+1. **Necesita a Mateo:** revisar si `enter.pollinations.ai/keys` es
+   registro gratis o de pago, y decidir si vale la pena para que los
+   combos ruteen de verdad, o buscar un reemplazo gratis real.
+2. **Necesita a Mateo:** loguearse en `chat.qwen.ai`, extraer el token
+   (instrucciones arriba), y conectarlo en el dashboard de OmniRoute
+   (`http://localhost:20128`, contraseña en `.env`) si todavía quiere
+   proceder con Qwen sabiendo el riesgo de baneo ya documentado.
+3. Una vez que al menos un proveedor rutee de verdad: probar
+   `POST /api/chat/completions` con `model: "bajo"` (o el nivel que sea)
+   contra el contenedor real, para confirmar extremo a extremo que un
+   combo sirve una respuesta real, no solo que existe.
+4. Propagar `nivel_importancia` a las tareas hijas en n8n (pendiente #8
+   de la lista de abajo) y construir la ingesta Telegram → `tasks`
+   (pendiente #9).
+5. Rotar contraseña de Postgres (C1), parametrizar SQL de "Obtener config
+   del bot" (C2), completar flujo de aprobación humana (C4) — pendientes
+   #11-13 de abajo, siguen sin tocar.
+6. Insertar y activar Efadam (Bloque 3) — bloqueado hasta que cierren 1-5.
+
+---
+
+## Actualización — 17 de agosto de 2026, noche (conexión de proveedores en OmniRoute, hallazgos de riesgo, backup de datos, y Mateo confirma que el proyecto es individual) — vigente
 
 Continuación de la sesión de la tarde (ver actualización inmediatamente
 abajo, ahora marcada "vigente" sin ser la más reciente). Mateo dio 3
