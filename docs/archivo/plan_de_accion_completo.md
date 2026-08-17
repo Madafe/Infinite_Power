@@ -5,7 +5,98 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 17 de agosto de 2026, noche, segunda ronda (Mateo decide las 3 pendientes: contraseña generada por Claude, Cloudflare descartado, Qwen procede — ejecución real en el contenedor) — VIGENTE, léase primero
+## Actualización — 17 de agosto de 2026, noche, tercera ronda (factibilidad de automatizar la generación de credenciales de OmniRoute en el startup — hallazgo, no implementación) — VIGENTE, léase primero
+
+Mateo preguntó si es posible que, en el arranque del sistema, la generación
+de la llave/contraseña de OmniRoute se haga desde la propia interfaz de
+Infinite Power sin que el usuario tenga que pasar por lo que se hizo a mano
+hoy (llamadas directas a la API vía curl). Pidió explícitamente **no
+construirlo ahora** — solo verificar si es factible y dejarlo anotado para
+resolverse junto con el diseño de "startup"/onboarding más adelante.
+Mientras tanto, se sigue usando la instancia de OmniRoute ya configurada
+hoy (con la contraseña generada en la ronda anterior), pero exclusivamente
+para efectos de construir el sistema — no como el flujo final que vería un
+usuario real.
+
+### Factibilidad: sí, y ya quedó demostrada empíricamente hoy mismo
+
+Todo lo que se hizo a mano en la ronda anterior (generar la contraseña,
+fijarla, crear los 4 combos) fueron llamadas normales a la API HTTP de
+OmniRoute — nada de eso requirió abrir un navegador ni pasar por el
+asistente de onboarding de OmniRoute. Eso significa que un script de
+arranque (o un workflow de n8n, o un futuro microservicio propio de
+Infinite Power) puede hacer exactamente lo mismo de forma automática e
+idempotente, sin que el usuario final tenga que tocar la API ni el
+dashboard de OmniRoute directamente.
+
+**Lo que sí se puede automatizar sin fricción:**
+
+1. Generar los 4 secretos de OmniRoute (`JWT_SECRET`, `API_KEY_SECRET`,
+   `STORAGE_ENCRYPTION_KEY`, `STORAGE_ENCRYPTION_KEY_VERSION`) de forma
+   aleatoria **antes** de levantar el contenedor por primera vez, e
+   inyectarlos como variables de entorno desde el arranque — más limpio
+   que lo que se hizo hoy (que tuvo que reusar los que OmniRoute ya había
+   autogenerado, porque el contenedor ya llevaba corriendo desde antes de
+   este hallazgo).
+2. Generar una contraseña de dashboard aleatoria y fijarla vía
+   `POST /api/settings/require-login` en cuanto el contenedor esté
+   saludable. `GET /api/settings/require-login` sirve como chequeo de
+   idempotencia (`hasPassword`): si ya tiene contraseña, el script no la
+   pisa en un reinicio posterior.
+3. Crear los 4 combos por defecto (`bajo`/`medio`/`alto`/`critico`)
+   automáticamente vía `POST /api/combos`, sin que el usuario tenga que
+   entrar nunca al dashboard de OmniRoute para esto.
+4. Mostrarle al usuario, una sola vez, la contraseña generada (para que la
+   tenga guardada por si alguna vez necesita entrar directo al dashboard
+   de OmniRoute) — no esconderla del todo. Una contraseña que nadie conoce
+   ni puede recuperar es un problema el día que haga falta usarla.
+
+**Lo que NO se puede automatizar — límite real, no técnico sino de
+terceros:** conectar un proveedor de modelos real (una API key de
+Pollinations, Anthropic, OpenAI, un token de Qwen, lo que sea) siempre va
+a requerir que el usuario tenga o consiga su propia credencial de ese
+proveedor externo. Ningún script puede generar una API key válida de un
+tercero en nombre del usuario. Lo que sí se puede simplificar es *dónde*
+la pega: en vez de que el usuario tenga que aprender a usar el dashboard
+de OmniRoute, la interfaz propia de Infinite Power podría ofrecer un paso
+simple de "pega tu API key de [proveedor] aquí" que internamente llame a
+`POST /api/providers`. Sigue siendo fricción real (conseguir la key en el
+sitio del proveedor), pero se elimina la fricción de aprender una
+herramienta externa.
+
+### Dónde debería vivir esta lógica de arranque (para cuando se diseñe — no decidido todavía)
+
+Tres opciones a evaluar en su momento, sin decidir ahora:
+
+a) Un script de inicialización de una sola vez, al estilo de un
+   contenedor de "migraciones" en `docker-compose.yml` (ya existe ese
+   patrón para el esquema de Postgres).
+b) Un workflow de n8n disparado una sola vez al arranque — mantiene toda
+   la lógica de "arranque del sistema" en un solo lugar, consistente con
+   que n8n ya es el orquestador de todo lo demás.
+c) Un microservicio propio de Infinite Power, si en algún momento existe
+   una interfaz propia más allá de Telegram + los dashboards crudos de
+   n8n/OmniRoute — probablemente esto es lo que Mateo tiene en mente con
+   "la misma interfaz de mi proyecto", pero esa interfaz todavía no
+   existe.
+
+### Advertencia de diseño a futuro (anotada, no urgente)
+
+Si Infinite Power alguna vez deja de ser una instalación de un solo
+usuario (self-hosted, como hoy) y pasa a ser multiusuario, este enfoque de
+generar secretos y guardarlos en un `.env` compartido deja de alcanzar —
+haría falta una bóveda de secretos por usuario/instalación. No es un
+problema hoy (Mateo es el único usuario), pero queda anotado para no
+repetir el mismo diseño a ciegas si el proyecto llega a empaquetarse para
+terceros.
+
+No se construyó nada de esto en esta ronda, por instrucción explícita de
+Mateo. Se sigue usando la instancia actual de OmniRoute, ya configurada,
+exclusivamente para construir el resto del sistema.
+
+---
+
+## Actualización — 17 de agosto de 2026, noche, segunda ronda (Mateo decide las 3 pendientes: contraseña generada por Claude, Cloudflare descartado, Qwen procede — ejecución real en el contenedor) — vigente
 
 Mateo contestó las 3 decisiones pendientes de la actualización inmediata de
 abajo: **(1) contraseña de OmniRoute — "generala tu"; (2) Cloudflare AI —
