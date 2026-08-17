@@ -1,11 +1,128 @@
 # Plan de acción completo — "Infinite power"
 ### Sistema de agentes autogestionado para el negocio
 
-Para: Mateo + amigo · 7 de agosto de 2026
+Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de agosto, noche, sobre la baja del cofundador)
 
 ---
 
-## Actualización — 17 de agosto de 2026, tarde (revisión de la auditoría técnica y de visión, vía Cowork) — VIGENTE, léase primero
+## Actualización — 17 de agosto de 2026, noche (conexión de proveedores en OmniRoute, hallazgos de riesgo, backup de datos, y Mateo confirma que el proyecto es individual) — VIGENTE, léase primero
+
+Continuación de la sesión de la tarde (ver actualización inmediatamente
+abajo, ahora marcada "vigente" sin ser la más reciente). Mateo dio 3
+instrucciones: (1) conectar Pollinations, Cloudflare AI y Qwen en
+OmniRoute; (2) borrar toda referencia al amigo/cofundador en los
+documentos del proyecto — es un proyecto individual, no hay cofundador;
+(3) seguir con los siguientes pasos hasta necesitar una decisión real de
+Mateo.
+
+### Sobre el amigo/cofundador
+
+Se eliminaron las referencias activas/futuras: checklist de Fase 0, tabla
+de reparto de responsabilidades, el pendiente "agregar al amigo como
+colaborador del repo", `estado_del_proyecto.md`, y el prompt de Efadam en
+`prompts/_core/efadam.md` (este último importa porque es contenido que
+Efadam lee en producción, no solo un documento humano). **No se tocaron**
+`docs/archivo/plan_de_accion.md` ni
+`docs/archivo/contexto_proyecto_infinite_power_v5.md` — son versiones
+archivadas y superadas (por este documento y por
+`contexto_proyecto_infinite_power_v6.md` respectivamente); reescribir un
+documento archivado para que diga algo distinto de lo que decía en su
+momento sería falsificar el registro histórico, no corregirlo. Si Mateo
+prefiere que también se borren ahí, se hace — por ahora se trató como
+fuera del alcance de "el plan" vigente.
+
+### Investigación de los 3 proveedores pedidos
+
+**Pollinations — sin objeciones, listo para conectar.** El código
+(`open-sse/executors/pollinations.ts`) apunta a un endpoint oficial,
+formato OpenAI estándar (`https://gen.pollinations.ai/v1/chat/completions`),
+sin ninguna bandera de riesgo.
+
+**Cloudflare AI — contradicción real entre la guía de OmniRoute y el
+código, sin resolver todavía.** `FREE-TIERS-GUIDE.md` lo lista como Tier 1
+("no auth needed"), pero el ejecutor real
+(`open-sse/executors/cloudflare-ai.ts`) exige un Bearer API Token y un
+Account ID reales, obtenidos desde una cuenta de Cloudflare
+(`dash.cloudflare.com/profile/api-tokens`). Es gratis, pero no es "cero
+fricción" como decía la guía — hace falta que Mateo tenga o cree una
+cuenta de Cloudflare y genere un token. **Pendiente de decisión de
+Mateo:** ¿crea la cuenta/token para conectarlo ahora, o se pospone
+Cloudflare y se avanza solo con Pollinations por el momento?
+
+**Qwen — hallazgo de riesgo real, no se conectó, necesita decisión
+explícita de Mateo antes de tocarlo.** El ejecutor
+(`open-sse/executors/qwen-web.ts`) no usa una API oficial de Alibaba: hace
+scraping del chat de consumidor `chat.qwen.ai`, replicando una cookie jar
+completa de una sesión real logueada más un bearer token, para evadir el
+WAF anti-bot de Alibaba ("baxia"). El propio comentario del código lo
+compara explícitamente con `gpt4free` y `Chat2API` — proyectos conocidos
+de ingeniería inversa no oficial, en zona gris de los términos de
+servicio. OmniRoute tiene incluso un sistema dedicado de detección de
+baneo (`docs/security/BAN_DETECTION.md`) con un estado terminal "banned"
+(1 año de enfriamiento, sin recuperación automática) — evidencia de que el
+riesgo de baneo de cuenta es real y conocido por los propios
+desarrolladores de OmniRoute, no una posibilidad remota. Esto no es lo que
+"conectar Qwen" sonaba que era (un proveedor gratis más del catálogo): es
+replay de sesión de un producto de consumo real, con riesgo real de que
+esa cuenta quede baneada permanentemente. No se conectó. Queda pendiente
+que Mateo confirme, con esta información en mano, si de todos modos
+quiere proceder — y con qué cuenta de Qwen, dado que el riesgo de baneo
+recae sobre esa cuenta específica.
+
+### Hallazgo adicional: OmniRoute no tiene contraseña configurada, y no es "CHANGEME"
+
+El plan anterior (ver "Pendientes de Bloque 2" más abajo) asumía que la
+contraseña default del dashboard era literalmente `CHANGEME`, según un log
+de bootstrap. Verificado en vivo: `POST /api/auth/login` con `CHANGEME`
+devuelve `{"error":"No password configured. Complete onboarding
+first.","needsSetup":true}` — no hay ninguna contraseña utilizable
+todavía. OmniRoute exige completar un asistente de onboarding en
+`/dashboard/onboarding` (confirmado leyendo `login/page.tsx` y
+`login/route.ts`) antes de poder loguearse por primera vez; ese asistente
+es la única vía real para fijar la contraseña inicial, no hay endpoint de
+API documentado ni valor por defecto real que sirva. Además
+`login/route.ts` falla directo (500) si `process.env.JWT_SECRET` no está
+seteado como variable de entorno real del proceso (distinto del
+`server.env` que OmniRoute ya generó solo dentro de `/app/data`) — fijar
+`JWT_SECRET` en `docker-compose.yml`/`.env` sigue siendo necesario aparte
+del onboarding.
+
+### Backup de `/app/data` ya hecho, antes de tocar nada
+
+Antes de arreglar el volumen mal montado (`/app/config` en vez de
+`/app/data`, ver hallazgo de la tarde más abajo), se respaldó en frío el
+contenido real del contenedor (`storage.sqlite`, `server.env` con los
+secretos ya generados, logs de llamadas del 11 al 17 de agosto) a
+`data/omniroute_data_backup_17ago2026.tar.gz` (638 KB comprimido) dentro
+del repo local. **No comiteado a propósito** — son datos/secretos reales,
+no deben subirse a git; queda en el filesystem local, o se mueve a un
+backup fuera del repo si Mateo prefiere. Esto es puramente preventivo:
+todavía no se tocó `docker-compose.yml` ni se recreó el contenedor.
+
+### Qué falta, sin necesitar más decisiones de Mateo (técnico)
+
+1. Arreglar `docker-compose.yml`: volumen de OmniRoute de `/app/config` a
+   `/app/data`, y agregar `JWT_SECRET`/`API_KEY_SECRET`/
+   `STORAGE_ENCRYPTION_KEY` como variables de entorno explícitas
+   (reusando los valores que OmniRoute ya generó solo en
+   `/app/data/server.env`, mismo patrón de "reusar en vez de rotar" que
+   `N8N_ENCRYPTION_KEY` en Bloque 0).
+2. Recrear el contenedor y confirmar que los datos sobreviven una segunda
+   recreación (la prueba real de que el volumen quedó bien montado).
+3. Conectar Pollinations una vez el dashboard sea accesible.
+
+### Qué necesita decisión de Mateo antes de seguir
+
+- **Contraseña del dashboard de OmniRoute:** el asistente de onboarding la
+  va a pedir — ¿la define Mateo, o autoriza que se genere una segura y se
+  le entregue?
+- **Cloudflare AI:** ¿cuenta/token propio ahora, o se pospone?
+- **Qwen:** ¿proceder de todos modos con el riesgo de baneo explicado
+  arriba, con qué cuenta, o se descarta?
+
+---
+
+## Actualización — 17 de agosto de 2026, tarde (revisión de la auditoría técnica y de visión, vía Cowork) — vigente
 
 Mateo compartió una auditoría externa nueva, independiente de la del 16 de
 agosto (`docs/auditoria_tecnica_y_vision_17ago2026.md`), con hallazgos
@@ -145,23 +262,32 @@ queda resuelto**: el schema de creación de combos ya no es una incógnita.
    invalidarse en cualquier recreación del contenedor** — mismo problema que
    el punto 1 mirado desde el ángulo de seguridad, no solo de persistencia.
 
-3. **La contraseña del dashboard sigue siendo la default (`CHANGEME`).**
-   Log del contenedor: `[bootstrap] ⚠️ INITIAL_PASSWORD is not set — using
-   default 'CHANGEME'. Change it in Settings!`. Confirmado, no cambiado
-   todavía. El API de administración (`/api/combos`, etc.) requiere login
-   (`POST /api/auth/login`) o un API key con scope "manage" — con la
-   contraseña en default, cualquiera con acceso a la red donde corre el
-   contenedor podría entrar al dashboard.
+3. **No hay ninguna contraseña de dashboard configurada todavía** (el log
+   de bootstrap sugería un default `CHANGEME`, pero **verificado en vivo
+   que ese login no funciona** — devuelve `needsSetup: true`; ver
+   actualización del 17 de agosto, noche, arriba). El API de
+   administración (`/api/combos`, etc.) requiere login (`POST
+   /api/auth/login`) o un API key con scope "manage" — hasta completar el
+   asistente de onboarding, nadie (ni Mateo) puede entrar al dashboard.
 
 4. **No hay ningún proveedor de modelos conectado todavía.** Evidencia en
    logs: `[AUTO] auto/*:pro matched no connected models`,
    `[ModelSync] No connections with autoSync enabled`. Aunque se creen los
    4 combos con el schema ya confirmado, **no van a rutear nada real** hasta
-   que al menos un proveedor (ej. la llave gratis de Gemini del amigo, o
-   Groq, mencionadas en `plan_de_accion_completo.md` §0 y en
-   `stack_y_convenciones.md`) esté conectado dentro de OmniRoute.
+   que al menos un proveedor esté conectado dentro de OmniRoute — ver la
+   actualización del 17 de agosto, noche (arriba) para los 3 proveedores
+   que Mateo pidió (Pollinations, Cloudflare AI, Qwen) y el estado de cada
+   uno.
 
 ### Decisión pendiente de Mateo — no se asumió, se pregunta
+
+> **Superado por la actualización del 17 de agosto, noche (arriba).**
+> Mateo ya contestó qué proveedores conectar (Pollinations, Cloudflare AI,
+> Qwen), y ya no hay "Gemini del amigo" como opción — el proyecto es
+> individual. El punto (c) de abajo también quedó corregido: no existe un
+> login con `CHANGEME`, hace falta completar el asistente de onboarding de
+> OmniRoute. Se deja el contenido original por trazabilidad de qué se
+> pensaba en ese momento.
 
 Por la instrucción vigente de preguntar en vez de asumir ante duda real: el
 orden lógico antes de crear los 4 combos es (a) arreglar el volumen
@@ -178,10 +304,13 @@ aquí primero, se ejecuta después de la confirmación.
 
 ### Pendientes de Bloque 2, en secuencia (para retomar en otra conversación sin depender de memoria)
 
-1. **Pregunta abierta a Mateo, sin responder todavía:** qué proveedor/llave
+1. ~~**Pregunta abierta a Mateo, sin responder todavía:** qué proveedor/llave
    conectar primero en OmniRoute (Gemini del amigo, Groq, otra ya mencionada
-   en el plan, o decidirlo después). Es el único punto de esta lista que
-   depende de una decisión de Mateo, no de trabajo técnico.
+   en el plan, o decidirlo después).~~ — **contestada (17/ago, noche):**
+   Pollinations, Cloudflare AI, Qwen. Ver actualización del 17 de agosto,
+   noche, arriba para las 3 decisiones nuevas que salieron de esa
+   respuesta (contraseña de onboarding, cuenta de Cloudflare, riesgo de
+   baneo de Qwen).
 2. Arreglar `docker-compose.yml`: volumen de OmniRoute de `/app/config` a
    `/app/data`.
 3. Generar y fijar `JWT_SECRET`/`API_KEY_SECRET` en `.env` (mismo patrón que
@@ -795,21 +924,19 @@ negocio más).
 
 **Checklist de cuentas/recursos a tener listos:**
 
+> **Nota del 17 de agosto, noche:** este checklist y la tabla de abajo se
+> escribieron cuando el proyecto era de Mateo + un amigo/cofundador. Mateo
+> confirmó que el proyecto es individual — se corrigió el checklist y se
+> quitó la tabla de reparto (ya no aplica, un solo dueño para las 3 ramas).
+
 - [ ] Dominio (ya lo tienen) — acceso al panel DNS
-- [ ] Tarjeta para pagar el VPS (~$5–6 USD/mes, se puede repartir entre los 2)
-- [ ] Cuenta de GitHub compartida u organización con ambos como miembros
-- [ ] Claves de API: Gemini (amigo), la que compre Mateo con sus $150 MXN, Groq, y cualquier otra que ya tengan de OmniRoute
+- [ ] Tarjeta para pagar el VPS (~$5–6 USD/mes)
+- [ ] Cuenta de GitHub de Mateo con el repo
+- [ ] Claves de API: la que compre Mateo con sus $150 MXN, Groq, y cualquier otra que ya tengan de OmniRoute
 - [ ] Teléfono para crear el bot de Telegram
-- [ ] Decidir quién paga/administra el VPS (recomendado: uno solo lo administra para no duplicar accesos, pero ambos tienen la contraseña guardada en un gestor compartido tipo Bitwarden)
+- [ ] Contraseña del VPS guardada en un gestor tipo Bitwarden
 
-**Reparto de responsabilidades sugerido:**
-
-| Persona | Se enfoca en |
-|---|---|
-| Mateo | Infra local, rama Upgrade & review center (Estrategia/Legal/Investigación) |
-| Amigo | OmniRoute + routing de modelos, rama Tech center (Dev/Tech), rama Proyect center (Operación/Proyectos + negocios propios) |
-
-Ajusten según quién se sienta más cómodo con qué parte — lo importante es que **cada rama tenga un dueño claro**. (La rama Tech center ya tiene sus 10 prompts escritos — ver `arquitectura.md`.)
+**Dueño de las 3 ramas:** Mateo. (La rama Tech center ya tiene sus 10 prompts escritos — ver `arquitectura.md`.)
 
 ---
 
@@ -989,13 +1116,13 @@ infinite-power/
     └── roster_agentes.xlsx
 ```
 
-Ambos con acceso de escritura. Cada bot tendrá su propio `.md` dentro de `prompts/<cluster>/<bot>.md`.
+Mateo con acceso de escritura. Cada bot tendrá su propio `.md` dentro de `prompts/<cluster>/<bot>.md`.
 
 ### Paso 0.7 — Bot de Telegram para aprobaciones
 
 1. Hablarle a `@BotFather` en Telegram, `/newbot`, ponerle nombre (ej. `InfinitePowerBot`).
 2. Guardar el token que da BotFather.
-3. Crear un grupo de Telegram con Mateo + amigo, agregar el bot al grupo.
+3. Crear un grupo de Telegram con Mateo, agregar el bot al grupo.
 4. Obtener el `chat_id` del grupo (se puede con `https://api.telegram.org/bot<token>/getUpdates` después de mandar un mensaje al grupo).
 5. Guardar token y chat_id como credencial en n8n (Settings → Credentials → nueva credencial tipo HTTP/Telegram).
 
@@ -1299,7 +1426,7 @@ para el razonamiento completo.
 5. Construir en n8n la lógica concreta de "Efadam solicita a U&R center, U&R center redacta, Efadam inserta" — hoy solo existe el diseño en prosa (`efadam.md`, `upgrade-review-center.md`).
 6. El upsert de seed inicial a `system_knowledge` **se pospone** hasta que haya un producto final que probar — no es un pendiente inmediato.
 7. Definir si `knowledge_log`/`system_knowledge` necesitan columna de versión/historial (mejora futura, no implementado).
-8. Agregar al amigo/cofundador como colaborador del repo de GitHub (pendiente desde la Fase 0).
+8. ~~Agregar al amigo/cofundador como colaborador del repo de GitHub~~ — **ya no aplica (17 de agosto, noche):** Mateo confirmó que el proyecto es individual, no hay cofundador que agregar.
 9. Activar más bots en la tabla `bots` conforme cada componente vertical lo requiera — hoy solo `tecnico_jefe` y `coder` están activos; Consultor de arquitectura y Trouble scouter siguen pospuestos con criterio explícito (ver actualización del 14 de agosto, tarde).
 10. Corregir `consultor-de-arquitectura.md` y `trouble-scouter.md`, que aún referencian `project_knowledge`/`trouble_shooter_knowledge` (nombres ya descartados) — corregir antes de activarlos.
 11. **Implementar el empaquetado de OmniRoute + n8n para distribución** (diseño ya definido, ver actualización del 15 de agosto, noche, arriba y `stack_y_convenciones.md`): agregar la columna `bots.nivel_importancia` al schema, definir los defaults gratis por nivel dentro de la config de OmniRoute, y diseñar la pantalla/paso de setup donde el usuario ve los 4 niveles y puede añadir sus llaves. No es bloqueante para construir Efadam — se puede implementar en paralelo o después, cuando el paquete se piense para distribuirse a un tercero.

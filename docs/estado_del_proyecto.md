@@ -14,8 +14,7 @@ Sistema de agentes de IA para gestionar y hacer crecer negocios de forma cada ve
 
 ## Quién lo construye
 
-- **Mateo** — fundador, Claude Pro, $150 MXN para una API de pago.
-- **Su amigo** — cofundador, API de Gemini con $200 MXN de saldo. **Todavía no es colaborador del repo** — sigue pendiente.
+- **Mateo** — fundador, Claude Pro, $150 MXN para una API de pago. Proyecto individual (confirmado el 17/ago: no hay cofundador).
 
 ## Arquitectura
 
@@ -92,7 +91,7 @@ Una auditoría externa (`auditoria_infinite_power_16ago2026.md`) encontró contr
 
 - **Bloque 0 (infraestructura) — completo.** Workflows de n8n exportados, backup de Postgres probado, `.gitattributes`, secrets movidos a `.env`, timezone explícito.
 - **Bloque 1 (contradicciones de documentación) — completo.** Las 5 contradicciones de "fuente de verdad" corregidas y los duplicados del Claude Project limpiados (17/ago).
-- **Bloque 2 (OmniRoute/n8n en vivo) — en progreso, con un hallazgo real bloqueante.** Arrancó el 17 de agosto: se confirmó el schema de `POST /api/combos`, pero investigar el contenedor de OmniRoute reveló 4 problemas de infraestructura sin resolver (volumen mal montado — nada de lo que se configure sobrevive a un `docker compose up -d` —, faltan `JWT_SECRET`/`API_KEY_SECRET`, password del dashboard en default `CHANGEME`, cero proveedores conectados). No se avanzó a crear los 4 combos encima de esa base. Hay una pregunta sin responder de Mateo: qué proveedor/llave conectar primero.
+- **Bloque 2 (OmniRoute/n8n en vivo) — en progreso, 3 decisiones de Mateo pendientes.** Arrancó el 17 de agosto: se confirmó el schema de `POST /api/combos`, pero investigar el contenedor de OmniRoute reveló 4 problemas de infraestructura (volumen mal montado — nada de lo que se configure sobrevive a un `docker compose up -d` —, faltan `JWT_SECRET`/`API_KEY_SECRET`, no hay contraseña de dashboard configurada — **no es que quedó en el default `CHANGEME`, ese login directamente no funciona; hace falta completar el asistente de onboarding de OmniRoute**, corregido el 17/ago noche —, cero proveedores conectados). Ya se respaldó en frío el contenido real del contenedor (`data/omniroute_data_backup_17ago2026.tar.gz`, no comiteado) antes de tocar nada. Mateo ya contestó qué proveedores conectar (Pollinations, Cloudflare AI, Qwen), pero investigar los 3 sacó 2 hallazgos que necesitan su decisión antes de seguir: Cloudflare AI requiere cuenta/token propio de Cloudflare pese a que la guía de OmniRoute lo listaba como "sin auth", y Qwen resultó ser scraping no oficial del chat de consumidor de Alibaba con riesgo real de baneo de cuenta (no un proveedor gratis más del catálogo). Pollinations no tiene objeciones. Ver `plan_de_accion_completo.md`, actualización del 17 de agosto, noche, para el detalle completo.
 - **Bloque 3 (activar Efadam) — no empezado**, depende de que cierre Bloque 2. Además, la auditoría técnica y de visión del 17 de agosto (`auditoria_tecnica_y_vision_17ago2026.md`) encontró 3 hallazgos críticos que hoy no están cubiertos por la secuencia de Bloque 2 y se agregaron antes de este punto: contraseña de Postgres expuesta en el historial de git (sin rotar), inyección SQL en el nodo "Obtener config del bot", y un flujo de aprobación humana que hoy es solo una notificación saliente sin ruta de respuesta. Ver `plan_de_accion_completo.md`, "Pendientes de Bloque 2, en secuencia", para el detalle.
 
 Ver `plan_de_accion_completo.md` para el estado completo y actualizado de cada bloque — esta sección es un resumen, no la fuente de detalle.
@@ -111,5 +110,4 @@ Ver `plan_de_accion_completo.md` para el estado completo y actualizado de cada b
 - Herramienta de pentesting concreta del Hacker ético.
 - Tamaño exacto del presupuesto propio de Out of the box thinker.
 - Cadencia exacta (Schedule Trigger) por rama.
-- Agregar al amigo como colaborador del repo.
-- ~~Confirmar esquema exacto de creación de combos en OmniRoute~~ — hecho el 17/ago. Falta configurar los 4 niveles, bloqueado por 4 hallazgos de infraestructura sin resolver (ver `plan_de_accion_completo.md`, actualización del 17 de agosto): volumen `/app/config`→`/app/data` mal montado (nada persiste), faltan `JWT_SECRET`/`API_KEY_SECRET`, password del dashboard sigue en default (`CHANGEME`), y cero proveedores de modelos conectados (necesita que Mateo confirme qué llave(s) usar primero).
+- ~~Confirmar esquema exacto de creación de combos en OmniRoute~~ — hecho el 17/ago. Falta configurar los 4 niveles, bloqueado por los hallazgos de infraestructura de Bloque 2 (ver arriba) y por 3 decisiones de Mateo (contraseña de onboarding de OmniRoute, cuenta de Cloudflare, riesgo de baneo de Qwen).

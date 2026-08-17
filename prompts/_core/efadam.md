@@ -26,7 +26,7 @@ más abajo.
 
 ## Objetivo
 
-Que quien hable con el sistema (hoy Mateo/su amigo directo por Telegram; más adelante, cualquiera vía Jarvis) nunca tenga que saber en qué cluster vive cada bot ni cómo está armado el sistema por dentro. Efadam traduce la petición en tareas concretas para el bot/cluster correcto, o responde directamente si es solo una pregunta de estado.
+Que quien hable con el sistema (hoy Mateo directo por Telegram; más adelante, cualquiera vía Jarvis) nunca tenga que saber en qué cluster vive cada bot ni cómo está armado el sistema por dentro. Efadam traduce la petición en tareas concretas para el bot/cluster correcto, o responde directamente si es solo una pregunta de estado.
 
 ## Orden de construcción
 
