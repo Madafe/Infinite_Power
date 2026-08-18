@@ -5,7 +5,24 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 18 de agosto de 2026, noche, cuarta ronda ("operaciones" construido y probado en vivo, con 2 bugs reales de paso corregidos) — VIGENTE, léase primero
+## Actualización — 18 de agosto de 2026, noche (pausa — merge `correcciones` → `main`) — VIGENTE, léase primero
+
+Mateo pidió pausar y mergear `correcciones` a `main` en GitHub. `main`
+estaba en `b41c7e2` (mismo commit que `alphav0.2`) — desde ahí, `main` es
+ancestro directo de `correcciones` (confirmado con `git merge-base
+--is-ancestor` antes de tocar nada), así que el merge fue **fast-forward
+limpio**, sin conflictos y sin commit de merge — `main` ahora apunta al
+mismo commit que `correcciones` (`d284a28`), con las 34 commits de esta
+rama de trabajo incluidas completas. Pusheado a `origin/main`. La rama
+`correcciones` **no se borró** — sigue viva y es donde continúa el trabajo
+cuando se retome, según la política de ramas de Mateo (nunca se borran ni
+mergean sin instrucción explícita — ver actualización del 16 de agosto,
+tarde/noche, punto 2). `alphav0.1`, `alphav0.2`, `efadam` quedan intactas,
+sin tocar.
+
+---
+
+## Actualización — 18 de agosto de 2026, noche, cuarta ronda ("operaciones" construido y probado en vivo, con 2 bugs reales de paso corregidos) — vigente
 
 Mateo respondió las dos preguntas abiertas de la ronda anterior en el mismo
 mensaje: (1) sí, mezclar `nivel_importancia` con `operations`, pero sin
