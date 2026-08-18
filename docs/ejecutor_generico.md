@@ -7,7 +7,12 @@
 
 Un solo workflow ejecuta a cualquier bot leyendo su fila de la tabla `bots`.
 Un bot nuevo = un `INSERT`, no un workflow nuevo. Piloto probado de punta a
-punta: `tecnico_jefe` → `coder` / `trouble_shooter`.
+punta: `tecnico_jefe` → `coder`. **Corrección 17/ago, noche, quinta ronda:**
+la frase original decía también "/ `trouble_shooter`" — no es cierto todavía,
+`trouble_shooter` nunca se insertó como fila activa en `bots` (ver "Lo que
+falta" más abajo, punto 4). Los nodos "Cargar contexto"/"Extraer
+patron"/"Guardar patron" del mapa de abajo están construidos y listos para
+recibirlo, pero el bot en sí no existe en la tabla todavía.
 
 ## Mapa completo (22 nodos)
 
@@ -290,6 +295,38 @@ ya son todos los que pueden fallar de forma relevante (ver hallazgos corregidos 
 3. Prueba end-to-end en vivo del loop completo (memoria + aclaración +
    reanudador) — construido y verificado en estructura, falta correrlo con una
    tarea real y confirmar el resultado.
+4. **Nuevo (17/ago, noche, quinta ronda), dos huecos reales encontrados al
+   verificar por qué Mateo sentía que Trouble shooter "todavía no está":**
+   - **`trouble_shooter` nunca se insertó como fila en `bots`.** Los dos
+     scripts que existen para él, `003_trouble_shooter_v2.sql` y
+     `004_conocimiento_directo.sql`, son ambos `UPDATE ... WHERE slug =
+     'trouble_shooter'` — asumen que la fila ya existe. Si se corrieron
+     contra una fila que nunca se insertó, no fallaron (un `UPDATE` sobre
+     cero filas no da error), solo no hicieron nada. Confirmado además por
+     "Pendientes activos" #9 de `plan_de_accion_completo.md`: "hoy solo
+     `tecnico_jefe` y `coder` están activos". Falta un `INSERT INTO bots`
+     real para `trouble_shooter` (slug, cluster, `active = true`,
+     `dispatches_tasks = true`, y después aplicar el `prompt_especifico` de
+     003 y el `conocimiento_directo = true` de 004 — o fusionar los tres en
+     un solo `INSERT` limpio). **Esto NO necesita acceso a n8n — es una
+     escritura directa a Postgres**, bloqueada esta ronda solo porque
+     Postgres no estaba corriendo (ver actualización del 17 de agosto,
+     noche, quinta ronda, en `plan_de_accion_completo.md`).
+   - **El disparo automático que describe `trouble-shooter.md` ("en cuanto
+     el nodo 'Marcar como fallida' del ejecutor marca cualquier tarea como
+     failed, se crea automáticamente una tarea nueva para Trouble shooter")
+     no existe en el mapa de nodos de arriba.** El nodo real "Marcar como
+     fallida" (ver nodo 16 arriba) solo hace
+     `UPDATE tasks SET status = 'failed', ...` — no hay ningún `INSERT`
+     conectado ahí que cree la tarea de diagnóstico para `trouble_shooter`.
+     Esa descripción en `trouble-shooter.md` documentaba el diseño
+     pretendido, no lo construido de verdad. Hace falta agregar un nodo
+     Postgres nuevo, conectado a la salida de "Marcar como fallida":
+     `INSERT INTO tasks (cluster, bot, status, input) VALUES ($1,
+     'trouble_shooter', 'pending', jsonb_build_object('text', $2))` con
+     `$1` = cluster de la tarea que falló y `$2` = el mismo error que se
+     guardó en `output`. **Esto SÍ necesita editar el workflow en n8n** —
+     mismo bloqueo de acceso que el resto del backlog de Bloque 2.
 
 ## Cómo probarlo hoy
 

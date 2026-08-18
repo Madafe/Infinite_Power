@@ -1,5 +1,13 @@
 # Trouble shooter
 
+> **Actualizado 17/ago/2026, noche, quinta ronda:** todavía no está activo.
+> Nunca se insertó como fila en `bots` (los scripts `003_trouble_shooter_v2.sql`
+> y `004_conocimiento_directo.sql` son `UPDATE`, asumen una fila que no existe),
+> y el disparo automático que describe la sección "Input que recibe" más abajo
+> no está construido en el n8n real — ver `ejecutor_generico.md`, "Lo que
+> falta", punto 4, y `plan_de_accion_completo.md`, actualización del 17 de
+> agosto, noche, quinta ronda.
+
 > **v2 — 14/ago/2026:** ya no tiene "banco de conocimiento propio". Escribe en
 > la tabla compartida `knowledge_log` con `tipo = 'patron_fallo'`, y lo hace el
 > ejecutor automáticamente desde el campo `patron_aprendido` — él no escribe en
@@ -20,7 +28,7 @@ Reducir el tiempo entre "algo falló" y "sabemos por qué y cómo arreglarlo", s
 
 ## Input que recibe
 
-Registro de error en `agent_runs` o `tasks` (status = `failed`), con el log/mensaje de error. **No espera a que se lo asignen a mano**: en cuanto el nodo "Marcar como fallida" del ejecutor marca cualquier tarea como `failed`, se crea automáticamente una tarea nueva para Trouble shooter con ese error como input.
+Registro de error en `agent_runs` o `tasks` (status = `failed`), con el log/mensaje de error. **Diseño pretendido, no construido todavía (corregido 17/ago, noche, quinta ronda):** la idea es que no haga falta asignárselo a mano — en cuanto el nodo "Marcar como fallida" del ejecutor marca cualquier tarea como `failed`, se crearía automáticamente una tarea nueva para Trouble shooter con ese error como input. Verificado contra el mapa de nodos real de `ejecutor_generico.md`: ese `INSERT` automático **no existe todavía** — "Marcar como fallida" hoy solo hace el `UPDATE` que deja la tarea en `failed`, sin disparar nada más. Falta agregar el nodo Postgres que lo haga (detalle exacto en `ejecutor_generico.md`, sección "Lo que falta", punto 4) — requiere editar el workflow en n8n. Mientras tanto, la única forma de que Trouble shooter reciba un caso es insertarle la tarea a mano.
 
 Recibe además, inyectados por el ejecutor: los patrones de fallo ya conocidos de `knowledge_log`, cada uno con su contador de cuántas veces se ha visto.
 

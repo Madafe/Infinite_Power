@@ -5,7 +5,95 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 17 de agosto de 2026, noche, cuarta ronda (fallback en cascada entre niveles implementado en OmniRoute, Efadam ya no explica de más, Pollinations resulta gratis de verdad, y bloqueo real: falta acceso a n8n para el resto del backlog) — VIGENTE, léase primero
+## Actualización — 17 de agosto de 2026, noche, quinta ronda (se intentó conectar a n8n: el stack completo estaba apagado, la máquina se quedó casi sin RAM al intentar levantarlo; diagnóstico real de por qué Trouble shooter "no está") — VIGENTE, léase primero
+
+Mateo pidió dos cosas: (1) intentar conectarse a n8n, (2) implementar Trouble
+shooter al final del Ejecutor genérico, porque le parecía que todavía no
+estaba. Se investigó a fondo ambas. Resultado: (1) no se pudo conectar — el
+motivo real es más grave que "falta la API key", y (2) Mateo tenía razón,
+pero por dos motivos concretos y distintos, ninguno inventado — verificados
+contra el código/SQL real, no supuestos.
+
+### 1. Intento de conexión a n8n — el stack entero estaba apagado, no solo bloqueado por credenciales
+
+Antes de llegar siquiera al problema de credenciales (ver ronda anterior),
+`docker ps` falló con "failed to connect to the docker API" — **Docker
+Desktop no estaba corriendo en la máquina de Mateo**, así que n8n, Postgres
+y OmniRoute estaban los tres apagados, no solo inaccesibles por falta de
+llave. Se intentó levantar Docker Desktop de forma programática
+(`Start-Process`). Después de ~4 minutos sin que el motor terminara de
+iniciar, se encontró la causa real: **la máquina tenía solo 0.8 GB de RAM
+libre de 15.7 GB totales, desde antes de este intento** — Docker Desktop
+entonces se quedó atorado tratando de arrancar su VM (WSL2) encima de eso,
+llegó a consumir 7.7 GB él solo sin nunca terminar de inicializar (`wsl -l
+-v` seguía mostrando `docker-desktop: Stopped` varios minutos después), y en
+un momento hasta el propio `docker.exe` se cayó con "cannot allocate
+memory" — no un error de Docker, un síntoma de que la máquina ya no tenía
+memoria para casi nada.
+
+**Se decidió no seguir insistiendo a ciegas.** Es la máquina de Mateo, en
+uso activo en ese momento (Spotify, Opera y Word abiertos), con muy poca RAM
+libre desde antes de que Claude tocara nada — seguir reintentando el arranque
+de Docker Desktop sin que él esté mirando podía dejar el equipo inestable en
+vez de ayudar. Se terminaron los procesos de Docker Desktop que quedaron
+atorados (`Stop-Process`), lo que liberó la RAM de vuelta a 11.2 GB libres —
+la máquina queda sana para lo que Mateo esté haciendo, solo que sin el stack
+del proyecto corriendo.
+
+**Pendiente real, para cuando Mateo esté en la máquina:** revisar qué se
+estaba comiendo casi toda la RAM *antes* de que Docker Desktop intentara
+arrancar (0.8 GB libres de entrada ya es poco, independientemente del
+proyecto) y, si tiene sentido, cerrar algo o reiniciar; después, abrir Docker
+Desktop él mismo. En cuanto el stack esté arriba, se puede retomar de
+inmediato tanto la pregunta de acceso a n8n (ver ronda anterior, sigue sin
+contestar) como el punto 2 de abajo, que **no depende de n8n en absoluto**.
+
+### 2. Trouble shooter — diagnóstico concreto de qué falta, verificado contra el código real
+
+Mateo tenía razón en que no está, y se pudo confirmar exactamente por qué —
+sin necesitar que Postgres/n8n estuvieran corriendo, porque la evidencia ya
+estaba en los archivos del repo/vault:
+
+**a) `trouble_shooter` nunca se insertó como fila activa en `bots`.** Los
+dos scripts SQL que existen para configurarlo —
+`schema/003_trouble_shooter_v2.sql` (carga el `prompt_especifico`) y
+`schema/004_conocimiento_directo.sql` (marca `conocimiento_directo = true`)
+— son ambos `UPDATE ... WHERE slug = 'trouble_shooter'`. Un `UPDATE` sobre
+una fila que no existe no da ningún error, solo no hace nada — así que si
+esos scripts se corrieron alguna vez, corrieron en silencio contra cero
+filas. Esto coincide exactamente con lo que ya decía "Pendientes activos" #9
+de este mismo documento: "hoy solo `tecnico_jefe` y `coder` están activos".
+**Falta un `INSERT INTO bots` real** para `trouble_shooter` (slug, cluster,
+`active = true`, `dispatches_tasks = true`, y aplicar encima el
+`prompt_especifico`/`conocimiento_directo` que ya están escritos en 003/004).
+**Esto NO requiere acceso a n8n — es una escritura directa a Postgres**,
+lista para ejecutarse en cuanto el stack vuelva a estar arriba.
+
+**b) El disparo automático que describe `trouble-shooter.md` no está
+construido en el n8n real.** Ese documento decía "en cuanto el nodo 'Marcar
+como fallida' del ejecutor marca cualquier tarea como `failed`, se crea
+automáticamente una tarea nueva para Trouble shooter" — pero el mapa de
+nodos real de `ejecutor_generico.md` (nodo 16, "Marcar como fallida") solo
+hace `UPDATE tasks SET status = 'failed', ...`, sin ningún `INSERT`
+conectado que cree esa tarea de diagnóstico. La descripción documentaba el
+diseño que se quería, no lo que de verdad se construyó — corregido en ambos
+documentos, con nota explícita de que era aspiracional, no un error de
+redacción menor. **Esto sí requiere editar el workflow en n8n** (agregar un
+nodo Postgres nuevo después de "Marcar como fallida") — mismo bloqueo de
+acceso de la ronda anterior.
+
+**En síntesis: de las dos piezas que le faltan a Trouble shooter, una (el
+`INSERT` a `bots`) se puede resolver en cuanto vuelva Postgres, sin esperar
+la respuesta de Mateo sobre n8n; la otra (el nodo de disparo automático)
+sigue atada a esa misma respuesta pendiente.**
+
+Documentado en `docs/ejecutor_generico.md` (corrección del piloto probado, y
+nuevo punto 4 en "Lo que falta") y en `prompts/dev-tech/trouble-shooter.md`
+(nota de cabecera + corrección en "Input que recibe").
+
+---
+
+## Actualización — 17 de agosto de 2026, noche, cuarta ronda (fallback en cascada entre niveles implementado en OmniRoute, Efadam ya no explica de más, Pollinations resulta gratis de verdad, y bloqueo real: falta acceso a n8n para el resto del backlog) — vigente
 
 Mateo hizo una observación de diseño, dio una corrección de tono para
 Efadam, pidió que se elimine el voseo, confirmó que su OmniRoute actual no

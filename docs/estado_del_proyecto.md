@@ -51,9 +51,20 @@ n8n + Postgres 16 + OmniRoute en Docker, en `C:\Users\2\Documents\infinite-power
 
 Un solo workflow que corre a cualquier bot leyendo su fila de `bots`. Incluye, funcionando: contexto de linaje, sistema de aclaración completo con reanudación bot-a-bot, manejo de errores, extracción de patrones de fallo (`conocimiento_directo`), y lectura de `tasks.nivel_importancia` para elegir modelo. Ver [[ejecutor_generico]].
 
-### Bots realmente activos: 3
+### Bots realmente activos: 2
 
-`tecnico_jefe` (despacha), `coder`, `trouble_shooter` (despacha, `conocimiento_directo = true`). **Todo lo demás existe solo como archivo `.md`.** Un bot que no está en `bots` con `active = true` no existe para el sistema. Efadam **todavía no está insertado en `bots`** — es el bloqueante actual para que el sistema funcione de punta a punta con orquestación real.
+`tecnico_jefe` (despacha), `coder`. **Corrección 17/ago, noche, quinta ronda:**
+esta sección decía "3" e incluía `trouble_shooter` — no es cierto. Verificado
+contra los scripts SQL reales: `003_trouble_shooter_v2.sql` y
+`004_conocimiento_directo.sql` son `UPDATE ... WHERE slug = 'trouble_shooter'`,
+que no dan error contra una fila inexistente, solo no hacen nada. Nunca hubo
+un `INSERT` para `trouble_shooter` en `bots`. Detalle completo y qué falta en
+`plan_de_accion_completo.md`, actualización del 17 de agosto, noche, quinta
+ronda, y en `ejecutor_generico.md`/`trouble-shooter.md`. **Todo lo demás
+existe solo como archivo `.md`.** Un bot que no está en `bots` con `active =
+true` no existe para el sistema. Efadam **todavía no está insertado en
+`bots`** — es el bloqueante actual para que el sistema funcione de punta a
+punta con orquestación real.
 
 ### Prompts escritos (no activos)
 
@@ -94,6 +105,7 @@ Una auditoría externa (`auditoria_infinite_power_16ago2026.md`) encontró contr
 - **Bloque 2 (OmniRoute/n8n en vivo) — infraestructura arreglada y verificada; bloqueado en que ningún proveedor rutea tráfico real todavía.** Los 4 problemas de infraestructura (volumen mal montado, faltaban `JWT_SECRET`/`API_KEY_SECRET`, sin contraseña de dashboard, cero proveedores) están resueltos: `docker-compose.yml` corregido y verificado (el volumen ahora sí persiste), contraseña del dashboard generada por Claude y fijada (en `.env`, gitignored), 4 combos creados (`bajo`/`medio`/`alto`/`critico`). **Cloudflare AI se descartó** (decisión de Mateo). **Pollinations resultó no ser realmente "sin auth" para uso real** — la conexión se creó pero los 3 modelos probados devuelven 401 "API key required" (`enter.pollinations.ai/keys`, no confirmado si es gratis o de pago) — corrección a la evaluación anterior, que solo había verificado el código, no una llamada real. **Qwen — Mateo autorizó proceder, pero el último paso (loguearse en `chat.qwen.ai` y extraer un token de sesión real desde DevTools) solo lo puede hacer él** — no es algo que se pueda generar o adivinar. Resultado: **los 4 combos existen pero hoy no rutean nada real** — sigue pendiente que al menos un proveedor funcione de verdad. Ver `plan_de_accion_completo.md`, actualización del 17 de agosto, noche, segunda ronda, para el detalle completo.
 - **Bloque 3 (activar Efadam) — no empezado**, depende de que cierre Bloque 2. Además, la auditoría técnica y de visión del 17 de agosto (`auditoria_tecnica_y_vision_17ago2026.md`) encontró 3 hallazgos críticos que hoy no están cubiertos por la secuencia de Bloque 2 y se agregaron antes de este punto: contraseña de Postgres expuesta en el historial de git (sin rotar), inyección SQL en el nodo "Obtener config del bot", y un flujo de aprobación humana que hoy es solo una notificación saliente sin ruta de respuesta. Ver `plan_de_accion_completo.md`, "Pendientes de Bloque 2, en secuencia", para el detalle.
 - **Bloqueo nuevo (17/ago, noche, cuarta ronda): la mayoría de lo que falta de Bloque 2 necesita escribir en n8n en vivo, y esa sesión no tiene la API key ni las credenciales del login web de n8n** (Mateo las mantiene fuera de sistemas digitales cuando no están en uso). Sin eso, propagar `nivel_importancia`, parametrizar el SQL vulnerable, rotar la contraseña de Postgres de verdad, construir la ingesta Telegram → `tasks`, y completar la aprobación humana bidireccional quedan bloqueados — no por falta de intento. Lo que sí se resolvió esta ronda sin necesitar n8n: el fallback en cascada entre niveles ya está configurado en los 4 combos de OmniRoute (`critico → alto → medio → bajo`, vía `combo-ref`), y se confirmó que Pollinations es gratis de verdad (solo requiere que Mateo cree una cuenta gratuita en `enter.pollinations.ai` y genere una API key — no hace falta buscar un proveedor alternativo). Ver `plan_de_accion_completo.md`, actualización del 17 de agosto, noche, cuarta ronda.
+- **Bloqueo nuevo (17/ago, noche, quinta ronda): el stack entero (n8n, Postgres, OmniRoute) estaba apagado** — Docker Desktop no estaba corriendo en la máquina de Mateo. Al intentar levantarlo se encontró que la máquina tenía solo 0.8 GB de RAM libre de 15.7 GB, Docker Desktop se quedó atorado consumiendo 7.7 GB sin terminar de iniciar, y se decidió no seguir insistiendo a ciegas sobre una máquina en uso activo — se liberó la RAM y se dejó para que Mateo lo levante él mismo. Ver `plan_de_accion_completo.md`, actualización del 17 de agosto, noche, quinta ronda, para el detalle completo y el diagnóstico de por qué Trouble shooter no estaba realmente activo (independiente de este bloqueo — ver corrección arriba, "Bots realmente activos").
 
 Ver `plan_de_accion_completo.md` para el estado completo y actualizado de cada bloque — esta sección es un resumen, no la fuente de detalle.
 
