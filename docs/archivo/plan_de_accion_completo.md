@@ -5,7 +5,121 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 18 de agosto de 2026, noche, segunda ronda (hallazgo C5 corregido de verdad — y la corrección desmiente parte de la corrección anterior) — VIGENTE, léase primero
+## Actualización — 18 de agosto de 2026, noche, tercera ronda (decisión sobre Pollinations/Qwen, y propuesta de un concepto nuevo: "operaciones") — VIGENTE, léase primero
+
+### 0. Pendiente #24 cerrado (por ahora): no seguir con Pollinations/Cloudflare/Qwen mientras se construye
+
+Mateo, textual: "No, al menos para la construcción no, después ya veremos."
+Se cierra el pendiente #24 con esta decisión — NVIDIA sigue siendo el único
+proveedor real de OmniRoute mientras dure la fase de construcción. Se
+retoma la pregunta de si vale la pena sumar más proveedores cuando el
+sistema ya esté operando, no antes. No se tocó ninguna conexión existente.
+
+### 1. Propuesta de Mateo: un concepto nuevo, "operación"
+
+Mateo, textual: "Vamos a crear un nuevo sistema: para poder trackear de una
+mejor manera las tareas y que no se mezclen las instrucciones ni el orden
+en el que debe ir progresando una tarea, por cada cosa que el programa
+completo debe hacer vamos a llamarlo una operación, ya sea cosas automáticas
+e independientes como las investigaciones o la autoexpansión o tareas
+específicas que vienen del usuario, así Efadam también puede llevar un
+mejor registro."
+
+**Evaluación (no es solo "sí, dale" — el hueco es real).** Hoy `tasks` solo
+tiene `parent_task_id`: una tarea puede saber quién la creó directamente,
+pero no hay ninguna columna que diga "esto es parte del mismo hilo de
+trabajo más grande" sin recorrer la cadena de padres a mano (una consulta
+recursiva, propensa a error, y que no sirve para nada que todavía no tenga
+ninguna tarea creada — ej. una operación de investigación que Upgrade &
+review center apenas está por arrancar). Tampoco hay ningún lugar para
+guardar metadata a nivel de "todo este esfuerzo" — título, objetivo, tipo
+(usuario vs. automática), estado agregado — sin inventarlo cada vez a mano.
+Es un hueco real, no cosmético, y la relación con `cluster` es distinta a
+lo que parecía a primera vista: `cluster` es el departamento que ejecuta un
+paso puntual (`tech-center`, `legal`), no el hilo completo — una misma
+operación puede cruzar varios clusters en su vida (ej. una operación abre
+en Legal, después pasa por Proyect center). No es redundante con nada que
+ya exista.
+
+**Conexión con un pendiente ya documentado, para no duplicar:** el
+"Setup en Proyect center" (pendiente #19 original, "entrevista de objetivo →
+meta + pasos + criterio de listo") es un concepto relacionado pero distinto
+— Setup es la entrevista que define la meta de un **proyecto** de negocio
+completo (nivel más alto, vive solo en Proyect center). Una "operación" es
+la unidad de ejecución/trackeo (nivel más bajo, vive en todo el sistema) —
+un proyecto probablemente termina generando varias operaciones a lo largo
+del tiempo, pero no son lo mismo. No se conflate uno con otro.
+
+**Diseño propuesto (para confirmar antes de construirlo):**
+
+Tabla nueva `operations` (nombre en inglés — consistencia con el resto del
+schema: `tasks`, `bots`, `approvals`, `agent_runs`; la prosa y el nombre
+conversacional siguen siendo "operación" en español):
+
+```sql
+create table if not exists operations (
+    id                 serial primary key,
+    tipo               text not null,   -- 'usuario' | 'investigacion' | 'autoexpansion' | ... (sin CHECK: se espera que la lista crezca, igual que `cluster`)
+    titulo             text not null,
+    descripcion        text,
+    origen_cluster     text,            -- qué cluster/bot la abrió — referencia, no autoridad
+    status             text not null default 'abierta',  -- abierta | en_progreso | completada | fallida | bloqueada
+    created_at         timestamptz not null default now(),
+    updated_at         timestamptz not null default now(),
+    closed_at          timestamptz
+);
+
+alter table tasks add column if not exists operation_id int references operations(id);
+```
+
+`operation_id` se propaga de padre a hijo exactamente con el mismo patrón
+que ya existe para `nivel_importancia` (heredado en "Crear tareas hijas" /
+"Parsear asignaciones"), y también en "Crear tarea de aclaración" y en el
+disparo automático a Trouble shooter (la tarea de troubleshooting pertenece
+a la MISMA operación que la tarea que falló — no abre una nueva). Una tarea
+de primer nivel (sin padre) es la que crea la fila nueva en `operations`.
+
+**Lo que decidí no meter en esta propuesta, a propósito, para no
+sobrecargarla:** mover `nivel_importancia` de `tasks` a `operations`
+(asignado una sola vez por operación en vez de heredado tarea por tarea)
+sería una simplificación real — de hecho el bug de esta misma noche
+(herencia rota por `.first()` vs `.item()`) fue justo en la cadena de
+herencia de `nivel_importancia`. Pero tocar esa regla ahora mismo — que hoy
+vive en `efadam.md` como "Efadam es la única fuente de ese valor" — es un
+cambio aparte con su propia complicación (¿quién le asigna nivel a una
+operación de investigación autoiniciada que nunca pasa por Efadam?). Lo
+dejo anotado como mejora futura posible, no incluida en esta ronda a menos
+que Mateo prefiera resolver las dos juntas.
+
+**Pregunta abierta real — la única parte del diseño que no es un default
+obvio:** ¿quién puede abrir una operación nueva? Dos opciones:
+
+- (a) **Descentralizado, igual que `tasks` hoy** — cualquier cluster/bot que
+  arranca un hilo de trabajo nuevo (no solo Efadam) inserta la fila en
+  `operations`, mismo patrón que ya existe para crear tareas de cualquier
+  cluster hacia cualquier otro sin pasar por Efadam. Esto es lo que
+  recomiendo por default — es consistente con cómo ya funciona el
+  despacho de tareas, y no le agrega fricción a que Upgrade & review center
+  arranque una investigación por su cuenta.
+- (b) **Centralizado en Efadam** — ninguna operación existe sin que Efadam
+  la registre primero, igual que el cuello de botella que ya existe para
+  `knowledge_log`/`system_knowledge`. Más consistente con "Efadam lleva el
+  registro", pero le agrega un round-trip a todo trabajo autoiniciado que
+  hoy no lo necesita, y ese cuello de botella hoy solo aplica a
+  conocimiento, no a tareas.
+
+Recomiendo (a) y sigo con ese default salvo que Mateo diga lo contrario —
+ninguna otra parte del diseño depende de mi criterio, así que no se bloqueó
+nada más esperando esta respuesta.
+
+**No se construyó nada todavía** — ni el schema, ni los cambios a los nodos
+de `ejecutor_generico.md` que tendrían que propagar `operation_id`. Se
+espera confirmación de Mateo (sobre todo del punto de "quién abre una
+operación") antes de tocar Postgres o n8n en vivo.
+
+---
+
+## Actualización — 18 de agosto de 2026, noche, segunda ronda (hallazgo C5 corregido de verdad — y la corrección desmiente parte de la corrección anterior) — vigente
 
 Mateo pidió dos cosas en el mismo mensaje: la contraseña nueva de Postgres
 (ya generada la ronda anterior, se la pasó directo) y "arregla los nodos" —
@@ -2368,7 +2482,8 @@ para el razonamiento completo.
 18. **Nuevo:** construir el mecanismo de Revert (tabla `reverts`, `archived_at`/`archived_reason` en `knowledge_log` y demás tablas relevantes) — sin fecha fija, pero vale la pena tenerlo antes de que el sistema empiece a tomar decisiones con consecuencia real que alguien quiera poder revisar/archivar.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).
 23. ~~Insertar `trouble_shooter` en `bots`~~ — **ya no aplica (18 de agosto):** al intentar correr el `INSERT`, Postgres devolvió `duplicate key` — la fila ya existía. El diagnóstico del 17 de agosto que daba esto como pendiente estaba mal (ver actualización del 18 de agosto, arriba, sección 1, para la corrección completa). ~~Agregar el nodo Postgres de disparo automático en el Ejecutor genérico después de "Marcar como fallida"~~ — **hecho (18/ago, tarde-noche):** construido y probado en vivo, ver actualización del 18 de agosto, tarde-noche, arriba (sección 2).
-24. **Nuevo (18/ago):** decidir si vale la pena seguir con Pollinations/Cloudflare/Qwen ahora que NVIDIA ya rutea tráfico real sin fricción (ver actualización del 18 de agosto, arriba) — no es urgente, las conexiones existentes no se tocaron.
+24. ~~Decidir si vale la pena seguir con Pollinations/Cloudflare/Qwen~~ — **cerrado por ahora (18/ago, noche, tercera ronda):** Mateo decidió no seguir con eso mientras dure la construcción — se retoma cuando el sistema ya esté operando.
+30. **Nuevo (18/ago, noche, tercera ronda), en diseño — no bloquea nada más:** construir el concepto de "operación" (tabla `operations` + `tasks.operation_id`) para trackear el hilo completo de trabajo (investigaciones, autoexpansión, tareas de usuario) sin depender de recorrer `parent_task_id` a mano, y para que Efadam tenga mejor registro. Diseño propuesto completo, con una pregunta abierta (quién puede abrir una operación — recomendación: descentralizado, igual que `tasks` hoy), en la actualización del 18 de agosto, noche, tercera ronda, arriba. Pendiente de confirmación de Mateo antes de tocar Postgres/n8n. Una vez confirmado, implica: migración `schema/007_operations.sql`, y actualizar "Crear tareas hijas"/"Parsear asignaciones", "Crear tarea de aclaración", y el disparo automático a Trouble shooter en `ejecutor_generico.md` para propagar `operation_id`.
 25. ~~Hallazgo C5 — corregir el manejo de errores en los nodos del Ejecutor genérico~~ — **hecho (18/ago, noche, segunda ronda), con corrección importante:** el diagnóstico original (13 nodos rotos por el mismo bug que `"Llamar a omniroute"`) **era incorrecto** — probado en vivo, nodo por nodo: Postgres, Code y Telegram enrutan sus errores correctamente sin ningún arreglo. El bug real era otro: (a) cada tipo de nodo entrega el error con una forma de JSON distinta y "Marcar como fallida" necesitaba una normalización que no existía, y (b) un bug de n8n nunca documentado antes — `$('Reclamar tarea pendiente').first()` truena con `TypeError` cuando el nodo que lo llama se alcanza por una ruta de error rescatada, mientras que `.item` sí funciona. Arreglo aplicado: se generalizó el Code node "Preparar fallo" (normaliza las 4 formas de error observadas, usa `.item` en vez de `.first()`) y se re-cablearon 17 conexiones para pasar por él — cero nodos nuevos. Probado en vivo de punta a punta dos veces (una vía Postgres, la original vía omniroute) más una confirmación extra del guard anti-loop de Trouble shooter. Ver actualización del 18 de agosto, noche, segunda ronda, arriba, y `ejecutor_generico.md` para el detalle completo y el código final.
 26. ~~Rotar la contraseña de Postgres (hallazgo C1)~~ — **hecho (18/ago, noche):** los 4 pasos coordinados (`ALTER USER`, `.env`, credencial de n8n vía API, reinicio) ejecutados y probados en vivo de punta a punta (no solo "n8n arrancó bien" — se confirmó con una ejecución real que los nodos Postgres del workflow conectan con la contraseña nueva). Ver actualización del 18 de agosto, noche, arriba, para el detalle completo.
 27. **Nuevo (18/ago, tarde-noche):** eliminar la API key temporal de n8n (`N8N_API_KEY_TEMP` en `.env`) — revocarla en n8n y borrar la línea — una vez que el pendiente 25, la ingesta Telegram → `tasks` y la aprobación humana bidireccional estén resueltos. Instrucción explícita de Mateo, no automática.
