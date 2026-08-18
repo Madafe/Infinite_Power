@@ -75,3 +75,66 @@ Escribir un prompt es barato; tener un bot activo cuesta tokens, latencia y
 superficie de fallo en cada corrida.
 
 Condición: todo cambio de este tipo se documenta (en el roster y en este archivo de arquitectura), explicando el porqué — no se aplica en silencio.
+
+
+## Multiproyecto — rediseño (18/ago/2026)
+
+**Reemplaza el diseño anterior** ("un proyecto nuevo = un schema nuevo en
+el mismo Postgres, compartiendo n8n/OmniRoute/kernel", documentado en
+`docs/archivo/plan_de_accion_completo.md` y ya marcado ahí como superado).
+
+**Decisión:** un "proyecto" es un **despliegue completo e independiente**:
+su propio n8n, su propia base de Postgres, su propio Efadam, su propio
+OmniRoute. No hay un Efadam ni una base de datos compartida entre
+proyectos distintos.
+
+**Por qué (razón dada por Mateo, 18/ago/2026):** el sistema se piensa desde
+ahora con la imagen completa — que terceros puedan instalarlo cada uno para
+su propio negocio — y porque mezclar el aprendizaje de negocios sin relación
+bajo un mismo Efadam/`knowledge_log` lo revuelve. Negocios afines y con
+operación parecida (ej. Bintix + TalentIA) sí pueden vivir en el mismo
+despliegue si compartir aprendizaje ayuda; un negocio sin relación (ej. uno
+de música) va en un despliegue aparte.
+
+**Por qué esto no revive el problema de "replicar cada cambio a mano"**
+(objeción inicial de Claude, resuelta en la conversación): una vez que el
+producto está empaquetado, cada instalación se actualiza jalando la
+versión más nueva del repo/template (git tag + `docker compose pull` +
+migraciones), como cualquier software self-hosted — no hace falta un
+mecanismo de sincronización en vivo entre instalaciones ni reconstruir
+workflows a mano por instancia. Esto es exactamente lo que ya se descartó
+una vez (ver "Por qué se abandonó la sincronización recurrente por API de
+GitHub" en `memoria_del_sistema.md`) y no hay que repetirlo: la unidad de
+actualización es "instalar la versión N", no "sincronizar en vivo".
+
+**Lo que este rediseño simplifica:** ya no hace falta la tabla `proyectos`
+ni el parámetro de schema dinámico en cada nodo de Postgres del ejecutor —
+cada instalación tiene un solo schema fijo. El riesgo técnico que el diseño
+anterior sí tenía ("confirmar que los workflows no tienen el schema
+hardcodeado, o migrarlos") desaparece.
+
+**Lo que queda pendiente de definir (no ahora, anotado para cuando toque):**
+1. Estrategia de versionado/actualización del template (tags, changelog,
+   convención de migraciones — ya existe el patrón numerado en `schema/*.sql`,
+   falta decidir si son idempotentes y cómo se aplican en una instalación
+   nueva vs. una que actualiza).
+2. Si OmniRoute también va per-instancia (probable, coherente con "cada
+   quien trae sus propias llaves de proveedor" ya documentado en
+   `memoria_del_sistema.md`) o si Mateo lo sigue centralizando para sus
+   propios despliegues.
+3. El proceso de instalación real (script + `.env.example` ya existe como
+   semilla, falta el resto).
+
+**Estado:** sigue siendo visión, no se construye todavía (post Fase 1).
+
+**Advertencia de secuencia (importante):** la auditoría técnica del
+17/ago/2026 (`docs/auditoria_tecnica_y_vision_17ago2026.md`) recomienda
+explícitamente **congelar el trabajo de distribución a terceros hasta
+cerrar los Hallazgos críticos y altos** (contraseña de Postgres expuesta en
+el historial de git, inyección SQL en el ejecutor, pérdida de
+`nivel_importancia` en tareas hijas, aprobaciones humanas sin flujo de
+respuesta, Reanudador de bloqueados con referencia rota). Esta sección deja
+registrada la decisión de diseño para no perderla, pero construirla en
+serio compite directamente con esa recomendación de orden. Confirmar con
+Mateo si se mantiene ese orden (cerrar Bloques 0 y 1 primero) antes de
+invertir tiempo real en empaquetado.

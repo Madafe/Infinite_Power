@@ -1013,9 +1013,14 @@ real (correo enviado, pago hecho) → no reversibles, punto — no es lo que
 nadie esperaría de esta función. Se dispara solo por Mateo vía Telegram →
 Efadam, nunca automático.
 
+> **Superado (18/ago/2026):** el diseño de abajo (schema por proyecto,
+> n8n/OmniRoute compartidos) fue reemplazado. Ver "Multiproyecto —
+> rediseño (18/ago/2026)" en `docs/arquitectura_general.md` para el
+> diseño vigente (cada proyecto = despliegue completo independiente).
+
 **Multiproyecto (visión, no construir todavía — post Fase 2 del recorrido
-vertical actual).** Un proyecto nuevo = un schema nuevo en el mismo
-Postgres, no una base de datos ni un stack completo nuevo. Se comparte:
+vertical actual).** ~~Un proyecto nuevo = un schema nuevo en el mismo
+Postgres, no una base de datos ni un stack completo nuevo.~~ Se comparte:
 n8n, OmniRoute, y los prompts del kernel (versionados en git). Se aísla por
 proyecto: solo los datos, vía schema. Una tabla de control
 `proyectos (id, nombre, schema_name, estado, fecha_creación)` le permite a
