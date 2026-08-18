@@ -5,7 +5,101 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 18 de agosto de 2026, noche (rotación de la contraseña de Postgres — hallazgo C1 cerrado, probado en vivo de punta a punta) — VIGENTE, léase primero
+## Actualización — 18 de agosto de 2026, noche, segunda ronda (hallazgo C5 corregido de verdad — y la corrección desmiente parte de la corrección anterior) — VIGENTE, léase primero
+
+Mateo pidió dos cosas en el mismo mensaje: la contraseña nueva de Postgres
+(ya generada la ronda anterior, se la pasó directo) y "arregla los nodos" —
+el pendiente #1 que había quedado documentado como "hallazgo C5" (13 nodos
+con, supuestamente, el mismo bug de manejo de errores que "Llamar a
+omniroute"). Antes de tocar 13 nodos con el mismo parche a ciegas, se probó
+en vivo si de verdad tenían el mismo problema — **y no lo tenían.** El
+diagnóstico de la ronda de la tarde estaba mal en su parte central.
+
+### 0. Lo que se creía vs. lo que se probó
+
+La ronda de la tarde había confirmado (correctamente) que "Llamar a
+omniroute" (HTTP Request) no rutea sus errores a la salida de error que
+`onError: continueErrorOutput` debería usar. De ahí generalizó, sin
+probarlo, a que los otros 13 nodos (todos Postgres o Code, más un Telegram)
+tenían el mismo problema. Esta ronda se probó cada tipo por separado,
+forzando un fallo real y mirando la ejecución real: **Postgres, Code y
+Telegram rutean el error correctamente, de fábrica** — sin necesitar ningún
+arreglo tipo el de omniroute. La explicación más probable de por qué
+omniroute es distinto: el nodo HTTP Request no lanza una excepción real
+ante un `400` de OmniRoute (lo trata como respuesta HTTP válida), así que
+`continueErrorOutput` nunca llega a activarse para ese nodo en particular —
+no es que el mecanismo esté roto en general.
+
+### 1. El bug real, encontrado al conectar el flujo completo con una tarea real
+
+Con las salidas de error confirmadas correctas, apareció el problema
+genuino: **"Marcar como fallida" necesita `{taskId, errMsg}`, pero cada
+tipo de nodo entrega su error en una forma distinta** (objeto anidado en
+Postgres, string simple en Code, etc.) — conectar esas salidas directo a
+"Marcar como fallida" sin transformar el dato hace que la actualización
+corra con parámetros vacíos, sin fallar pero sin actualizar nada tampoco.
+Y al generalizar el nodo Code que ya existía para normalizar esto
+("Preparar fallo") a las 17 rutas nuevas, se encontró un segundo problema:
+`$('Reclamar tarea pendiente').first().json.id` — que llevaba semanas
+funcionando para la ruta de omniroute — falla cuando ese Code node se
+alcanza a través de una salida de error rescatada por `continueErrorOutput`
+de otro nodo. Probado en vivo: `.first()` y `.all()[0]` fallan, `.item` y
+`.itemMatching(0)` funcionan. Se cambió a `.item`.
+
+### 2. Arreglo aplicado
+
+Las 17 salidas de error que antes iban directo a "Marcar como fallida"
+ahora pasan todas por "Preparar fallo" (generalizado para normalizar
+cualquier forma de error, y corregido para usar `.item`). Cero nodos
+nuevos — solo se re-conectaron 17 conexiones existentes y se reescribió la
+lógica de un nodo Code que ya existía. Detalle exacto (código, lista
+completa de las 17 rutas, y por qué) en `ejecutor_generico.md`, sección
+"Hallazgo grande del 18/ago", que quedó reescrita para reflejar esta
+corrección.
+
+**Probado en vivo de punta a punta, con datos reales, dos rutas
+distintas** (no solo un nodo aislado): se insertó una tarea real, se
+disparó desde el trigger real (no un webhook conectado directo al nodo
+roto), y se confirmó que la tarea terminó `failed` con el error real y que
+se despachó automáticamente una tarea nueva para `trouble_shooter` — una
+vez forzando el fallo en un nodo Postgres ("Obtener config del bot"), otra
+vez forzando el fallo de OmniRoute como en la ronda original. **Bonus no
+buscado:** la tarea de Trouble shooter despachada en la primera prueba
+también falló (heredó el mismo problema de su tarea padre), y la guarda
+contra auto-despacho en loop (`¿Bot que falló no es trouble_shooter?`)
+funcionó exactamente como se diseñó — confirmado en vivo, no solo en
+teoría.
+
+### 3. Lo que queda sin confirmar
+
+Los 4 nodos IF con `onError: continueErrorOutput` (`¿Este bot despacha
+tareas?`, `¿Requiere aprobación?`, `¿Requiere aprobación?1`, `¿Tiene
+padre?`) se conectaron a "Preparar fallo" por consistencia, pero no se
+logró forzar un error genuino en un IF para confirmar en qué salida cae de
+verdad (dos intentos distintos evaluaron la condición como falsa en vez de
+lanzar error). Sin urgencia — los IF de este workflow rara vez deberían
+fallar — pero queda anotado como no confirmado, no como corregido con
+certeza.
+
+También quedó expuesto un gap nuevo, no resuelto: si "Reclamar tarea
+pendiente" mismo falla (Postgres no responde desde el principio), no hay
+ningún `task_id` todavía, así que "Marcar como fallida" no tiene nada que
+actualizar — ese caso (el más grave: Postgres caído) hoy no queda
+registrado en ningún lado. Necesitaría un canal de alerta aparte, no una
+fila en `tasks`. Ver `ejecutor_generico.md`, "Lo que falta", punto 1.
+
+### 4. Nota sobre el proceso, no solo el resultado
+
+Vale la pena dejar anotado el patrón, no solo el resultado: la ronda de la
+tarde generalizó un hallazgo confirmado en un nodo a otros 13 sin probarlos,
+y esa generalización no se sostuvo. La forma de evitarlo — probar cada tipo
+antes de aplicar el mismo parche a todos — es la que se usó esta ronda, y
+es la que vale la pena mantener de aquí en adelante para hallazgos de este
+tipo (comportamiento de una herramienta de terceros, no lógica propia).
+
+---
+
+## Actualización — 18 de agosto de 2026, noche (rotación de la contraseña de Postgres — hallazgo C1 cerrado, probado en vivo de punta a punta) — vigente
 
 Mateo dijo "dale con la contraseña de postgres" — autorización explícita
 para proceder con la rotación que la ronda anterior había pospuesto por
@@ -2275,6 +2369,8 @@ para el razonamiento completo.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).
 23. ~~Insertar `trouble_shooter` en `bots`~~ — **ya no aplica (18 de agosto):** al intentar correr el `INSERT`, Postgres devolvió `duplicate key` — la fila ya existía. El diagnóstico del 17 de agosto que daba esto como pendiente estaba mal (ver actualización del 18 de agosto, arriba, sección 1, para la corrección completa). ~~Agregar el nodo Postgres de disparo automático en el Ejecutor genérico después de "Marcar como fallida"~~ — **hecho (18/ago, tarde-noche):** construido y probado en vivo, ver actualización del 18 de agosto, tarde-noche, arriba (sección 2).
 24. **Nuevo (18/ago):** decidir si vale la pena seguir con Pollinations/Cloudflare/Qwen ahora que NVIDIA ya rutea tráfico real sin fricción (ver actualización del 18 de agosto, arriba) — no es urgente, las conexiones existentes no se tocaron.
-25. **Nuevo (18/ago, tarde-noche):** hallazgo C5 — corregir el manejo de errores (`onError: continueErrorOutput`) en los 13 nodos del Ejecutor genérico que todavía no lo tienen arreglado, con el mismo patrón usado en `"Llamar a omniroute"` (ver actualización del 18 de agosto, tarde-noche, arriba, sección 1, y `ejecutor_generico.md`).
+25. ~~Hallazgo C5 — corregir el manejo de errores en los nodos del Ejecutor genérico~~ — **hecho (18/ago, noche, segunda ronda), con corrección importante:** el diagnóstico original (13 nodos rotos por el mismo bug que `"Llamar a omniroute"`) **era incorrecto** — probado en vivo, nodo por nodo: Postgres, Code y Telegram enrutan sus errores correctamente sin ningún arreglo. El bug real era otro: (a) cada tipo de nodo entrega el error con una forma de JSON distinta y "Marcar como fallida" necesitaba una normalización que no existía, y (b) un bug de n8n nunca documentado antes — `$('Reclamar tarea pendiente').first()` truena con `TypeError` cuando el nodo que lo llama se alcanza por una ruta de error rescatada, mientras que `.item` sí funciona. Arreglo aplicado: se generalizó el Code node "Preparar fallo" (normaliza las 4 formas de error observadas, usa `.item` en vez de `.first()`) y se re-cablearon 17 conexiones para pasar por él — cero nodos nuevos. Probado en vivo de punta a punta dos veces (una vía Postgres, la original vía omniroute) más una confirmación extra del guard anti-loop de Trouble shooter. Ver actualización del 18 de agosto, noche, segunda ronda, arriba, y `ejecutor_generico.md` para el detalle completo y el código final.
 26. ~~Rotar la contraseña de Postgres (hallazgo C1)~~ — **hecho (18/ago, noche):** los 4 pasos coordinados (`ALTER USER`, `.env`, credencial de n8n vía API, reinicio) ejecutados y probados en vivo de punta a punta (no solo "n8n arrancó bien" — se confirmó con una ejecución real que los nodos Postgres del workflow conectan con la contraseña nueva). Ver actualización del 18 de agosto, noche, arriba, para el detalle completo.
 27. **Nuevo (18/ago, tarde-noche):** eliminar la API key temporal de n8n (`N8N_API_KEY_TEMP` en `.env`) — revocarla en n8n y borrar la línea — una vez que el pendiente 25, la ingesta Telegram → `tasks` y la aprobación humana bidireccional estén resueltos. Instrucción explícita de Mateo, no automática.
+28. **Nuevo (18/ago, noche, segunda ronda):** si "Reclamar tarea pendiente" falla en sí mismo (ej. Postgres caído), no hay `task_id` todavía, así que "Marcar como fallida" no hace nada — hoy este es el modo de falla más grave (Postgres caído) y queda completamente sin registrar ni alertar. No hay hoy ningún mecanismo (ej. un aviso directo a Mateo por Telegram que no dependa de la tabla `tasks`) que cubra este caso. Ver `ejecutor_generico.md`, sección "Lo que falta".
+29. **Nuevo (18/ago, noche, segunda ronda):** los 4 nodos IF del Ejecutor genérico quedaron cableados hacia "Preparar fallo" por consistencia, pero su comportamiento real de enrutamiento de errores nunca se confirmó en vivo — dos intentos de forzar un error genuino en un nodo IF fallaron (el nodo simplemente evaluó la condición como falsa en vez de tronar). Queda como no confirmado, no como arreglado. Ver `ejecutor_generico.md`, sección "Lo que falta".

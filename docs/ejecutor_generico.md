@@ -1,15 +1,18 @@
 # Ejecutor genérico — estado real
 
-> **Actualizado 18/ago/2026, tarde-noche.** 26 nodos (venía de 22). Se
-> construyó el auto-dispatch a Trouble shooter que faltaba, se corrigió una
-> inyección SQL real, se propagó `nivel_importancia` a las tareas hijas, y —
-> el hallazgo más grande de la sesión — se descubrió y corrigió un bug
-> sistémico en el manejo de errores: **"Marcar como fallida" nunca se había
-> ejecutado ni una sola vez en la vida de este workflow**, porque el
-> mecanismo `onError: continueErrorOutput` no rutea los errores a la salida
-> de error en esta instalación de n8n para nodos Postgres/Code/HTTP Request
-> de salida única. Ver la sección "Hallazgo grande" más abajo — es la lectura
-> más importante de esta actualización.
+> **Actualizado 18/ago/2026, noche.** 26 nodos. Se construyó el auto-dispatch
+> a Trouble shooter, se corrigió una inyección SQL real, se propagó
+> `nivel_importancia` a las tareas hijas, y se cerró de fondo el manejo de
+> errores de **todo** el workflow (no solo un nodo) — pero el diagnóstico
+> cambió de forma importante entre la tarde y la noche del mismo día. La
+> ronda de la tarde concluyó que 13 nodos más tenían el mismo bug que
+> "Llamar a omniroute" y lo dejó pendiente sin tocar. Al ponerse a arreglarlos
+> de verdad (ronda de la noche), **se probó en vivo, nodo por tipo, y esa
+> conclusión resultó ser incorrecta**: Postgres, Code y Telegram sí rutean
+> los errores a su salida correcta — el problema real era otro, más angosto,
+> y ya está corregido en los 17 puntos donde aplicaba. Ver "Hallazgo grande,
+> corregido" más abajo — es la lectura más importante de esta actualización,
+> incluyendo la corrección sobre la corrección.
 
 Un solo workflow ejecuta a cualquier bot leyendo su fila de la tabla `bots`.
 Un bot nuevo = un `INSERT`, no un workflow nuevo. Piloto probado de punta a
@@ -27,100 +30,158 @@ Postgres estaba apagado. Confirmado el 18/ago directo contra la base real:
 `dispatches_tasks = true`, `conocimiento_directo = true`), con el
 `prompt_especifico` exacto de `003_trouble_shooter_v2.sql`.
 
-## Hallazgo grande del 18/ago — `continueErrorOutput` no funciona como se creía
+## Hallazgo grande del 18/ago — corregido en dos rondas, la segunda desmiente parte de la primera
 
-Cada nodo de este workflow con `onError: continueErrorOutput` fue diseñado
-asumiendo que, al fallar, n8n manda el item de error a una **segunda salida**
-dedicada (la que está conectada a "Marcar como fallida" en el diagrama de
-abajo). Probando en vivo el 18/ago (forzando un fallo real: una tarea con
-`nivel_importancia = null`, que hace que OmniRoute responda `400 Missing
-model`), se confirmó que **eso no es lo que pasa**: el item de error se queda
-en la salida normal/éxito (salida 0), y la segunda salida (salida 1, la
-"salida de error") se queda vacía. El resultado práctico: cuando
-"Llamar a omniroute" fallaba, el error se colaba como si fuera una respuesta
-válida hacia "¿Necesita aclaración?" → "Guardar resultado", que a su vez
-también fallaba (por la misma razón) y dejaba la tarea trabada en
-`status = 'running'` para siempre, sin error registrado y sin que
-"Marcar como fallida" se enterara nunca.
+### Ronda de la tarde: qué se creyó, y por qué solo una parte era cierta
 
-Se revisó el código fuente de n8n dentro del contenedor
+Probando en vivo (forzando un fallo real de "Llamar a omniroute": una tarea
+con `nivel_importancia = null`, que hace que OmniRoute responda `400 Missing
+model`), se confirmó que el item de error se quedaba en la salida
+normal/éxito (salida 0) de ese nodo en vez de ir a su segunda salida (la
+"salida de error", conectada a "Marcar como fallida"). Correcto — eso sí
+pasaba, y pasa. El error: de ahí se **generalizó**, sin probarlo, a que los
+otros 13 nodos del workflow con `onError: continueErrorOutput` (todos
+Postgres o Code, más "Send a text message" de Telegram) tenían el mismo
+problema, y se dejó ese arreglo pendiente como "hallazgo C5" sin tocarlo.
+
+### Ronda de la noche: se probó en vivo, tipo por tipo, y la generalización estaba mal
+
+Antes de tocar 13 nodos con el mismo parche, se probó cada tipo de nodo por
+separado — forzando un fallo real (query rota, código que hace `throw`,
+`chatId` inválido) y mirando en cuál salida cae el item, vía
+`GET /executions/{id}?includeData=true`. Resultado, con evidencia directa:
+
+- **Postgres** (nodo "Obtener config del bot", query rota a propósito): el
+  error cayó limpio en la salida 1 (la de error). Salida 0 vacía.
+- **Code** (nodo "Parsear asignaciones", `throw new Error(...)` forzado): lo
+  mismo — error en salida 1, salida 0 vacía.
+- **Telegram** (nodo "Send a text message", con un error de evaluación de
+  expresión forzado): lo mismo otra vez.
+
+Los tres tipos de nodo que forman los 13 de la lista de la tarde **rutean el
+error correctamente, de fábrica, sin necesitar ningún arreglo**. El
+diagnóstico de la tarde estaba mal — no por mala fe, sino por generalizar un
+comportamiento confirmado en un nodo (HTTP Request) a tipos de nodo que
+nunca se probaron.
+
+**¿Por qué "Llamar a omniroute" (HTTP Request) sí falla y los demás no?**
+Revisando el código fuente de n8n dentro del contenedor
 (`n8n-core/dist/execution-engine/workflow-execute.js`,
-`handleNodeErrorOutput`) para confirmar que no era un malentendido de
-configuración: la función que debería mover los items de error a la segunda
-salida sí existe y sí se llama, pero en la práctica, para nodos Postgres/Code
-y para el HTTP Request node usado aquí, el item de error terminó quedándose
-en la salida 0 de todos modos. No se llegó a la causa raíz exacta dentro de
-n8n (no vale la pena seguir esa madriguera hoy) — lo que importa es el
-comportamiento real, confirmado con evidencia directa de 4 ejecuciones
-distintas.
+`handleNodeErrorOutput`), la función que reubica items de error a la salida
+correcta se dispara siempre que `onError === 'continueErrorOutput'` — no es
+que esté rota. La explicación más probable (no confirmada al 100%, pero
+consistente con toda la evidencia): el nodo HTTP Request, por configuración
+por defecto, **no lanza una excepción real** cuando OmniRoute responde
+`400` — trata esa respuesta como una llamada HTTP "exitosa" y pasa el cuerpo
+del error como si fuera contenido normal. Como nunca hay una excepción real,
+`continueErrorOutput` nunca llega a activarse para ese nodo — el arreglo
+correcto ahí nunca fue "confiar en la segunda salida", es exactamente el que
+ya se había construido: un IF explícito (`¿Falló la llamada a omniroute?`)
+que revisa el contenido de la respuesta.
 
-**Consecuencia importante:** esto significa que "Marcar como fallida" (nodo
-16 de la versión anterior de este documento) **nunca se había disparado ni
-una sola vez desde que existe este workflow** — no solo faltaba el
-auto-dispatch a Trouble shooter (eso ya se sabía), sino que el nodo que
-debía dispararlo tampoco corría nunca. Cualquier fallo real en producción
-hasta hoy se quedó silenciosamente como una tarea trabada en `running`, sin
-diagnóstico, sin registro de error. Se encontraron y repararon dos tareas
-reales así trabadas desde el 13 y el 14 de agosto (ids 4 y 7, del piloto
-`tecnico_jefe → coder`) — les faltaba `nivel_importancia` (columna agregada
-después, nunca retro-poblada) y por eso quedaron colgadas exactamente por
-esta razón. Se les asignó `nivel_importancia = 'medio'` y se corrieron de
-verdad: ambas terminaron `done` con resultado real.
+### El bug real (distinto del que se creía) — resolución de `$('Nombre del nodo')` con `.first()`
 
-**Arreglo aplicado (solo en el punto que hoy importa — "Llamar a
-omniroute"):**
+Con las 3 salidas de error ya confirmadas correctas, faltaba conectar cada
+una a "Marcar como fallida" — pero **ya estaban conectadas** (esa parte del
+workflow se había construido bien desde antes; el diagrama siempre apuntó
+la salida de error de cada nodo hacia "Marcar como fallida", solo que nunca
+recibía nada porque la salida de error nunca se activaba de verdad para
+"Llamar a omniroute", el único nodo que realmente fallaba en producción).
+El problema real, encontrado recién al probar el flujo completo de punta a
+punta con una tarea real: **"Marcar como fallida" necesita `$json.errMsg` y
+`$json.taskId`, pero el item que le llega directo desde cada nodo tiene una
+forma completamente distinta según el tipo** — un objeto anidado para
+Postgres, un string simple para Code, otra forma distinta para Telegram.
+Conectar esas 17 salidas de error directo a "Marcar como fallida" sin
+transformar el dato hace que la actualización corra con parámetros vacíos
+(`NULL, NULL`) — no falla, pero tampoco actualiza ninguna fila real.
 
-En vez de confiar en la segunda salida de `continueErrorOutput`, se agregó
-una verificación explícita del contenido del item, y se evita depender de
-referencias cruzadas (`$('Nombre del nodo')`) dentro del campo
-`queryReplacement` de un nodo Postgres cuando ese nodo se alcanza por una
-ruta que pasó por una salida de error — esa combinación específica también
-falló en las pruebas (ver detalle en el nodo "Marcar como fallida" más
-abajo). El patrón que sí funcionó de forma confiable: un nodo Code justo
-antes de "Marcar como fallida" que resuelve las referencias cruzadas él
-mismo y deja los valores listos en `$json`, para que "Marcar como fallida"
-solo necesite acceso local (`$json.algo`, sin `$('Nombre')`).
+La solución (la misma que ya existía para "Llamar a omniroute", generalizada
+para servir a las 17 rutas): todas pasan ahora por el nodo Code "Preparar
+fallo", que normaliza cualquier forma de error a `{ taskId, errMsg }` antes
+de llegar a "Marcar como fallida". Al conectar las 17 rutas nuevas se
+encontró un segundo problema, más sutil: `$('Reclamar tarea pendiente')
+.first().json.id` — que llevaba semanas funcionando para la ruta de
+omniroute — **falla** (`Cannot read properties of undefined (reading
+'json')`) cuando el nodo Code se alcanza a través de una de estas otras
+rutas rescatadas por `continueErrorOutput`. Se probaron 4 formas distintas
+de leer el mismo dato en el mismo Code node, en la misma ejecución real:
+`.first()` y `.all()[0]` fallaron las dos; `.item` y `.itemMatching(0)`
+funcionaron las dos, devolviendo el `id` correcto. **Se cambió "Preparar
+fallo" para usar `.item` en vez de `.first()`** — no se investigó por qué
+`.first()` específicamente rompe en esta situación (otra madriguera de
+internals de n8n que no vale la pena perseguir hoy), pero el arreglo está
+confirmado con evidencia directa, no es una corazonada.
 
-**Pendiente real, no resuelto hoy:** el mismo problema de fondo sigue latente
-en **todos los demás nodos** de este workflow que tienen
-`onError: continueErrorOutput` configurado y de tipo Postgres o Code (salida
-nativa única) — no se tocaron hoy porque el foco era desbloquear el
-auto-dispatch a Trouble shooter, no reparar el manejo de errores completo.
-Lista de nodos que hoy siguen con esta misma falla latente (su "salida de
-error" nunca recibe nada de verdad):
+### Arreglo final aplicado, probado en vivo de punta a punta
 
-- Reclamar tarea pendiente
-- Obtener config del bot
-- Guardar resultado
-- Parsear asignaciones
-- Crear tareas hijas
-- Send a text message
-- Obtener bot que asignó
-- Crear tarea de aclaración
-- Bloquear tarea original
-- Obtener contexto de tarea padre
-- Cargar contexto
-- Extraer patron
-- Guardar patron
+Las 17 salidas de error que antes iban directo a "Marcar como fallida" (los
+13 nodos de la lista de la tarde, más las 4 salidas de error de los IF con
+`continueErrorOutput` — ver nota de los IF más abajo) ahora pasan todas por
+"Preparar fallo", que:
 
-Los nodos `¿Necesita aclaración?`, `¿Requiere aprobación?`, `¿Requiere
-aprobación?1`, `¿Tiene padre?`, `¿Hay tarea?` (todos IF) probablemente **no**
-tienen este problema — un nodo IF tiene 2 salidas nativas (SÍ/NO) y, según el
-código fuente revisado, cuando se le agrega `continueErrorOutput` pasa a
-tener 3, y la lógica de clasificación sí alcanza a correr con más de una
-salida nativa. No se probó en vivo, es una inferencia del código, no un
-hecho confirmado — anotarlo así, no como certeza.
+```javascript
+const taskId = $('Reclamar tarea pendiente').item.json.id;
 
-**Este es un hallazgo nuevo, hoy sin nombre asignado en la numeración de
-hallazgos de `stack_y_convenciones.md`/`trouble-shooter.md` — llamarlo
-"hallazgo C5" en cualquier documento futuro que lo retome**, para no
-chocar con C1-C4 que ya existen. Arreglarlo bien (los 13 nodos de la lista)
-es un trabajo aparte, no trivial — cada uno necesita decidir qué datos debe
-capturar el nodo Code intermedio y a qué debería apuntar la tarea de
-Trouble shooter cuando ese nodo específico es el que falla. No se intentó
-hoy por prudencia, no por falta de tiempo: tocar 13 nodos más sin poder
-probar cada uno con calma al final de una sesión ya larga es más riesgo que
-beneficio.
+let errMsg;
+if (typeof $json.error === 'string') {
+  errMsg = $json.error;
+} else if ($json.error && typeof $json.error === 'object') {
+  errMsg = $json.error.message || $json.error.description || JSON.stringify($json.error);
+} else if ($json.message) {
+  errMsg = $json.message;
+} else {
+  errMsg = JSON.stringify($json);
+}
+
+return [{ json: { taskId, errMsg } }];
+```
+
+La rama `errMsg` cubre las 4 formas de error observadas en vivo: objeto con
+`.message` (HTTP Request), objeto con `.description` sin `.message`
+(Postgres), string directo (Code), y string dentro de un objeto con más
+campos (Telegram/genérico) — con un `JSON.stringify` de respaldo si aparece
+una quinta forma no vista todavía.
+
+**Probado en vivo de punta a punta, dos rutas distintas, con datos reales:**
+
+1. **Ruta Postgres** (query rota a propósito en "Obtener config del bot",
+   tarea real insertada, disparada desde el trigger real —
+   "Reclamar tarea pendiente"): la tarea terminó `status = 'failed'` con el
+   mensaje de error real de Postgres en `output`, y se disparó
+   automáticamente una tarea nueva para `trouble_shooter` con el mismo
+   `cluster`.
+2. **Ruta HTTP Request** (tarea real con `nivel_importancia = null`, mismo
+   disparo desde el trigger real): mismo resultado — `failed` con el error
+   real de OmniRoute, tarea nueva para `trouble_shooter` despachada.
+3. **Bonus, no buscado a propósito:** la tarea de `trouble_shooter`
+   despachada en la prueba 1 también falló (heredó `nivel_importancia =
+   null` de su tarea padre) — y la guarda `¿Bot que falló no es
+   trouble_shooter?` funcionó exactamente como se diseñó: no se auto-
+   despachó una tercera tarea. Confirma en vivo que el freno contra el loop
+   infinito de auto-diagnóstico funciona de verdad, no solo en el papel.
+
+Los 4 nodos IF con `onError: continueErrorOutput` (`¿Este bot despacha
+tareas?`, `¿Requiere aprobación?`, `¿Requiere aprobación?1`, `¿Tiene
+padre?`) se conectaron también a través de "Preparar fallo" por
+consistencia y porque no cuesta nada extra, pero **su comportamiento real
+ante un error de verdad no se confirmó en vivo** — dos intentos de forzar
+un error genuino en la evaluación de un IF (referenciar un nodo inexistente,
+forzar un choque de tipos con validación estricta) terminaron los dos
+evaluando la condición como falsa en vez de lanzar un error real, así que
+no hay evidencia directa todavía de en qué salida cae un error real de un
+IF. Queda anotado como algo sin confirmar, no como corregido con certeza —
+si algún día un IF de estos falla de verdad en producción, vale la pena
+revisar la ejecución real para confirmar que efectivamente llegó a
+"Preparar fallo" y no se perdió en otro lado.
+
+**Corrección de nombres para no perder el hilo en futuros documentos:** lo
+que la tarde llamó "hallazgo C5" (13 nodos con el mismo bug que omniroute)
+**no era correcto como se planteó** — el bug real era más angosto (la
+transformación de dato + `.first()` vs `.item()`) y ya está cerrado. Si se
+sigue usando el nombre "hallazgo C5" en otros documentos, que se refiera de
+aquí en adelante a este arreglo (ya cerrado), no al diagnóstico original de
+la tarde (que quedó desmentido).
 
 ## Mapa completo (26 nodos)
 
@@ -159,9 +220,15 @@ Marcar como fallida (Postgres)
       [SÍ] → Despachar a trouble_shooter (Postgres) → fin               [nuevo, 18/ago]
       [NO] → fin (evita que un fallo de trouble_shooter se auto-despache a sí mismo)
 
-Cualquier otro nodo con onError configurado → declarado hacia Marcar como
-fallida, pero ver "Hallazgo grande" arriba: hoy esa conexión no funciona de
-verdad para esos nodos, solo para "Llamar a omniroute".
+Cualquier otro nodo con onError configurado → su salida de error va a
+"Preparar fallo" (no directo a "Marcar como fallida" — ver "Hallazgo
+grande" arriba para por qué). Los 17 puntos que hoy alimentan "Preparar
+fallo": Reclamar tarea pendiente, Obtener config del bot, Guardar
+resultado, ¿Este bot despacha tareas?, Parsear asignaciones, Crear tareas
+hijas, ¿Requiere aprobación?, Send a text message, ¿Requiere aprobación?1,
+Obtener bot que asignó, ¿Tiene padre?, Crear tarea de aclaración, Bloquear
+tarea original, Obtener contexto de tarea padre, Cargar contexto, Extraer
+patron, Guardar patron, y ¿Falló la llamada a omniroute? (el original).
 ```
 
 Nota: hay **dos** nodos `¿Requiere aprobación?` (uno para bots que despachan,
@@ -184,8 +251,16 @@ WHERE id = (
 RETURNING *;
 ```
 `SKIP LOCKED` evita que dos corridas simultáneas tomen la misma tarea.
-`onError: continueErrorOutput` configurado, pero ver "Hallazgo grande" — no
-funciona de verdad hoy.
+`onError: continueErrorOutput` configurado y confirmado en vivo que rutea
+bien a "Preparar fallo" si esta query falla — con una salvedad: si falla
+aquí mismo, todavía no hay ningún `task_id` que reclamar (la tarea nunca
+llegó a marcarse `running`), así que "Marcar como fallida" corre con
+`taskId` vacío y no actualiza ninguna fila real — un fallo de conexión a
+Postgres en este punto específico no queda registrado en `tasks` ni genera
+una tarea de Trouble shooter, porque no hay una tarea de la cual partir.
+Gap real, sin resolver: no existe hoy ningún canal de alerta para este caso
+particular (el más grave de todos — significa que Postgres mismo no
+responde). Ver "Lo que falta" al final.
 
 ### 2. ¿Hay tarea? — IF
 `{{ $json.id }}` no vacío. Si no hay tarea pendiente, el workflow termina ahí.
@@ -277,27 +352,34 @@ así se confirmó en vivo el hallazgo grande de arriba.
 segunda salida de `continueErrorOutput` (ver "Hallazgo grande"). Si SÍ →
 "Preparar fallo". Si NO → "¿Necesita aclaración?" (el flujo de siempre).
 
-### 8. Preparar fallo — nuevo, 18/ago (Code)
+### 8. Preparar fallo — nuevo, 18/ago, generalizado esa misma noche (Code)
 ```javascript
-const taskId = $('Reclamar tarea pendiente').first().json.id;
-const errMsg = $json.error ? $json.error.message : JSON.stringify($json);
+const taskId = $('Reclamar tarea pendiente').item.json.id;
+
+let errMsg;
+if (typeof $json.error === 'string') {
+  errMsg = $json.error;
+} else if ($json.error && typeof $json.error === 'object') {
+  errMsg = $json.error.message || $json.error.description || JSON.stringify($json.error);
+} else if ($json.message) {
+  errMsg = $json.message;
+} else {
+  errMsg = JSON.stringify($json);
+}
+
 return [{ json: { taskId, errMsg } }];
 ```
-**Por qué existe este nodo intermedio:** en las pruebas del 18/ago,
-`$('Reclamar tarea pendiente').first().json.id` **falló** cuando se
-referenciaba directo dentro del campo `queryReplacement` de "Marcar como
-fallida" — tiraba `Query Parameters must be a string of comma-separated
-values or an array of values`, un error genérico de n8n que no dice la
-causa real. Se aisló el problema probando variantes una por una: la misma
-referencia cruzada a `$('Reclamar tarea pendiente')`, puesta dentro de un
-nodo **Code**, sí funciona sin problema. La diferencia está en cómo el
-parser interno de `queryReplacement` de los nodos Postgres (el que separa
-"resolvables" del string `={{ }}`) resuelve referencias cruzadas cuando el
-item llegó por una rama que pasó por una salida de error — no se identificó
-la causa exacta dentro del código de n8n, pero el patrón de solución quedó
-claro y confirmado con 3 ejecuciones reales: **resolver las referencias
-cruzadas en un nodo Code antes, dejar solo acceso local (`$json.algo`) en
-el `queryReplacement` del nodo Postgres siguiente.**
+**Por qué existe este nodo intermedio y por qué es compartido por 18
+rutas distintas:** ver "Hallazgo grande" arriba para la historia completa.
+En corto: cada tipo de nodo (Postgres, Code, HTTP Request, Telegram) da su
+error en una forma distinta, y "Marcar como fallida" necesita siempre la
+misma forma (`{taskId, errMsg}`) — este nodo normaliza. Además,
+`$('Reclamar tarea pendiente').first()` (la versión original, de la tarde)
+falla con `Cannot read properties of undefined (reading 'json')` cuando
+este Code node se alcanza a través de una salida de error rescatada por
+`continueErrorOutput` — confirmado en vivo probando 4 formas de acceso en
+la misma ejecución real; `.item` y `.itemMatching(0)` sí funcionan,
+`.first()` y `.all()[0]` no. Se usa `.item`.
 
 ### 9. ¿Necesita aclaración? — IF
 `{{ $json.choices[0].message.content.startsWith('NECESITA_ACLARACION:') }}`
@@ -445,6 +527,9 @@ RETURNING *;
 (ver nodo "Preparar fallo" para por qué). Se agregó `RETURNING *` para que
 el nodo siguiente (`¿Bot que falló no es trouble_shooter?`) tenga `cluster`,
 `bot` y `output` de la tarea que falló sin tener que volver a consultarlos.
+Ahora recibe items desde **18 rutas distintas** (todas vía "Preparar
+fallo", nunca directo) — probado en vivo con 2 de esas rutas de punta a
+punta (ver "Hallazgo grande").
 
 ### 19. ¿Bot que falló no es trouble_shooter? — nuevo, 18/ago (IF)
 Dos condiciones con AND: `{{ $json.bot }}` no vacío, y `{{ $json.bot }}` !=
@@ -486,26 +571,43 @@ Trouble shooter se creó con el cluster y el error correctos.
    18/ago, nodo 3 de arriba.
 8. ~~`nivel_importancia` no se propagaba a tareas hijas~~ → corregido 18/ago,
    nodo 13 de arriba.
+9. ~~Hallazgo C5, tal como se planteó en la ronda de la tarde del 18/ago (13
+   nodos con el mismo bug que "Llamar a omniroute")~~ → **desmentido y
+   cerrado la misma noche del 18/ago.** El diagnóstico original estaba mal;
+   el bug real (normalización de forma de error + `.first()` vs `.item()`)
+   ya está corregido en las 18 rutas. Ver "Hallazgo grande" arriba para la
+   historia completa, incluida la corrección sobre la corrección.
 
 ## Lo que falta (pendientes reales)
 
-1. **Hallazgo C5 (nuevo, 18/ago) — el bug de `continueErrorOutput` sigue sin
-   corregirse en 13 nodos.** Ver la sección "Hallazgo grande" arriba para la
-   lista completa y el patrón de arreglo (nodo Code intermedio + acceso
-   local). Es el pendiente más importante que deja esta ronda.
-2. **`Obtener config del bot` no distingue "bot no existe" de "bot existe"
-   (nuevo, 18/ago).** 0 filas no es un error en Postgres, así que una tarea
-   con un `bot` que no existe o no está activo se queda trabada en `running`
-   para siempre, sin pasar por "Marcar como fallida". Necesita un IF
-   explícito después de esta query.
-3. **`Reanudador de bloqueados`** (workflow separado, `3fKEODc6f6jH9VCJ`): el
+1. **Fallo en "Reclamar tarea pendiente" mismo — sin canal de alerta
+   (nuevo, 18/ago, noche).** Si Postgres no responde justo en el primer
+   paso (antes de que exista ningún `task_id`), "Marcar como fallida" corre
+   sin nada que actualizar — el fallo no queda registrado en `tasks` ni
+   genera una tarea de Trouble shooter. Es el caso más grave (Postgres
+   caído) y hoy el menos cubierto. Necesitaría un canal de alerta aparte
+   (ej. Telegram directo a Mateo) para este caso específico, no una fila en
+   `tasks`.
+2. **Comportamiento de error real de los 4 nodos IF con
+   `continueErrorOutput` — sin confirmar en vivo (nuevo, 18/ago, noche).**
+   Se conectaron a "Preparar fallo" por consistencia, pero dos intentos de
+   forzar un error genuino en un IF no lo lograron (la condición evaluó
+   falso en vez de lanzar error). No es urgente — los IF de este workflow
+   rara vez deberían fallar — pero si alguno falla de verdad algún día, vale
+   la pena confirmar en la ejecución real que llegó a donde debía.
+3. **`Obtener config del bot` no distingue "bot no existe" de "bot existe"
+   (18/ago).** 0 filas no es un error en Postgres, así que una tarea con un
+   `bot` que no existe o no está activo se queda trabada en `running` para
+   siempre, sin pasar por "Marcar como fallida". Necesita un IF explícito
+   después de esta query.
+4. **`Reanudador de bloqueados`** (workflow separado, `3fKEODc6f6jH9VCJ`): el
    query central ya está completo y correcto — solo le falta cambiar el
    trigger de **Manual a Schedule** para que corra solo.
-4. El workflow completo sigue en `active: false` en n8n — correrlo hoy
+5. El workflow completo sigue en `active: false` en n8n — correrlo hoy
    requiere disparar el Manual Trigger a mano (o, como se hizo hoy para
    probar, un Webhook Trigger temporal). Pasarlo a Schedule Trigger es parte
    de sacarlo de modo prueba.
-5. Prueba end-to-end en vivo del loop completo (memoria + aclaración +
+6. Prueba end-to-end en vivo del loop completo (memoria + aclaración +
    reanudador) — construido y verificado en estructura, falta correrlo con
    una tarea real de principio a fin y confirmar el resultado.
 
