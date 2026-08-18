@@ -21,10 +21,21 @@
 ## Tablas
 
 - `tasks` — cola compartida. `id, cluster, bot, status, input jsonb, output text,
-  parent_task_id, nivel_importancia, created_at, updated_at`.
+  parent_task_id, nivel_importancia, operation_id, created_at, updated_at`.
   Estados: `pending, running, done, failed, blocked, needs_approval`.
   `output` es **text**, no jsonb. `nivel_importancia` (`bajo`/`medio`/`alto`/`critico`,
-  sin tilde) la asigna Efadam al despachar — ver "Niveles de importancia y BYOK".
+  sin tilde) la fija Efadam una sola vez, al abrir la operación de la que forma
+  parte la tarea — ver "Niveles de importancia y BYOK" y `operations` abajo.
+  `operation_id` (nullable) referencia a `operations` — se propaga de padre a
+  hijo automáticamente al crear tareas nuevas.
+- `operations` — el hilo de trabajo completo detrás de una tarea o grupo de
+  tareas relacionadas (una petición de usuario, una investigación, una ronda
+  de autoexpansión). `id, tipo, titulo, descripcion, nivel_importancia,
+  status, created_at, updated_at, closed_at`. Estados: `abierta, en_progreso,
+  completada, fallida, bloqueada`. **Solo Efadam inserta filas nuevas aquí**
+  — a diferencia de `tasks`, que cualquier cluster puede seguir despachando
+  directo a otro sin pasar por Efadam. Un cluster que necesita arrancar un
+  hilo de trabajo nuevo le pregunta a Efadam primero.
 - `bots` — configuración de cada bot: `slug, cluster, prompt_especifico,
   system_prompt (derivado), contexto_slugs, conocimiento_directo,
   requires_approval, dispatches_tasks, active`. `default_model` sigue en la

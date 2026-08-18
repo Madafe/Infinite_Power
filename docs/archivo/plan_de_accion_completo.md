@@ -5,7 +5,106 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 18 de agosto de 2026, noche, tercera ronda (decisión sobre Pollinations/Qwen, y propuesta de un concepto nuevo: "operaciones") — VIGENTE, léase primero
+## Actualización — 18 de agosto de 2026, noche, cuarta ronda ("operaciones" construido y probado en vivo, con 2 bugs reales de paso corregidos) — VIGENTE, léase primero
+
+Mateo respondió las dos preguntas abiertas de la ronda anterior en el mismo
+mensaje: (1) sí, mezclar `nivel_importancia` con `operations`, pero sin
+borrar y reconstruir lo que ya funcionaba; (2) las operaciones tienen que
+estar **centralizadas** en Efadam — "si no se elimina el cuello de
+botella". Con las dos respuestas, el diseño quedó cerrado y se construyó de
+verdad (schema + 3 nodos del Ejecutor genérico + prueba en vivo), no solo
+documentado.
+
+### 0. Cómo se resolvieron las dos decisiones juntas
+
+Las dos respuestas de Mateo terminaron encajando mejor de lo que parecía en
+la ronda anterior: al ser Efadam el único que abre una operación, la
+pregunta que había quedado abierta sobre nivel_importancia ("¿quién le
+asigna nivel a una operación autoiniciada que nunca pasa por Efadam?") deja
+de existir — toda operación pasa por Efadam, así que Efadam siempre puede
+fijar el nivel al abrirla. Y sobre "no borrar uno y crear otro de cero": se
+interpretó como que el código de herencia de `nivel_importancia` ya
+construido y probado (`Parsear asignaciones`, con `.first()` sobre
+`Reclamar tarea pendiente`, que no tiene el problema de `.item()` porque
+corre en la rama de éxito, no en una de error rescatado) **no se toca**.
+Se agregó `operations.nivel_importancia` como la fuente conceptual del
+valor — Efadam la fija una vez al abrir la operación, la copia también a
+la tarea raíz, y de ahí la cadena de herencia que ya existía hace el resto
+sin ningún cambio de código.
+
+### 1. Schema construido y corrido contra Postgres real
+
+`schema/007_operaciones.sql` — tabla `operations` (`id, tipo, titulo,
+descripcion, nivel_importancia, status, created_at, updated_at,
+closed_at`) y `tasks.operation_id` (nullable, FK a `operations`). Corrido
+vía `docker cp` + `psql -f` dentro del contenedor (no pipe de PowerShell —
+regla adoptada el 16 de agosto tras el mojibake de esa ronda, seguida esta
+vez desde el principio). Verificado con `\d operations` y sin mojibake en
+los comentarios.
+
+### 2. Decisión de diseño: `operation_id` se propaga por subquery SQL, no por referencia cruzada de n8n
+
+A diferencia de `nivel_importancia` (que depende de `$('Nombre del
+nodo').first()` dentro de un Code node — el mecanismo exacto que causó el
+bug de `.first()` vs `.item()` de la ronda anterior), `operation_id` se
+propaga con un subquery dentro del mismo `INSERT` SQL
+(`(SELECT operation_id FROM tasks WHERE id = $N)`), usando un parámetro
+que la query ya recibía de todos modos (`parent_task_id`). Cero
+referencias cruzadas nuevas de n8n para este campo — se aprendió la
+lección de la ronda anterior y se aplicó desde el diseño, no después de
+que fallara.
+
+### 3. Dos bugs reales encontrados y corregidos de paso, no buscados a propósito
+
+Al tocar las 3 queries que crean tareas (para agregarles `operation_id`),
+salieron dos gaps reales de `nivel_importancia` que nunca se habían
+corregido:
+
+- **"Crear tarea de aclaración"** nunca había puesto `nivel_importancia` a
+  la tarea que crea — si esa tarea llegaba a procesarse, iba a fallar en
+  "Llamar a omniroute" con `400 Missing model` (el mismo bug ya visto dos
+  veces antes en otros puntos). Corregido con el mismo patrón de subquery.
+- **"Despachar a trouble_shooter"** tampoco lo hacía — **cada tarea de
+  Trouble shooter auto-despachada nacía con `nivel_importancia = null` y
+  estaba condenada a fallar**, sin excepción. Lo que la ronda anterior
+  documentó como "bonus, no buscado a propósito: la tarea de
+  trouble_shooter despachada también falló" no era una coincidencia útil
+  para probar el guard anti-loop — era este bug, atrapado en el momento
+  pero sin identificar la causa real. El mecanismo de auto-dispatch creaba
+  la tarea correcta, pero esa tarea nunca podía completarse. Corregido.
+
+### 4. Probado en vivo, dos veces, misma técnica de webhook temporal
+
+1. Operación de prueba (`nivel_importancia: medio`) + tarea raíz para
+   `tecnico_jefe` con ese `operation_id` → la tarea hija que "Crear tareas
+   hijas" generó para `coder` salió con `operation_id` y
+   `nivel_importancia` correctos.
+2. Fallo forzado en "Obtener config del bot" (mismo query roto que la
+   ronda anterior) sobre una tarea con `nivel_importancia = medio` y
+   `operation_id` puesto → la tarea de `trouble_shooter` auto-despachada
+   salió con **`nivel_importancia = medio`** (antes habría salido `null`)
+   y `operation_id` correcto — confirma en vivo los dos arreglos del punto
+   3, no solo en el papel.
+
+Datos de prueba borrados después, workflow devuelto a 26 nodos/`active:
+false`. Detalle nodo por nodo completo, con el SQL final de cada uno, en
+`ejecutor_generico.md`.
+
+### 5. Qué queda pendiente de esto
+
+**Nada abre una `operations` de verdad todavía** — el diseño quedó
+centralizado en Efadam y Efadam no existe como bot activo, así que hoy no
+hay ningún punto real del sistema que inserte una fila nueva ahí (solo se
+puede probar a mano, como se hizo). Se destraba junto con Bloque 3
+(activar Efadam). El "Prompt de sistema" de `efadam.md` (el bloque final
+para pegar en n8n) **no se tocó a propósito** — Mateo dijo que lo va a
+ajustar él mismo; se dejó una nota en el archivo señalando qué le falta
+mencionar (`operations`, la regla de "vuelve a preguntar si necesitas
+abrir un hilo nuevo") para que su edición no tenga que redescubrirlo.
+
+---
+
+## Actualización — 18 de agosto de 2026, noche, tercera ronda (decisión sobre Pollinations/Qwen, y propuesta de un concepto nuevo: "operaciones") — vigente
 
 ### 0. Pendiente #24 cerrado (por ahora): no seguir con Pollinations/Cloudflare/Qwen mientras se construye
 
@@ -2483,7 +2582,7 @@ para el razonamiento completo.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).
 23. ~~Insertar `trouble_shooter` en `bots`~~ — **ya no aplica (18 de agosto):** al intentar correr el `INSERT`, Postgres devolvió `duplicate key` — la fila ya existía. El diagnóstico del 17 de agosto que daba esto como pendiente estaba mal (ver actualización del 18 de agosto, arriba, sección 1, para la corrección completa). ~~Agregar el nodo Postgres de disparo automático en el Ejecutor genérico después de "Marcar como fallida"~~ — **hecho (18/ago, tarde-noche):** construido y probado en vivo, ver actualización del 18 de agosto, tarde-noche, arriba (sección 2).
 24. ~~Decidir si vale la pena seguir con Pollinations/Cloudflare/Qwen~~ — **cerrado por ahora (18/ago, noche, tercera ronda):** Mateo decidió no seguir con eso mientras dure la construcción — se retoma cuando el sistema ya esté operando.
-30. **Nuevo (18/ago, noche, tercera ronda), en diseño — no bloquea nada más:** construir el concepto de "operación" (tabla `operations` + `tasks.operation_id`) para trackear el hilo completo de trabajo (investigaciones, autoexpansión, tareas de usuario) sin depender de recorrer `parent_task_id` a mano, y para que Efadam tenga mejor registro. Diseño propuesto completo, con una pregunta abierta (quién puede abrir una operación — recomendación: descentralizado, igual que `tasks` hoy), en la actualización del 18 de agosto, noche, tercera ronda, arriba. Pendiente de confirmación de Mateo antes de tocar Postgres/n8n. Una vez confirmado, implica: migración `schema/007_operations.sql`, y actualizar "Crear tareas hijas"/"Parsear asignaciones", "Crear tarea de aclaración", y el disparo automático a Trouble shooter en `ejecutor_generico.md` para propagar `operation_id`.
+30. ~~Construir el concepto de "operación"~~ — **hecho (18/ago, noche, cuarta ronda):** Mateo confirmó las dos preguntas abiertas (mezclar `nivel_importancia` sin reconstruir; operaciones centralizadas en Efadam). Construido de verdad: `schema/007_operaciones.sql` corrido contra Postgres real, `operation_id` propagado en "Crear tarea de aclaración", "Crear tareas hijas" y "Despachar a trouble_shooter" (por subquery SQL, no referencia cruzada de n8n), probado en vivo dos veces. De paso se encontraron y corrigieron 2 bugs reales de `nivel_importancia` (aclaración y trouble_shooter nacían sin nivel, condenadas a fallar). Ver actualización del 18 de agosto, noche, cuarta ronda, arriba, y `ejecutor_generico.md` para el detalle completo. **Sigue pendiente, no cubierto por este punto:** nada abre una operación de verdad todavía — depende de que Efadam exista como bot activo (Bloque 3).
 25. ~~Hallazgo C5 — corregir el manejo de errores en los nodos del Ejecutor genérico~~ — **hecho (18/ago, noche, segunda ronda), con corrección importante:** el diagnóstico original (13 nodos rotos por el mismo bug que `"Llamar a omniroute"`) **era incorrecto** — probado en vivo, nodo por nodo: Postgres, Code y Telegram enrutan sus errores correctamente sin ningún arreglo. El bug real era otro: (a) cada tipo de nodo entrega el error con una forma de JSON distinta y "Marcar como fallida" necesitaba una normalización que no existía, y (b) un bug de n8n nunca documentado antes — `$('Reclamar tarea pendiente').first()` truena con `TypeError` cuando el nodo que lo llama se alcanza por una ruta de error rescatada, mientras que `.item` sí funciona. Arreglo aplicado: se generalizó el Code node "Preparar fallo" (normaliza las 4 formas de error observadas, usa `.item` en vez de `.first()`) y se re-cablearon 17 conexiones para pasar por él — cero nodos nuevos. Probado en vivo de punta a punta dos veces (una vía Postgres, la original vía omniroute) más una confirmación extra del guard anti-loop de Trouble shooter. Ver actualización del 18 de agosto, noche, segunda ronda, arriba, y `ejecutor_generico.md` para el detalle completo y el código final.
 26. ~~Rotar la contraseña de Postgres (hallazgo C1)~~ — **hecho (18/ago, noche):** los 4 pasos coordinados (`ALTER USER`, `.env`, credencial de n8n vía API, reinicio) ejecutados y probados en vivo de punta a punta (no solo "n8n arrancó bien" — se confirmó con una ejecución real que los nodos Postgres del workflow conectan con la contraseña nueva). Ver actualización del 18 de agosto, noche, arriba, para el detalle completo.
 27. **Nuevo (18/ago, tarde-noche):** eliminar la API key temporal de n8n (`N8N_API_KEY_TEMP` en `.env`) — revocarla en n8n y borrar la línea — una vez que el pendiente 25, la ingesta Telegram → `tasks` y la aprobación humana bidireccional estén resueltos. Instrucción explícita de Mateo, no automática.

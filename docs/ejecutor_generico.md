@@ -1,18 +1,24 @@
 # Ejecutor genérico — estado real
 
-> **Actualizado 18/ago/2026, noche.** 26 nodos. Se construyó el auto-dispatch
-> a Trouble shooter, se corrigió una inyección SQL real, se propagó
+> **Actualizado 18/ago/2026, noche (cuarta ronda).** 26 nodos, más la tabla
+> nueva `operations` y la columna `tasks.operation_id`, ya construidas y
+> probadas en vivo (no solo un pendiente en el papel — ver "Operaciones:
+> hilo de trabajo completo" más abajo). Se construyó el auto-dispatch a
+> Trouble shooter, se corrigió una inyección SQL real, se propagó
 > `nivel_importancia` a las tareas hijas, y se cerró de fondo el manejo de
 > errores de **todo** el workflow (no solo un nodo) — pero el diagnóstico
 > cambió de forma importante entre la tarde y la noche del mismo día. La
 > ronda de la tarde concluyó que 13 nodos más tenían el mismo bug que
 > "Llamar a omniroute" y lo dejó pendiente sin tocar. Al ponerse a arreglarlos
-> de verdad (ronda de la noche), **se probó en vivo, nodo por tipo, y esa
-> conclusión resultó ser incorrecta**: Postgres, Code y Telegram sí rutean
-> los errores a su salida correcta — el problema real era otro, más angosto,
-> y ya está corregido en los 17 puntos donde aplicaba. Ver "Hallazgo grande,
-> corregido" más abajo — es la lectura más importante de esta actualización,
-> incluyendo la corrección sobre la corrección.
+> de verdad (segunda ronda de la noche), **se probó en vivo, nodo por tipo, y
+> esa conclusión resultó ser incorrecta**: Postgres, Code y Telegram sí
+> rutean los errores a su salida correcta — el problema real era otro, más
+> angosto, y ya está corregido en los 17 puntos donde aplicaba. Ver
+> "Hallazgo grande, corregido" más abajo para esa historia. Más tarde esa
+> misma noche (cuarta ronda) se agregó el concepto de "operación" — ver
+> sección dedicada más abajo, incluye un bug real encontrado y corregido de
+> paso (`trouble_shooter` se auto-despachaba siempre con
+> `nivel_importancia = null`, garantizando su propio fallo).
 
 Un solo workflow ejecuta a cualquier bot leyendo su fila de la tabla `bots`.
 Un bot nuevo = un `INSERT`, no un workflow nuevo. Piloto probado de punta a
@@ -182,6 +188,102 @@ transformación de dato + `.first()` vs `.item()`) y ya está cerrado. Si se
 sigue usando el nombre "hallazgo C5" en otros documentos, que se refiera de
 aquí en adelante a este arreglo (ya cerrado), no al diagnóstico original de
 la tarde (que quedó desmentido).
+
+## Operaciones: hilo de trabajo completo — nuevo, 18/ago, cuarta ronda
+
+Mateo pidió un concepto nuevo, "operación": "cada cosa que el programa
+completo debe hacer" (investigaciones, autoexpansión, tareas de usuario),
+para que Efadam tenga mejor registro y para que el orden/instrucciones de un
+hilo de trabajo no se mezclen entre sí. Diseño confirmado por Mateo en dos
+puntos clave (ver `plan_de_accion_completo.md`, actualización del 18 de
+agosto, noche, tercera y cuarta ronda, para la discusión completa):
+
+1. **Centralizado en Efadam** — a diferencia de `tasks` (que cualquier
+   cluster puede seguir despachando directo a otro sin pasar por Efadam,
+   sin cambios), **solo Efadam abre una operación nueva**. Si un cluster
+   detecta que necesita arrancar un hilo de trabajo nuevo (no solo una
+   tarea más dentro del que ya tiene), tiene que volver a preguntarle a
+   Efadam — el mismo principio de cuello de botella que ya existe para
+   `knowledge_log`/`system_knowledge`, extendido a operaciones. Efadam
+   todavía no existe como bot activo, así que hoy nada abre operaciones de
+   verdad — la tabla y la propagación están listas para cuando exista
+   (Bloque 3).
+2. **`nivel_importancia` no se movió de tabla, no se tocó su código** —
+   Mateo pidió explícitamente no "borrar uno y crear otro de cero".
+   `operations.nivel_importancia` es la fuente de verdad conceptual
+   (Efadam la fija una sola vez, al abrir la operación); la tarea raíz
+   copia ese mismo valor a `tasks.nivel_importancia` — y desde ahí la
+   cadena de herencia que ya existía en "Parsear asignaciones" (construida
+   y probada la ronda anterior) sigue funcionando exactamente igual, sin
+   ningún cambio de código. Es un cambio de dónde nace el valor, no de
+   cómo viaja.
+
+### Schema (`schema/007_operaciones.sql`, ya corrido contra Postgres real)
+
+```sql
+create table operations (
+    id                 serial primary key,
+    tipo               text        not null,  -- 'usuario' | 'investigacion' | 'autoexpansion' | ...
+    titulo             text        not null,
+    descripcion        text,
+    nivel_importancia  text        not null check (nivel_importancia in ('bajo','medio','alto','critico')),
+    status             text        not null default 'abierta',  -- abierta | en_progreso | completada | fallida | bloqueada
+    created_at         timestamptz not null default now(),
+    updated_at         timestamptz not null default now(),
+    closed_at          timestamptz
+);
+
+alter table tasks add column operation_id int references operations(id);
+```
+
+`tasks.operation_id` es nullable por ahora (transición: tareas manuales/de
+prueba, o cualquier tarea creada antes de que Efadam exista, pueden no
+tener una).
+
+### Cómo se propaga (decisión de diseño: subquery SQL, no referencia cruzada de n8n)
+
+A diferencia de `nivel_importancia` (que viaja vía `$('Reclamar tarea
+pendiente').first()` dentro de un Code node — el mecanismo que causó el bug
+de `.first()` vs `.item()` de la ronda anterior), `operation_id` se propaga
+con un **subquery SQL dentro del mismo INSERT**, usando un parámetro que la
+query ya recibía de todos modos (`parent_task_id`). Cero referencias
+cruzadas nuevas de n8n, cero superficie nueva para ese tipo de bug:
+
+- **Crear tareas hijas** (nodo 14): `(SELECT operation_id FROM tasks WHERE id = $5)`.
+- **Crear tarea de aclaración** (nodo 10b): igual, sobre `$4`. De paso se
+  encontró y corrigió un gap real que no tenía que ver con operaciones:
+  este INSERT nunca había puesto `nivel_importancia` a la tarea de
+  aclaración — si esa tarea llegaba a procesarse, iba a fallar en "Llamar
+  a omniroute" con `400 Missing model`, el mismo bug ya visto dos veces
+  antes. Ahora también se copia por subquery: `(SELECT nivel_importancia
+  FROM tasks WHERE id = $4)`.
+- **Despachar a trouble_shooter** (nodo 20): no necesita subquery — ambos
+  valores ya vienen locales en el `RETURNING *` de "Marcar como fallida"
+  (`$json.nivel_importancia`, `$json.operation_id`). **Bug real encontrado
+  y corregido aquí:** este INSERT tampoco ponía nunca `nivel_importancia` —
+  la "confirmación bonus" de la ronda anterior (la tarea de
+  `trouble_shooter` auto-despachada también falló) no era solo una
+  coincidencia útil para probar el guard anti-loop, era la evidencia de
+  que **todas** las tareas de `trouble_shooter` auto-despachadas estaban
+  condenadas a fallar por esto — el mecanismo creaba la tarea correcta,
+  pero esa tarea nunca podía completarse. Corregido.
+
+### Probado en vivo, dos veces, con datos reales (misma técnica de webhook temporal)
+
+1. Se creó una operación de prueba (`tipo: usuario`, `nivel_importancia:
+   medio`) y una tarea raíz para `tecnico_jefe` con ese `operation_id`. Se
+   disparó dos veces: la tarea hija que "Crear tareas hijas" generó para
+   `coder` salió con `operation_id` y `nivel_importancia` correctos — la
+   propagación por subquery funciona.
+2. Se forzó un fallo real en "Obtener config del bot" (mismo query roto que
+   la ronda anterior) sobre una tarea con `nivel_importancia = medio` y
+   `operation_id` puesto. La tarea de `trouble_shooter` auto-despachada
+   salió con **`nivel_importancia = medio`** (antes habría salido `null`,
+   condenada a fallar) y `operation_id` correcto — confirma en vivo los
+   dos arreglos de la sección anterior, no solo en el papel.
+
+Datos de prueba borrados después, workflow devuelto a 26 nodos/`active:
+false` — mismo protocolo de limpieza de siempre.
 
 ## Mapa completo (26 nodos)
 
@@ -406,11 +508,18 @@ WHERE t.id = $1;
 
 - **SÍ tiene padre** → **Crear tarea de aclaración**:
   ```sql
-  INSERT INTO tasks (cluster, bot, status, input, parent_task_id)
-  VALUES ($1, $2, 'pending', $3, $4);
+  INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id)
+  VALUES ($1, $2, 'pending', $3, $4,
+    (SELECT nivel_importancia FROM tasks WHERE id = $4),
+    (SELECT operation_id FROM tasks WHERE id = $4));
   ```
   con `$3 = { text: <pregunta, sin el prefijo "NECESITA_ACLARACION: "> }` y
   `$4 = id de la tarea original` — reanudación bot-a-bot, sin humano en medio.
+  **Actualizado 18/ago, cuarta ronda:** se agregaron `nivel_importancia` y
+  `operation_id`, ambos copiados por subquery de la tarea original (`$4`).
+  `nivel_importancia` era un gap real sin corregir hasta ahora — esta tarea
+  nunca lo había tenido, y si llegaba a procesarse habría fallado en
+  "Llamar a omniroute" con `400 Missing model`. Ver "Operaciones" arriba.
 - **NO tiene padre** (tarea de primer nivel) → **Send a text message** (Telegram, ver abajo).
 
 Ambas ramas terminan en **Bloquear tarea original**:
@@ -473,12 +582,15 @@ despachando** (`nivelPropio`) — nunca queda sin nivel.
 
 ### 14. Crear tareas hijas
 ```sql
-INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia)
-VALUES ($1, $2, $3, $4, $5, $6);
+INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id)
+VALUES ($1, $2, $3, $4, $5, $6, (SELECT operation_id FROM tasks WHERE id = $5));
 ```
 `queryReplacement`: `[$json.cluster, $json.bot, $json.status,
-JSON.stringify($json.input), $json.parent_task_id, $json.nivel_importancia]`.
-Corre una vez por cada asignación (n8n itera automáticamente sobre los items).
+JSON.stringify($json.input), $json.parent_task_id, $json.nivel_importancia]`
+(sin cambios — `operation_id` no necesita parámetro nuevo, sale del
+subquery sobre `$5`). Corre una vez por cada asignación (n8n itera
+automáticamente sobre los items). **Actualizado 18/ago, cuarta ronda:**
+`operation_id` agregado, probado en vivo — ver "Operaciones" arriba.
 
 ### 15. Extraer patron (Code)
 ```javascript
@@ -543,15 +655,27 @@ que es razonable: es el propio diagnosticador el que falló).
 
 ### 20. Despachar a trouble_shooter — nuevo, 18/ago
 ```sql
-INSERT INTO tasks (cluster, bot, status, input)
-VALUES ($1, 'trouble_shooter', 'pending', jsonb_build_object('text', $2));
+INSERT INTO tasks (cluster, bot, status, input, nivel_importancia, operation_id)
+VALUES ($1, 'trouble_shooter', 'pending', jsonb_build_object('text', $2), $3, $4);
 ```
-`queryReplacement: [$json.cluster, $json.output]` — ambos vienen del
-`RETURNING *` de "Marcar como fallida" (nodo local, sin referencia cruzada).
-Con esto, `trouble-shooter.md` deja de documentar un diseño pretendido: el
-disparo automático **ya existe de verdad**, probado en vivo el 18/ago con un
-fallo real (tarea 12, `400 Missing model`) — confirmado que la tarea de
-Trouble shooter se creó con el cluster y el error correctos.
+`queryReplacement: [$json.cluster, $json.output, $json.nivel_importancia,
+$json.operation_id]` — los 4 vienen del `RETURNING *` de "Marcar como
+fallida" (nodo local, sin referencia cruzada). Con esto, `trouble-shooter.md`
+deja de documentar un diseño pretendido: el disparo automático **ya existe
+de verdad**, probado en vivo el 18/ago con un fallo real (tarea 12, `400
+Missing model`) — confirmado que la tarea de Trouble shooter se creó con el
+cluster y el error correctos.
+
+**Bug real encontrado y corregido, 18/ago, cuarta ronda:** este INSERT
+nunca había puesto `nivel_importancia` — cada tarea de `trouble_shooter`
+auto-despachada nacía con `nivel_importancia = null` y estaba condenada a
+fallar en "Llamar a omniroute" (`400 Missing model`), sin excepción. Lo que
+la ronda anterior documentó como "bonus, no buscado a propósito: la tarea
+de trouble_shooter despachada también falló" no era una coincidencia — era
+este bug, atrapado en el momento pero sin identificar la causa. Corregido
+junto con `operation_id`; probado en vivo (ver "Operaciones" arriba): la
+tarea de `trouble_shooter` auto-despachada ahora sale con el
+`nivel_importancia` real de la tarea que falló, no `null`.
 
 ## Hallazgos de rondas anteriores — ya corregidos
 
@@ -577,6 +701,10 @@ Trouble shooter se creó con el cluster y el error correctos.
    el bug real (normalización de forma de error + `.first()` vs `.item()`)
    ya está corregido en las 18 rutas. Ver "Hallazgo grande" arriba para la
    historia completa, incluida la corrección sobre la corrección.
+10. ~~Tareas de `trouble_shooter` auto-despachadas y tareas de aclaración
+    nacían sin `nivel_importancia`~~ → corregido 18/ago, cuarta ronda, al
+    construir la propagación de `operation_id` — ver "Operaciones: hilo de
+    trabajo completo" y los nodos 10b y 20 arriba.
 
 ## Lo que falta (pendientes reales)
 
@@ -610,6 +738,13 @@ Trouble shooter se creó con el cluster y el error correctos.
 6. Prueba end-to-end en vivo del loop completo (memoria + aclaración +
    reanudador) — construido y verificado en estructura, falta correrlo con
    una tarea real de principio a fin y confirmar el resultado.
+7. **Nada abre una `operations` de verdad todavía (18/ago, cuarta ronda).**
+   La tabla, la columna y la propagación están construidas y probadas, pero
+   como el diseño quedó centralizado en Efadam (decisión de Mateo) y Efadam
+   no existe como bot activo, hoy no hay ningún punto real del sistema que
+   inserte una fila nueva en `operations` — solo se puede probar insertando
+   una a mano, como se hizo para las pruebas de esta ronda. Se destraba
+   junto con Bloque 3 (activar Efadam).
 
 ## Cómo probarlo hoy
 

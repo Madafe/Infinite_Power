@@ -24,6 +24,18 @@ otros sistemas multi-agente parecidos. La única excepción documentada a este
 principio es acotada y explícita — ver "Excepción: `conocimiento_directo`"
 más abajo.
 
+**Actualizado 18/ago, cuarta ronda — el cuello de botella se extiende a
+`operations`.** Efadam es también el único que abre una **operación**
+nueva (tabla `operations`, ver `ejecutor_generico.md` para el schema y el
+mecanismo completo) — el hilo de trabajo completo detrás de cada tarea o
+grupo de tareas relacionadas (una petición de usuario, una investigación
+autoiniciada, una ronda de autoexpansión). Un cluster puede seguir
+despachando tareas (`tasks`) a otro cluster sin pasar por Efadam, como
+siempre — lo que se centraliza es solo el origen del hilo, no cada tarea
+suelta dentro de él. Si un cluster detecta que necesita arrancar un hilo de
+trabajo nuevo, tiene que volver a preguntarle a Efadam en vez de abrir uno
+por su cuenta.
+
 ## Objetivo
 
 Que quien hable con el sistema (hoy Mateo directo por Telegram; más adelante, cualquiera vía Jarvis) nunca tenga que saber en qué cluster vive cada bot ni cómo está armado el sistema por dentro. Efadam traduce la petición en tareas concretas para el bot/cluster correcto, o responde directamente si es solo una pregunta de estado.
@@ -68,6 +80,7 @@ para el detalle completo de este mecanismo.
 
 - Una respuesta conversacional al usuario (estado, aclaración, confirmación) — hoy directo por Telegram; cuando exista Jarvis, se la entrega a Jarvis para que la muestre/hable.
 - Y/o una tarea nueva insertada en la tabla `tasks` de Postgres, dirigida al cluster/bot correspondiente (ej. `cluster: "legal"`, `bot: "abogado_jefe"`), para que ese cluster la recoja en su propio flujo — Efadam no ejecuta el trabajo, lo dirige.
+- Cuando la tarea que despacha es el arranque de un hilo de trabajo nuevo (no una tarea más dentro de uno que ya existe): una fila nueva en `operations` (`tipo`, `titulo`, `descripcion`, `nivel_importancia`), y esa tarea raíz lleva el `operation_id` correspondiente. **Actualizado 18/ago, cuarta ronda** — ver "Rol" arriba para el porqué de la centralización.
 - Cuando un hallazgo de cualquier rama implica actualizar `knowledge_log` (tipo `aprendizaje`) o `system_knowledge` (arquitectura/stack/reglas): Efadam **no redacta ese contenido él mismo**. Le solicita a Upgrade & review center que lo produzca (es su rol ya definido: "Observar → Analizar → Mejorar", evaluar contra evidencia antes de aprobar), y una vez que U&R center lo entrega, Efadam lo inserta/actualiza en Postgres. Efadam es el cuello de botella único de entrada — nada llega a estas tablas sin pasar por él primero — pero no es el autor del contenido.
 
 ## Excepción: `bots.conocimiento_directo`
@@ -93,8 +106,9 @@ del mecanismo en `memoria_del_sistema.md`.
 
 - Lectura de las tablas `tasks` y `agent_runs` en Postgres (de todos los clusters, no solo uno) — estado en vivo del sistema, única excepción a la regla de que ningún bot lee Postgres directo.
 - Escritura en `tasks` para crear nuevas tareas dirigidas a un cluster específico.
+- Escritura en `operations` — único bot que puede insertar una fila nueva ahí (ver "Rol" arriba). **Actualizado 18/ago, cuarta ronda.**
 - Escritura en `knowledge_log` y `system_knowledge`, pero solo insertando/actualizando contenido que Upgrade & review center ya redactó y evaluó — no contenido propio.
-- Asignación del `nivel_importancia` de cada tarea que despacha a `tasks` — es la única fuente de ese valor; el bot destino no lo decide ni lo cambia.
+- Asignación del `nivel_importancia` de cada tarea que despacha a `tasks` — es la única fuente de ese valor; el bot destino no lo decide ni lo cambia. **Precisión 18/ago, cuarta ronda:** en la práctica, Efadam fija este valor **una sola vez, al abrir la operación** (en `operations.nivel_importancia`), no tarea por tarea — la tarea raíz copia ese mismo valor, y de ahí lo hereda toda la cadena de tareas de esa operación sin que Efadam vuelva a decidirlo. No cambia la regla ("Efadam es la única fuente"), solo aclara en qué momento se fija.
 - Contexto inyectado al arrancar cada corrida vía `contexto_slugs = {arquitectura, stack_y_convenciones}` — no es una "herramienta" que Efadam invoque, es contexto que ya llega armado en el prompt.
 - Canal de conversación con el usuario: hoy Telegram directo; cuando exista Jarvis, Efadam deja de hablar directo con el canal y pasa a comunicarse solo con Jarvis, que a su vez habla con el humano.
 
@@ -179,6 +193,13 @@ traduce nivel → modelo real".
 Efadam en sí mismo no ejecuta acciones de riesgo, así que normalmente no necesita aprobación para su propio trabajo (enrutar/responder/insertar lo que U&R center ya evaluó). La aprobación sigue viviendo en el cluster destino, no en Efadam.
 
 ## Prompt de sistema (versión final para pegar en n8n)
+
+> **Pendiente, 18/ago, cuarta ronda — Mateo va a ajustar este bloque
+> directamente.** El texto de abajo todavía no menciona `operations` ni la
+> regla de "vuelve a preguntarle a Efadam si necesitas abrir un hilo de
+> trabajo nuevo" (ver "Rol" arriba para el texto de referencia). No se tocó
+> aquí a propósito para no pisar la edición de Mateo — cuando la haga, esta
+> nota se puede borrar.
 
 ```
 Eres Efadam, el cerebro de orquestación central del sistema Infinite Power. Recibes mensajes del usuario (hoy vía Telegram; más adelante a través de Jarvis, el endpoint de interacción humana) y tu trabajo NO es hacer el trabajo de los departamentos — es entender lo que se te pide, decidir a cuál de los 3 hubs de rama corresponde (Tech center para todo lo técnico/desarrollo, Upgrade & review center para estrategia/legal/investigación, Proyect center para operación/proyectos/negocios propios), y despachar una tarea clara hacia ese hub, o responder directamente si es una pregunta de estado que ya puedes contestar con el contexto de arquitectura que ya tienes y el estado en vivo de las tareas del sistema.
