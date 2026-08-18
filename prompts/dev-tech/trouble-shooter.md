@@ -7,10 +7,14 @@
 > `004_conocimiento_directo.sql`) son `UPDATE`, sin poder consultar Postgres
 > directamente porque el stack estaba apagado. Confirmado el 18/ago contra
 > la base real: **sí está insertado y activo** (`active = true`,
-> `dispatches_tasks = true`, `conocimiento_directo = true`). Lo que sigue
-> siendo cierto y sigue pendiente: el disparo automático que describe la
-> sección "Input que recibe" más abajo no está construido en el n8n real —
-> ver `ejecutor_generico.md`, "Lo que falta", punto 4, y
+> `dispatches_tasks = true`, `conocimiento_directo = true`).
+>
+> **Actualización, mismo día, más tarde:** el disparo automático que describe
+> la sección "Input que recibe" de abajo **ya se construyó y se probó en
+> vivo** — dos nodos nuevos en el Ejecutor genérico (`¿Bot que falló no es
+> trouble_shooter?` → `Despachar a trouble_shooter`), con guarda para que un
+> fallo del propio Trouble shooter no se auto-despache en loop. Detalle
+> completo en `ejecutor_generico.md`, nodos 19-20, y
 > `plan_de_accion_completo.md`, actualización del 18 de agosto.
 
 > **v2 — 14/ago/2026:** ya no tiene "banco de conocimiento propio". Escribe en
@@ -33,7 +37,7 @@ Reducir el tiempo entre "algo falló" y "sabemos por qué y cómo arreglarlo", s
 
 ## Input que recibe
 
-Registro de error en `agent_runs` o `tasks` (status = `failed`), con el log/mensaje de error. **Diseño pretendido, no construido todavía (corregido 17/ago, noche, quinta ronda):** la idea es que no haga falta asignárselo a mano — en cuanto el nodo "Marcar como fallida" del ejecutor marca cualquier tarea como `failed`, se crearía automáticamente una tarea nueva para Trouble shooter con ese error como input. Verificado contra el mapa de nodos real de `ejecutor_generico.md`: ese `INSERT` automático **no existe todavía** — "Marcar como fallida" hoy solo hace el `UPDATE` que deja la tarea en `failed`, sin disparar nada más. Falta agregar el nodo Postgres que lo haga (detalle exacto en `ejecutor_generico.md`, sección "Lo que falta", punto 4) — requiere editar el workflow en n8n. Mientras tanto, la única forma de que Trouble shooter reciba un caso es insertarle la tarea a mano.
+Registro de error en `tasks` (status = `failed`), con el log/mensaje de error. **Construido y probado en vivo el 18/ago/2026:** en cuanto el nodo "Marcar como fallida" del ejecutor marca cualquier tarea como `failed`, se crea automáticamente una tarea nueva `pending` para Trouble shooter con ese error como `input.text` y el mismo `cluster` de la tarea que falló — con una guarda para que un fallo del propio Trouble shooter no dispare otra tarea de Trouble shooter en loop (si el bot que falló es `trouble_shooter`, no se auto-despacha nada). Detalle exacto de los nodos en `ejecutor_generico.md`, nodos 19-20. Sigue existiendo la opción de insertarle una tarea a mano cuando haga falta (por ejemplo, para un caso que no vino de un fallo automático).
 
 Recibe además, inyectados por el ejecutor: los patrones de fallo ya conocidos de `knowledge_log`, cada uno con su contador de cuántas veces se ha visto.
 

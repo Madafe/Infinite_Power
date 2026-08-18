@@ -5,7 +5,165 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 18 de agosto de 2026 (Docker arriba; NVIDIA conectado y probado de punta a punta en OmniRoute, los 4 combos ya rutean tráfico real; corrección importante: el diagnóstico de la ronda anterior sobre Trouble shooter estaba mal en una parte) — VIGENTE, léase primero
+## Actualización — 18 de agosto de 2026, tarde-noche (Mateo pasó la API key de n8n; se construyó y probó en vivo el disparo automático a Trouble shooter; se encontró y corrigió un bug grande de manejo de errores que llevaba desde el inicio; SQL injection cerrada; nivel_importancia ya se propaga a tareas hijas; 2 tareas reales del backlog se repararon; rotar password de Postgres resultó más riesgoso de lo asumido y se pospuso a propósito) — VIGENTE, léase primero
+
+Mateo mandó la API key de n8n directo en el chat, con tres instrucciones
+explícitas: anotarla en algún lado, dejarla anotada también como pendiente
+de eliminar "al final", y que de aquí en adelante Claude sea quien edite
+n8n — "no quiero editar yo n8n, me lleva mucho tiempo". Pidió agregar el
+nodo de disparo automático a Trouble shooter y seguir con el resto de
+pendientes sin detenerse a preguntar en cada paso. Esta ronda: (1) se
+guardó la key, (2) se construyó y probó en vivo el disparo automático, (3)
+en el camino se encontró un bug de fondo en el manejo de errores de todo
+el workflow que hacía que la corrección del punto 2 no pudiera funcionar
+sin arreglarlo primero, (4) se cerraron dos hallazgos de la auditoría
+técnica (SQL injection, propagación de `nivel_importancia`), (5) se
+repararon 2 tareas reales atoradas en el backlog como parte de las
+pruebas, y (6) se investigó rotar la contraseña de Postgres y se decidió
+posponerlo por un riesgo nuevo que no estaba contemplado.
+
+### 0. La API key de n8n — guardada, marcada para borrar al final
+
+Se guardó en `.env` como `N8N_API_KEY_TEMP`, con un comentario explícito
+de que a diferencia de la de NVIDIA, esta sí es sensible (da acceso de
+gestión completo a esta instancia de n8n: leer/crear/editar/borrar
+workflows, credenciales, ejecuciones) y de que es temporal — pendiente
+**eliminarla** (revocar en n8n + borrar la línea de `.env`) en cuanto se
+termine el trabajo pendiente de n8n de esta ronda, tal como pidió Mateo.
+No se elimina todavía porque quedan pendientes reales que la necesitan
+(hallazgo C5, ingesta Telegram, aprobación bidireccional — ver "Qué
+queda" al final de esta sección).
+
+### 1. El bug de fondo: `onError: continueErrorOutput` nunca funcionó como se creía
+
+Al construir el disparo automático (que depende de que `"Marcar como
+fallida"` se dispare de verdad), se encontró que **ese nodo nunca se había
+ejecutado ni una sola vez en la historia de este workflow** — no en ninguna
+de las rondas anteriores que documentaron el manejo de errores como
+"funcionando". La causa: n8n tiene un comportamiento no documentado donde,
+para nodos de un solo output nativo (Postgres, Code, y — confirmado con
+evidencia directa esta ronda — también HTTP Request tal como está
+configurado aquí), cuando el nodo falla con `onError: continueErrorOutput`,
+el item con forma de error cae en el output 0 (el de éxito normal) en vez
+del output 1 (el "output de error" al que apunta el diagrama de
+conexiones del workflow). Verificado de dos formas: leyendo directo el
+código fuente de n8n dentro del contenedor
+(`n8n-core/dist/execution-engine/workflow-execute.js`, función
+`handleNodeErrorOutput`), y con múltiples ejecuciones reales que mostraban
+el item de error en `main[0]` y `main[1]` vacío. No se investigó la causa
+raíz dentro de los internals de n8n más allá de eso — no valía la pena esa
+madriguera hoy.
+
+**Consecuencia práctica, antes de esta ronda:** cualquier fallo real de
+`"Llamar a omniroute"` (el nodo que llama a OmniRoute/al modelo) nunca
+llegaba a `"Marcar como fallida"`. La tarea se quedaba atorada en
+`status='running'` para siempre, sin error registrado y sin diagnóstico
+disparado — en silencio.
+
+**Arreglo aplicado, solo donde importaba para el entregable de hoy:** se
+agregó un nodo IF explícito (`"¿Falló la llamada a omniroute?"`, condición
+`{{ $json.error !== undefined }}`) inmediatamente después de `"Llamar a
+omniroute"`, revisando el contenido real del item en vez de confiar en el
+output al que n8n lo mandó. Si es error, va a un nodo Code nuevo
+(`"Preparar fallo"`) que arma `{taskId, errMsg}` y de ahí a `"Marcar como
+fallida"`.
+
+**Quedan 13 nodos más con el mismo problema latente**, sin tocar esta
+ronda a propósito (no por falta de tiempo): Reclamar tarea pendiente,
+Obtener config del bot, Guardar resultado, Parsear asignaciones, Crear
+tareas hijas, Send a text message, Obtener bot que asignó, Crear tarea de
+aclaración, Bloquear tarea original, Obtener contexto de tarea padre,
+Cargar contexto, Extraer patron, Guardar patron. Documentado como
+**hallazgo C5** en `ejecutor_generico.md` para una ronda dedicada — tocar
+los 13 de golpe al final de una sesión ya larga era más riesgo del que
+valía la pena.
+
+**Segundo bug relacionado, encontrado al depurar el arreglo de arriba:**
+referenciar `$('Reclamar tarea pendiente').first().json.id` directo dentro
+del campo `queryReplacement` de un nodo Postgres (sintaxis
+`={{ [...] }}`), cuando ese nodo se alcanza pasando por una rama de
+continuación de error, tira `Query Parameters must be a string of
+comma-separated values or an array of values` — pero la misma referencia
+cruzada funciona bien dentro de un nodo Code. No se identificó la causa
+raíz dentro de los internals de n8n (se aisló empíricamente: arrays
+estáticos funcionan, `$json.error.message` solo funciona, pero
+`$('Reclamar tarea pendiente').first()` específicamente falla al pasar
+por el mini-parser de `queryReplacement` después de esta rama en
+particular). **Patrón de arreglo, ya aplicado y confirmado:** resolver
+toda referencia cruzada entre nodos (`$('NodeName')`) dentro de un nodo
+Code dedicado, justo antes de cualquier nodo Postgres que la necesite,
+dejando el `queryReplacement` del nodo Postgres con solo acceso local
+(`$json.campo`).
+
+### 2. Disparo automático a Trouble shooter — construido y probado en vivo
+
+Dos nodos nuevos: `"¿Bot que falló no es trouble_shooter?"` (IF — revisa
+que el bot que falló exista y no sea `trouble_shooter`, para que un fallo
+del propio Trouble shooter no se auto-despache en loop) →
+`"Despachar a trouble_shooter"` (Postgres — inserta una tarea `pending`
+nueva para `trouble_shooter` con el mismo `cluster` de la tarea que falló
+y el mensaje de error como `input.text`).
+
+**Probado en vivo de punta a punta:** se forzó un error real (tarea con
+`nivel_importancia` nula, que OmniRoute rechaza con `400 Missing model`).
+La tarea terminó `status='failed'` con el error real guardado en `output`,
+y automáticamente se creó una tarea nueva para `trouble_shooter` con el
+`cluster` y el error correctos. Datos de prueba limpiados después.
+
+### 3. Dos hallazgos de la auditoría técnica, cerrados
+
+- **Hallazgo C2 (inyección SQL):** `"Obtener config del bot"` usaba
+  interpolación de string directa (`WHERE slug = '{{ $json.bot }}'`) sobre
+  un valor que puede venir del JSON de salida de un LLM (el array
+  "asignaciones" de un bot despachador) — vector real, no teórico. Query
+  parametrizada con `$1` y `queryReplacement`.
+- **Propagación de `nivel_importancia` a tareas hijas:** según el diseño
+  de `efadam.md`, solo Efadam (todavía no construido) debe asignar
+  `nivel_importancia` explícitamente; el resto de bots despachadores
+  (Técnico jefe, Trouble shooter) deben heredarlo de la tarea que están
+  ejecutando. El nodo `"Parsear asignaciones"` ahora hace
+  `nivel_importancia: a.nivel_importancia || nivelPropio`.
+
+### 4. Bonus: 2 tareas reales del backlog, reparadas
+
+Al probar todo lo anterior se encontraron 2 tareas reales atoradas desde
+el 13-14 de agosto (ids 4 y 7, ambas `coder`, del piloto original
+`tecnico_jefe → coder`) — atoradas en `running` por el mismo bug del punto
+1: les faltaba `nivel_importancia`, OmniRoute las rechazaba, y el error
+nunca llegaba a `"Marcar como fallida"`. Se les asignó
+`nivel_importancia = 'medio'` y se volvieron a correr — ambas terminaron
+`status='done'` con salida real de modelo.
+
+### 5. Rotar la contraseña de Postgres (hallazgo C1) — investigado, pospuesto a propósito
+
+Al preparar la rotación (pendiente desde la auditoría del 17 de agosto:
+contraseña expuesta en el historial de git) se encontró que
+`claude/docker-compose.yml` usa el **mismo usuario y base de Postgres**
+(`infpower`/`infinite_power`) para la base interna de n8n (workflows,
+ejecuciones, login) que para las tablas de negocio (`tasks`, `bots`,
+`knowledge_log`). Rotar la contraseña bien hecho exige coordinar 4 pasos
+en orden (`ALTER USER` en Postgres, actualizar `.env`, actualizar la
+credencial guardada en n8n vía `PATCH /credentials/{id}`, y reiniciar
+ambos contenedores para que n8n relea `DB_POSTGRESDB_PASSWORD`, que solo
+se lee al arrancar) — un paso mal hecho o fuera de orden puede dejar a n8n
+sin poder arrancar. **Decisión propia, no revisada todavía por Mateo:** no
+intentarlo al final de una sesión ya larga y técnicamente densa — dejarlo
+para una ronda dedicada, con más margen para verificar cada paso con
+calma.
+
+### 6. Qué queda de esto
+
+Cierra, de la lista de pendientes de la actualización del 18/ago (Docker
+arriba), todo lo que dependía de acceso a n8n excepto: hallazgo C5 (13
+nodos), rotar password de Postgres (pospuesto a propósito, ver punto 5),
+la ingesta Telegram → `tasks`, y la aprobación humana bidireccional. La
+API key de n8n sigue en `.env`, pendiente de eliminar cuando estos
+terminen. Detalle nodo por nodo completo en `ejecutor_generico.md`;
+`trouble-shooter.md` y `estado_del_proyecto.md` también actualizados.
+
+---
+
+## Actualización — 18 de agosto de 2026 (Docker arriba; NVIDIA conectado y probado de punta a punta en OmniRoute, los 4 combos ya rutean tráfico real; corrección importante: el diagnóstico de la ronda anterior sobre Trouble shooter estaba mal en una parte) — vigente
 
 Mateo confirmó que ya levantó Docker Desktop él mismo, y pasó una API key
 gratuita de NVIDIA ("es gratis da igual que esté expuesta"). Esta ronda: (1)
@@ -2028,5 +2186,8 @@ para el razonamiento completo.
 17. **Nuevo (post Fase 2, no ahora):** construir Multiproyecto — schema por proyecto en Postgres, tabla `proyectos`, nodos Postgres con schema dinámico. Antes: confirmar que los workflows actuales de n8n no tienen el schema hardcodeado.
 18. **Nuevo:** construir el mecanismo de Revert (tabla `reverts`, `archived_at`/`archived_reason` en `knowledge_log` y demás tablas relevantes) — sin fecha fija, pero vale la pena tenerlo antes de que el sistema empiece a tomar decisiones con consecuencia real que alguien quiera poder revisar/archivar.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).
-23. ~~Insertar `trouble_shooter` en `bots`~~ — **ya no aplica (18 de agosto):** al intentar correr el `INSERT`, Postgres devolvió `duplicate key` — la fila ya existía. El diagnóstico del 17 de agosto que daba esto como pendiente estaba mal (ver actualización del 18 de agosto, arriba, sección 1, para la corrección completa). **Sigue pendiente, sin cambios:** agregar el nodo Postgres de disparo automático en el Ejecutor genérico después de "Marcar como fallida" — sí requiere n8n, ver `ejecutor_generico.md`, "Lo que falta", punto 4.
+23. ~~Insertar `trouble_shooter` en `bots`~~ — **ya no aplica (18 de agosto):** al intentar correr el `INSERT`, Postgres devolvió `duplicate key` — la fila ya existía. El diagnóstico del 17 de agosto que daba esto como pendiente estaba mal (ver actualización del 18 de agosto, arriba, sección 1, para la corrección completa). ~~Agregar el nodo Postgres de disparo automático en el Ejecutor genérico después de "Marcar como fallida"~~ — **hecho (18/ago, tarde-noche):** construido y probado en vivo, ver actualización del 18 de agosto, tarde-noche, arriba (sección 2).
 24. **Nuevo (18/ago):** decidir si vale la pena seguir con Pollinations/Cloudflare/Qwen ahora que NVIDIA ya rutea tráfico real sin fricción (ver actualización del 18 de agosto, arriba) — no es urgente, las conexiones existentes no se tocaron.
+25. **Nuevo (18/ago, tarde-noche):** hallazgo C5 — corregir el manejo de errores (`onError: continueErrorOutput`) en los 13 nodos del Ejecutor genérico que todavía no lo tienen arreglado, con el mismo patrón usado en `"Llamar a omniroute"` (ver actualización del 18 de agosto, tarde-noche, arriba, sección 1, y `ejecutor_generico.md`).
+26. **Nuevo (18/ago, tarde-noche):** rotar la contraseña de Postgres (hallazgo C1) — investigado, pospuesto a propósito por el riesgo de que n8n comparta el mismo usuario/base que las tablas de negocio (ver actualización del 18 de agosto, tarde-noche, arriba, sección 5). Requiere una ronda dedicada: `ALTER USER`, `.env`, credencial de n8n vía API, y reinicio coordinado de ambos contenedores.
+27. **Nuevo (18/ago, tarde-noche):** eliminar la API key temporal de n8n (`N8N_API_KEY_TEMP` en `.env`) — revocarla en n8n y borrar la línea — una vez que los pendientes 25, 26, la ingesta Telegram → `tasks` y la aprobación humana bidireccional estén resueltos. Instrucción explícita de Mateo, no automática.
