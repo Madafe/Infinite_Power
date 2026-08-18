@@ -5,7 +5,94 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 18 de agosto de 2026, tarde-noche (Mateo pasó la API key de n8n; se construyó y probó en vivo el disparo automático a Trouble shooter; se encontró y corrigió un bug grande de manejo de errores que llevaba desde el inicio; SQL injection cerrada; nivel_importancia ya se propaga a tareas hijas; 2 tareas reales del backlog se repararon; rotar password de Postgres resultó más riesgoso de lo asumido y se pospuso a propósito) — VIGENTE, léase primero
+## Actualización — 18 de agosto de 2026, noche (rotación de la contraseña de Postgres — hallazgo C1 cerrado, probado en vivo de punta a punta) — VIGENTE, léase primero
+
+Mateo dijo "dale con la contraseña de postgres" — autorización explícita
+para proceder con la rotación que la ronda anterior había pospuesto por
+prudencia. Se hizo con el mismo cuidado que se había planeado: los 4 pasos
+coordinados (Postgres, `.env`, credencial de n8n, reinicio), verificando
+cada uno antes de seguir al siguiente, y una prueba en vivo real al final
+en vez de asumir que quedó bien.
+
+### 0. Contraseña nueva
+
+Generada con `secrets.choice` de Python, 32 caracteres alfanuméricos (sin
+símbolos, para evitar problemas de escapado en SQL/PowerShell/JSON al
+manipularla). Reemplaza a `infpower154` — la contraseña anterior, que
+coincidía casi literalmente con el nombre de usuario (`infpower`) y estaba
+expuesta en el historial de git, el motivo original del hallazgo C1.
+
+### 1. Los 4 pasos, en orden
+
+1. **`ALTER USER infpower WITH PASSWORD '...'`** ejecutado directo contra
+   Postgres (`docker exec -i ... psql`, con la contraseña vieja todavía
+   activa hasta este punto). Confirmado con `ALTER ROLE` en la respuesta.
+2. **`.env` actualizado** (`POSTGRES_PASSWORD=`) inmediatamente después,
+   para minimizar la ventana en la que Postgres ya tiene la contraseña
+   nueva pero el archivo de config todavía dice la vieja.
+3. **Credencial "Postgres account" de n8n actualizada** vía
+   `PATCH /api/v1/credentials/{id}` con los mismos datos de conexión
+   (`host: postgres`, `database: infinite_power`, `user: infpower`,
+   `port: 5432`, `ssl: disable`) y la contraseña nueva. El primer intento
+   dio `500 Internal Server Error` sin explicación clara en el cuerpo de
+   la respuesta; reintentar el mismo request funcionó (`200 OK`) — no se
+   investigó la causa del primer fallo, parece transitorio del lado de
+   n8n, no algo que dependiera de los datos enviados.
+4. **`docker compose up -d n8n`** para que n8n releyera
+   `DB_POSTGRESDB_PASSWORD` desde el nuevo `.env` (esa variable solo se
+   lee al arrancar el proceso, no se puede "recargar en caliente"). Nota
+   técnica: aunque el comando pidió solo el servicio `n8n`, Docker Compose
+   también recreó `infinite-power-postgres-1`, porque su bloque de
+   `environment` en `docker-compose.yml` también referencia
+   `${POSTGRES_PASSWORD}` y Compose considera que su configuración
+   resuelta cambió. Esto no fue un problema: la imagen de Postgres solo
+   usa `POSTGRES_PASSWORD` para inicializar un directorio de datos vacío
+   la primera vez — como el volumen (`./data/postgres`) ya tenía datos, la
+   recreación no tocó la contraseña real (esa la puso el `ALTER USER` del
+   paso 1) ni ningún dato. Ambos contenedores confirmados `Up` después,
+   sin errores de conexión en los logs de n8n (arrancó limpio, reactivó
+   `"Reanudador de bloqueados"` solo, sin fallos de autenticación contra
+   su propia base).
+
+### 2. Prueba en vivo — no solo "n8n arrancó bien", sino que los nodos del workflow conectan de verdad
+
+Arrancar sin errores demuestra que la conexión *interna* de n8n (workflows,
+ejecuciones, login) quedó bien, pero esa es una conexión distinta de la
+credencial `"Postgres account"` que usan los nodos Postgres de los
+workflows (`"Reclamar tarea pendiente"`, etc.) — quedarse solo con la
+primera prueba habría sido conformarse con una verificación parcial. Se
+usó la técnica ya documentada de webhook temporal: se agregó un nodo
+Webhook conectado directo a `"Reclamar tarea pendiente"`, se activó el
+workflow, se disparó con un `curl` real, y se revisó la ejecución
+resultante (`id 682`) vía `GET /executions/{id}?includeData=true`:
+`status: success`, sin `error`, y el nodo Postgres devolvió un resultado
+limpio (no había tareas `pending` reales en ese momento, así que no
+reclamó ninguna — pero la conexión y la query corrieron sin fallo de
+autenticación, que es lo que se estaba probando). Después se quitó el
+nodo Webhook y se desactivó el workflow, dejándolo exactamente como
+estaba antes (26 nodos, `active: false`). Se confirmó además que la tabla
+`tasks` sigue con las mismas 10 filas de antes, todas `done` — la prueba
+no modificó ni creó datos.
+
+### 3. Qué queda de esto
+
+**Hallazgo C1 cerrado.** La contraseña vieja (`infpower154`) sigue técnicamente
+visible en commits antiguos del historial de git — rotarla no borra el
+historial — pero como ya no es válida contra el Postgres real, esa
+exposición pasada dejó de ser un riesgo vivo (nadie puede usarla para
+entrar a nada hoy). No se reescribió el historial de git para eliminarla
+(`git filter-repo`/BFG) porque el riesgo ya está neutralizado y reescribir
+historial en un repo con más commits trae su propio riesgo de romper
+referencias — se deja fuera de alcance salvo que Mateo pida limpiarlo de
+todos modos por higiene.
+
+No se tocó `N8N_ENCRYPTION_KEY` ni ningún otro secret en esta ronda — solo
+la contraseña de Postgres, que era el pendiente puntual que Mateo
+autorizó.
+
+---
+
+## Actualización — 18 de agosto de 2026, tarde-noche (Mateo pasó la API key de n8n; se construyó y probó en vivo el disparo automático a Trouble shooter; se encontró y corrigió un bug grande de manejo de errores que llevaba desde el inicio; SQL injection cerrada; nivel_importancia ya se propaga a tareas hijas; 2 tareas reales del backlog se repararon; rotar password de Postgres resultó más riesgoso de lo asumido y se pospuso a propósito) — vigente
 
 Mateo mandó la API key de n8n directo en el chat, con tres instrucciones
 explícitas: anotarla en algún lado, dejarla anotada también como pendiente
@@ -2189,5 +2276,5 @@ para el razonamiento completo.
 23. ~~Insertar `trouble_shooter` en `bots`~~ — **ya no aplica (18 de agosto):** al intentar correr el `INSERT`, Postgres devolvió `duplicate key` — la fila ya existía. El diagnóstico del 17 de agosto que daba esto como pendiente estaba mal (ver actualización del 18 de agosto, arriba, sección 1, para la corrección completa). ~~Agregar el nodo Postgres de disparo automático en el Ejecutor genérico después de "Marcar como fallida"~~ — **hecho (18/ago, tarde-noche):** construido y probado en vivo, ver actualización del 18 de agosto, tarde-noche, arriba (sección 2).
 24. **Nuevo (18/ago):** decidir si vale la pena seguir con Pollinations/Cloudflare/Qwen ahora que NVIDIA ya rutea tráfico real sin fricción (ver actualización del 18 de agosto, arriba) — no es urgente, las conexiones existentes no se tocaron.
 25. **Nuevo (18/ago, tarde-noche):** hallazgo C5 — corregir el manejo de errores (`onError: continueErrorOutput`) en los 13 nodos del Ejecutor genérico que todavía no lo tienen arreglado, con el mismo patrón usado en `"Llamar a omniroute"` (ver actualización del 18 de agosto, tarde-noche, arriba, sección 1, y `ejecutor_generico.md`).
-26. **Nuevo (18/ago, tarde-noche):** rotar la contraseña de Postgres (hallazgo C1) — investigado, pospuesto a propósito por el riesgo de que n8n comparta el mismo usuario/base que las tablas de negocio (ver actualización del 18 de agosto, tarde-noche, arriba, sección 5). Requiere una ronda dedicada: `ALTER USER`, `.env`, credencial de n8n vía API, y reinicio coordinado de ambos contenedores.
-27. **Nuevo (18/ago, tarde-noche):** eliminar la API key temporal de n8n (`N8N_API_KEY_TEMP` en `.env`) — revocarla en n8n y borrar la línea — una vez que los pendientes 25, 26, la ingesta Telegram → `tasks` y la aprobación humana bidireccional estén resueltos. Instrucción explícita de Mateo, no automática.
+26. ~~Rotar la contraseña de Postgres (hallazgo C1)~~ — **hecho (18/ago, noche):** los 4 pasos coordinados (`ALTER USER`, `.env`, credencial de n8n vía API, reinicio) ejecutados y probados en vivo de punta a punta (no solo "n8n arrancó bien" — se confirmó con una ejecución real que los nodos Postgres del workflow conectan con la contraseña nueva). Ver actualización del 18 de agosto, noche, arriba, para el detalle completo.
+27. **Nuevo (18/ago, tarde-noche):** eliminar la API key temporal de n8n (`N8N_API_KEY_TEMP` en `.env`) — revocarla en n8n y borrar la línea — una vez que el pendiente 25, la ingesta Telegram → `tasks` y la aprobación humana bidireccional estén resueltos. Instrucción explícita de Mateo, no automática.
