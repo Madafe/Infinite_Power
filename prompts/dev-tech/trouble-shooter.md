@@ -1,12 +1,17 @@
 # Trouble shooter
 
-> **Actualizado 17/ago/2026, noche, quinta ronda:** todavía no está activo.
-> Nunca se insertó como fila en `bots` (los scripts `003_trouble_shooter_v2.sql`
-> y `004_conocimiento_directo.sql` son `UPDATE`, asumen una fila que no existe),
-> y el disparo automático que describe la sección "Input que recibe" más abajo
-> no está construido en el n8n real — ver `ejecutor_generico.md`, "Lo que
-> falta", punto 4, y `plan_de_accion_completo.md`, actualización del 17 de
-> agosto, noche, quinta ronda.
+> **Corrección 18/ago/2026 — anula la nota del 17/ago, noche, quinta ronda:**
+> esa nota decía que este bot nunca se había insertado en `bots` y que por
+> lo tanto no estaba activo. Era un error de diagnóstico: se infirió de que
+> los únicos scripts commiteados que lo tocan (`003_trouble_shooter_v2.sql`,
+> `004_conocimiento_directo.sql`) son `UPDATE`, sin poder consultar Postgres
+> directamente porque el stack estaba apagado. Confirmado el 18/ago contra
+> la base real: **sí está insertado y activo** (`active = true`,
+> `dispatches_tasks = true`, `conocimiento_directo = true`). Lo que sigue
+> siendo cierto y sigue pendiente: el disparo automático que describe la
+> sección "Input que recibe" más abajo no está construido en el n8n real —
+> ver `ejecutor_generico.md`, "Lo que falta", punto 4, y
+> `plan_de_accion_completo.md`, actualización del 18 de agosto.
 
 > **v2 — 14/ago/2026:** ya no tiene "banco de conocimiento propio". Escribe en
 > la tabla compartida `knowledge_log` con `tipo = 'patron_fallo'`, y lo hace el

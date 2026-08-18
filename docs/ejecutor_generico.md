@@ -7,12 +7,22 @@
 
 Un solo workflow ejecuta a cualquier bot leyendo su fila de la tabla `bots`.
 Un bot nuevo = un `INSERT`, no un workflow nuevo. Piloto probado de punta a
-punta: `tecnico_jefe` → `coder`. **Corrección 17/ago, noche, quinta ronda:**
-la frase original decía también "/ `trouble_shooter`" — no es cierto todavía,
-`trouble_shooter` nunca se insertó como fila activa en `bots` (ver "Lo que
-falta" más abajo, punto 4). Los nodos "Cargar contexto"/"Extraer
-patron"/"Guardar patron" del mapa de abajo están construidos y listos para
-recibirlo, pero el bot en sí no existe en la tabla todavía.
+punta: `tecnico_jefe` → `coder`. **Corrección 18/ago — anula la corrección
+del 17/ago, noche, quinta ronda, que estaba mal:** esa ronda dijo que
+`trouble_shooter` "nunca se insertó como fila activa en `bots`", basado en
+que los únicos scripts commiteados que lo tocan (`003_trouble_shooter_v2.sql`,
+`004_conocimiento_directo.sql`) son ambos `UPDATE`. El razonamiento tenía un
+hueco: tampoco existe ningún script commiteado de `INSERT` para
+`tecnico_jefe` ni `coder` (`schema/001_init.sql` es puro `CREATE TABLE`, sin
+datos) — los 3 bots que existen hoy se insertaron a mano, fuera de cualquier
+script versionado, y ese patrón no se pudo verificar la ronda pasada porque
+Postgres estaba apagado. Confirmado el 18/ago directo contra la base real:
+`trouble_shooter` SÍ está insertado y activo (`active = true`,
+`dispatches_tasks = true`, `conocimiento_directo = true`), con el
+`prompt_especifico` exacto de `003_trouble_shooter_v2.sql`. Detalle completo
+en `plan_de_accion_completo.md`, actualización del 18 de agosto. Los nodos
+"Cargar contexto"/"Extraer patron"/"Guardar patron" del mapa de abajo están
+construidos y el bot ya existe en la tabla para recibirlos.
 
 ## Mapa completo (22 nodos)
 
@@ -295,23 +305,21 @@ ya son todos los que pueden fallar de forma relevante (ver hallazgos corregidos 
 3. Prueba end-to-end en vivo del loop completo (memoria + aclaración +
    reanudador) — construido y verificado en estructura, falta correrlo con una
    tarea real y confirmar el resultado.
-4. **Nuevo (17/ago, noche, quinta ronda), dos huecos reales encontrados al
-   verificar por qué Mateo sentía que Trouble shooter "todavía no está":**
-   - **`trouble_shooter` nunca se insertó como fila en `bots`.** Los dos
-     scripts que existen para él, `003_trouble_shooter_v2.sql` y
-     `004_conocimiento_directo.sql`, son ambos `UPDATE ... WHERE slug =
-     'trouble_shooter'` — asumen que la fila ya existe. Si se corrieron
-     contra una fila que nunca se insertó, no fallaron (un `UPDATE` sobre
-     cero filas no da error), solo no hicieron nada. Confirmado además por
-     "Pendientes activos" #9 de `plan_de_accion_completo.md`: "hoy solo
-     `tecnico_jefe` y `coder` están activos". Falta un `INSERT INTO bots`
-     real para `trouble_shooter` (slug, cluster, `active = true`,
-     `dispatches_tasks = true`, y después aplicar el `prompt_especifico` de
-     003 y el `conocimiento_directo = true` de 004 — o fusionar los tres en
-     un solo `INSERT` limpio). **Esto NO necesita acceso a n8n — es una
-     escritura directa a Postgres**, bloqueada esta ronda solo porque
-     Postgres no estaba corriendo (ver actualización del 17 de agosto,
-     noche, quinta ronda, en `plan_de_accion_completo.md`).
+4. **Investigado 17/ago, noche, quinta ronda; corregido 18/ago — un solo
+   hueco real, no dos:**
+   - ~~`trouble_shooter` nunca se insertó como fila en `bots`~~ — **esto
+     era un error de diagnóstico, corregido el 18 de agosto.** La ronda del
+     17/ago razonó que como `003_trouble_shooter_v2.sql` y
+     `004_conocimiento_directo.sql` son ambos `UPDATE ... WHERE slug =
+     'trouble_shooter'`, y un `UPDATE` sobre una fila que no existe no da
+     error, la fila nunca se había insertado. El razonamiento no consideró
+     que tampoco hay ningún script commiteado de `INSERT` para
+     `tecnico_jefe` ni `coder` — los 3 bots que existen hoy se insertaron a
+     mano, fuera de git, y esa ronda no pudo confirmarlo porque Postgres
+     estaba apagado. Confirmado el 18/ago directo contra la base real:
+     `trouble_shooter` sí está insertado y activo. Ver actualización del 18
+     de agosto en `plan_de_accion_completo.md` para el detalle completo de
+     la corrección.
    - **El disparo automático que describe `trouble-shooter.md` ("en cuanto
      el nodo 'Marcar como fallida' del ejecutor marca cualquier tarea como
      failed, se crea automáticamente una tarea nueva para Trouble shooter")

@@ -5,7 +5,165 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 17 de agosto de 2026, noche, quinta ronda (se intentó conectar a n8n: el stack completo estaba apagado, la máquina se quedó casi sin RAM al intentar levantarlo; diagnóstico real de por qué Trouble shooter "no está") — VIGENTE, léase primero
+## Actualización — 18 de agosto de 2026 (Docker arriba; NVIDIA conectado y probado de punta a punta en OmniRoute, los 4 combos ya rutean tráfico real; corrección importante: el diagnóstico de la ronda anterior sobre Trouble shooter estaba mal en una parte) — VIGENTE, léase primero
+
+Mateo confirmó que ya levantó Docker Desktop él mismo, y pasó una API key
+gratuita de NVIDIA ("es gratis da igual que esté expuesta"). Esta ronda: (1)
+se corrige un error de diagnóstico de la ronda anterior sobre Trouble
+shooter, (2) se conecta NVIDIA en OmniRoute y se prueba de punta a punta,
+cerrando el bloqueo central de Bloque 2, y (3) se deja nota sobre la RAM de
+la máquina.
+
+### 0. Docker arriba
+
+`docker ps` confirma los 3 contenedores (`n8n`, `postgres`, `omniroute`)
+corriendo y saludables. Sobre la RAM (0.8 GB libres de 15.7 GB reportado la
+ronda anterior): Mateo dice que es un problema recurrente de esa máquina
+específica, ya descartó malware (la formateó varias veces), sin causa
+identificada — se deja anotado como hecho conocido de la máquina, sin
+investigación adicional de este lado (fuera del alcance de este proyecto).
+
+### 1. Corrección importante: el diagnóstico del 17/ago sobre Trouble shooter tenía un error en su parte (a)
+
+Al intentar ejecutar el `INSERT INTO bots` para `trouble_shooter` que la
+ronda anterior había dejado como pendiente #23, Postgres devolvió
+`duplicate key value violates unique constraint "bots_slug_key"` — la fila
+**ya existía**. Verificado con una consulta directa: `trouble_shooter` está
+insertado y activo (`active = true`, `dispatches_tasks = true`,
+`requires_approval = false`, `conocimiento_directo = true`,
+`contexto_slugs = {}`), con el `prompt_especifico` exacto de
+`003_trouble_shooter_v2.sql`.
+
+**Qué salió mal en el diagnóstico del 17/ago:** esa ronda razonó que, como
+los únicos scripts commiteados que tocan `trouble_shooter`
+(`003_trouble_shooter_v2.sql`, `004_conocimiento_directo.sql`) son ambos
+`UPDATE ... WHERE slug = 'trouble_shooter'`, y un `UPDATE` sobre una fila
+que no existe no da error, la fila nunca se había insertado. El
+razonamiento tenía un hueco que no se verificó en su momento: **tampoco
+existe ningún script commiteado de `INSERT` para `tecnico_jefe` ni
+`coder`** — revisando `schema/001_init.sql` (que es puro `CREATE TABLE`,
+reconstruido de un `pg_dump --schema-only`, sin ningún dato), los 3 bots
+que existen hoy se insertaron a mano, fuera de cualquier script versionado
+en git. La ronda del 17/ago no pudo confirmar esto contra la base real
+porque Postgres estaba apagado — infirió el estado de la tabla a partir de
+la ausencia de un script, en vez de consultarla directamente, y esa
+inferencia resultó incorrecta.
+
+**Consecuencia:** la frase original de `ejecutor_generico.md` ("Piloto
+probado de punta a punta: `tecnico_jefe` → `coder` / `trouble_shooter`"),
+que la ronda del 17/ago había "corregido" quitándole la referencia a
+`trouble_shooter`, probablemente tenía razón desde el principio — o al
+menos, el hecho concreto que esa corrección alegaba (que el bot no existía
+en `bots`) era falso. Se revirtió esa corrección en `ejecutor_generico.md`,
+`trouble-shooter.md` y `estado_del_proyecto.md`, dejando en cada uno una
+nota explícita de que la nota del 17/ago quedó anulada por esta.
+
+**Lo que NO cambia:** la parte (b) del diagnóstico anterior — que el nodo
+"Marcar como fallida" del Ejecutor genérico no dispara automáticamente una
+tarea para `trouble_shooter` — sigue sin verificarse ni tocarse esta ronda
+(no hubo acceso a n8n). Esa parte se basó en leer el mapa de nodos que
+`ejecutor_generico.md` ya documentaba como verificado contra n8n real el
+15 de agosto, no en una inferencia por ausencia de evidencia — así que no
+tiene el mismo defecto de razonamiento que la parte (a). Sigue siendo un
+pendiente real, bloqueado por acceso a n8n.
+
+No se corrigió nada del `bots.contexto_slugs = {}` de `trouble_shooter`
+(vacío) — es consistente con que `002_conocimiento.sql` nunca le asignó
+ninguno (solo se lo asignó a `tecnico_jefe`/`coder`), así que no parece un
+error, es como se dejó desde el inicio. No se tocó.
+
+### 2. NVIDIA conectado en OmniRoute y probado de punta a punta
+
+NVIDIA ya es un proveedor de primera clase, integrado de fábrica en
+OmniRoute (`open-sse/config/providers/registry/nvidia/index.ts`) — sin
+scraping de sesión como Qwen, sin sorpresas de paywall como Pollinations,
+sin necesitar una cuenta nueva como Cloudflare. Pasos ejecutados:
+
+1. Login al dashboard vía `POST /api/auth/login` con la contraseña ya
+   guardada en `.env` (`OMNIROUTE_DASHBOARD_PASSWORD`).
+2. Conexión creada vía `POST /api/providers` (`provider: "nvidia"`, la API
+   key de Mateo). Test de conexión (`POST /api/providers/{id}/test`) →
+   `valid: true`.
+3. Prueba real de un modelo individual (`meta/llama-3.1-8b-instruct`) vía
+   `/v1/chat/completions` → respuesta real ("ok"), latencia ~116ms, costo
+   $0 (nivel gratis de NVIDIA).
+
+**Hallazgo importante: el catálogo de modelos que trae el archivo de
+registro de NVIDIA dentro de la imagen de OmniRoute está desactualizado.**
+Varios de los modelos más "atractivos" del archivo (`deepseek-ai/deepseek-
+v4-flash`, `deepseek-ai/deepseek-v4-pro`, `mistralai/mistral-medium-3.5-
+128b`, `mistralai/mistral-large-3-675b-instruct-2512`) devolvieron
+`410 Gone` con mensajes explícitos de "reached its end of life" en fechas
+de julio/agosto de 2026 — ya no existen del lado de NVIDIA aunque el
+archivo bundleado en la imagen todavía los liste. **Regla para el futuro:
+cualquier modelo de ese archivo hay que probarlo en vivo antes de usarlo en
+un combo — nunca asumir que el archivo está actualizado.**
+
+Modelos confirmados funcionando hoy (probados uno por uno con una llamada
+real): `meta/llama-3.1-8b-instruct`, `nvidia/llama-3.3-nemotron-super-49b-
+v1.5`, `nvidia/nemotron-3-super-120b-a12b`, `nvidia/nemotron-3-ultra-550b-
+a55b` (este último con razonamiento visible en la respuesta, campo
+`reasoning_content`).
+
+**Los 4 combos se reconfiguraron** (`PUT /api/combos/{id}` — nota técnica
+para quien lo use después: el endpoint real es `PUT`, no `PATCH`, aunque el
+schema de Zod que lo valida se llame `updateComboSchema`; probar `PATCH`
+primero da `405`) para usar estos modelos NVIDIA en vez de los de
+Pollinations (que nunca sirvieron tráfico real, ver corrección del 17 de
+agosto):
+
+- `bajo` → `nvidia/meta/llama-3.1-8b-instruct`
+- `medio` → `nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5`, con
+  fallback al combo `bajo`
+- `alto` → `nvidia/nvidia/nemotron-3-super-120b-a12b`, con fallback al
+  combo `medio`
+- `critico` → `nvidia/nvidia/nemotron-3-ultra-550b-a55b`, con fallback al
+  combo `alto`
+
+(La cascada de fallback entre niveles vía `combo-ref`, ya configurada desde
+el 17 de agosto, se conservó igual — solo se reemplazaron los modelos.)
+
+**Prueba end-to-end confirmada:** llamadas reales a `/v1/chat/completions`
+con `model: "bajo"` y `model: "critico"` (por nombre de combo, como los
+usaría el Ejecutor genérico) devolvieron respuesta real, con header
+`x-omniroute-provider: nvidia` confirmando que el tráfico se rutea de
+verdad, no solo que el combo existe en la base.
+
+**Criterio de elección de modelo por nivel — juicio propio, no medición,
+documentado para que Mateo lo pueda ajustar si no le hace sentido:** `bajo`
+= modelo pequeño y rápido (8B) para tareas mecánicas; `medio`/`alto` =
+modelos Nemotron medianos/grandes de NVIDIA con buena capacidad general;
+`critico` = el modelo más grande que respondió con razonamiento explícito
+(550B). No se evaluó calidad real de cada modelo en tareas específicas del
+proyecto (código, redacción, etc.) — es una asignación razonable por
+tamaño/generación, no un benchmark.
+
+**No se tocó Pollinations, Cloudflare ni Qwen** — siguen en el estado de la
+actualización del 17 de agosto (Pollinations conectado pero sin servir
+tráfico real por falta de key paga; Cloudflare descartado; Qwen pendiente
+de que Mateo decida). Con NVIDIA ya funcionando limpio y sin fricción,
+probablemente ya no valga la pena perseguir esos tres — queda como
+sugerencia para que Mateo decida, no se cerraron ni eliminaron las
+conexiones existentes.
+
+**La API key de NVIDIA se guardó en `.env`** (`NVIDIA_API_KEY`), mismo
+tratamiento que el resto de los secrets del proyecto, por consistencia —
+aunque Mateo aclaró que no le importa que esté expuesta por ser gratuita.
+
+### 3. Qué queda de esto
+
+Esto cierra el bloqueante central de Bloque 2 ("ningún proveedor rutea
+tráfico real") — el punto 3 de "Qué falta ahora, en orden" de la
+actualización del 17 de agosto (abajo) queda resuelto vía NVIDIA en vez de
+Pollinations/Qwen. Lo que sigue en esa lista (propagar `nivel_importancia`
+a tareas hijas, rotar password de Postgres, parametrizar SQL vulnerable,
+completar aprobación humana bidireccional, ingesta Telegram → `tasks`)
+sigue bloqueado por acceso a n8n, sin cambios esta ronda — la pregunta de
+cómo Mateo quiere dar ese acceso sigue sin respuesta.
+
+---
+
+## Actualización — 17 de agosto de 2026, noche, quinta ronda (se intentó conectar a n8n: el stack completo estaba apagado, la máquina se quedó casi sin RAM al intentar levantarlo; diagnóstico real de por qué Trouble shooter "no está") — vigente
 
 Mateo pidió dos cosas: (1) intentar conectarse a n8n, (2) implementar Trouble
 shooter al final del Ejecutor genérico, porque le parecía que todavía no
@@ -1856,7 +2014,7 @@ para el razonamiento completo.
 6. El upsert de seed inicial a `system_knowledge` **se pospone** hasta que haya un producto final que probar — no es un pendiente inmediato.
 7. Definir si `knowledge_log`/`system_knowledge` necesitan columna de versión/historial (mejora futura, no implementado).
 8. ~~Agregar al amigo/cofundador como colaborador del repo de GitHub~~ — **ya no aplica (17 de agosto, noche):** Mateo confirmó que el proyecto es individual, no hay cofundador que agregar.
-9. Activar más bots en la tabla `bots` conforme cada componente vertical lo requiera — hoy solo `tecnico_jefe` y `coder` están activos; Consultor de arquitectura y Trouble scouter siguen pospuestos con criterio explícito (ver actualización del 14 de agosto, tarde). **Trouble shooter también sigue sin insertar — ver actualización del 17 de agosto, noche, quinta ronda, arriba.**
+9. Activar más bots en la tabla `bots` conforme cada componente vertical lo requiera — hoy `tecnico_jefe`, `coder` y `trouble_shooter` están activos (confirmado el 18 de agosto — ver actualización de esa fecha, arriba, que corrige un error de diagnóstico del 17 de agosto sobre este mismo punto); Consultor de arquitectura y Trouble scouter siguen pospuestos con criterio explícito (ver actualización del 14 de agosto, tarde).
 10. Corregir `consultor-de-arquitectura.md` y `trouble-scouter.md`, que aún referencian `project_knowledge`/`trouble_shooter_knowledge` (nombres ya descartados) — corregir antes de activarlos.
 11. **Implementar el empaquetado de OmniRoute + n8n para distribución** (diseño ya definido, ver actualización del 15 de agosto, noche, arriba y `stack_y_convenciones.md`): agregar la columna `bots.nivel_importancia` al schema, definir los defaults gratis por nivel dentro de la config de OmniRoute, y diseñar la pantalla/paso de setup donde el usuario ve los 4 niveles y puede añadir sus llaves. No es bloqueante para construir Efadam — se puede implementar en paralelo o después, cuando el paquete se piense para distribuirse a un tercero.
 12. ~~Eliminar o resolver la duplicación de la nota `docs/vision/Efadam/Efadam.md` en Obsidian~~ — **hecho (15 de agosto, noche):** su contenido ya estaba fusionado en `memoria_del_sistema.md` y `efadam.md`; el archivo original se eliminó del repo (revisado y aprobado por Mateo).
@@ -1870,4 +2028,5 @@ para el razonamiento completo.
 17. **Nuevo (post Fase 2, no ahora):** construir Multiproyecto — schema por proyecto en Postgres, tabla `proyectos`, nodos Postgres con schema dinámico. Antes: confirmar que los workflows actuales de n8n no tienen el schema hardcodeado.
 18. **Nuevo:** construir el mecanismo de Revert (tabla `reverts`, `archived_at`/`archived_reason` en `knowledge_log` y demás tablas relevantes) — sin fecha fija, pero vale la pena tenerlo antes de que el sistema empiece a tomar decisiones con consecuencia real que alguien quiera poder revisar/archivar.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).
-23. **Nuevo (17/ago, noche, quinta ronda):** insertar `trouble_shooter` en `bots` con un `INSERT` real (no requiere n8n, solo Postgres arriba) y, después, agregar el nodo Postgres de disparo automático en el Ejecutor genérico (sí requiere n8n) — ver actualización correspondiente arriba para el detalle exacto de ambos.
+23. ~~Insertar `trouble_shooter` en `bots`~~ — **ya no aplica (18 de agosto):** al intentar correr el `INSERT`, Postgres devolvió `duplicate key` — la fila ya existía. El diagnóstico del 17 de agosto que daba esto como pendiente estaba mal (ver actualización del 18 de agosto, arriba, sección 1, para la corrección completa). **Sigue pendiente, sin cambios:** agregar el nodo Postgres de disparo automático en el Ejecutor genérico después de "Marcar como fallida" — sí requiere n8n, ver `ejecutor_generico.md`, "Lo que falta", punto 4.
+24. **Nuevo (18/ago):** decidir si vale la pena seguir con Pollinations/Cloudflare/Qwen ahora que NVIDIA ya rutea tráfico real sin fricción (ver actualización del 18 de agosto, arriba) — no es urgente, las conexiones existentes no se tocaron.
