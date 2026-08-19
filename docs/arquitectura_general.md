@@ -4,9 +4,22 @@
 > No se inyecta a ningún bot. La versión corta y canónica que sí leen los bots
 > es [[arquitectura]] (`docs/context/arquitectura.md`).
 
+## Propuesta de valor
+
+Infinite Power busca comportarse como una empresa digital adaptable para el
+proyecto que se le asigne: observar su estado, sugerir oportunidades,
+coordinar especialidades, ejecutar mejoras y aprender de los resultados. El
+usuario conserva el control de la autonomía, las aprobaciones y el presupuesto;
+el sistema puede usar herramientas gratuitas o escalar el gasto solo cuando el
+proyecto lo justifique.
+
+La diferencia no es responder una petición aislada, sino mantener un ciclo de
+mejora continua sin requerir que el usuario forme, capacite ni coordine un
+equipo humano para cada especialidad.
+
 ## La estructura real (corregida)
 
-El diagrama no es una lista plana de 6 clusters independientes. Es una estructura de **Efadam en el centro + 3 ramas**, cada una con su propio bot "center" que consolida y filtra todo lo que pasa en esa rama antes de que le llegue a Efadam. Los tres "center" son estructuralmente simétricos: cada uno hace para su rama lo mismo que los otros dos hacen para la suya.
+El diagrama no es una lista plana de 6 clusters independientes. Es una estructura de **Efadam en el centro + 3 departamentos**, cada uno con su propio bot "center" que consolida y filtra todo lo que pasa en su departamento antes de que le llegue a Efadam. Los tres "center" son estructuralmente simétricos: cada uno hace para su departamento lo mismo que los otros dos hacen para el suyo.
 
 ```
                         EFADAM
@@ -15,14 +28,13 @@ El diagrama no es una lista plana de 6 clusters independientes. Es una estructur
         -----------------|-----------------
         |                |                |
    Tech center   Upgrade & review    Proyect center
-   (rama Dev/Tech)  center (rama       (rama Operación/
-                   Estrategia+Legal+    Proyectos)
-                   Investigación)
+ (departamento Dev/Tech) center (departamento   (departamento Proyectos)
+                           Estrategia)
 ```
 
-## Las 3 ramas
+## Los 3 departamentos
 
-### Rama 1 — [[Tech center]] (Dev/Tech)
+### Departamento Dev/Tech — [[Tech center]]
 
 Hub: **Tech center**. Consolida el trabajo técnico y ahora también actúa como el filtro de aprobación final antes de que algo se considere terminado en esta rama (se fusionó con lo que antes tenía mal ubicado como "Upgrade & review center" dentro de Dev/Tech — ver nota de corrección abajo).
 
@@ -30,18 +42,18 @@ Miembros: Prompt perfection, Entrenador Agentes, Coder, Agent builder, Trouble s
 
 Flujo interno: Prompt perfection ↔ Entrenador Agentes, Coder → Agent builder, ambos pares alimentan a Técnico jefe junto con Trouble shooter; Ciber seguridad scouter → Hacker ético → Ciber seguridad → Técnico jefe; Técnico jefe → Tech center → Efadam.
 
-### Rama 2 — [[Upgrade & Review center]] (Estrategia/Crecimiento + Legal + Investigación)
+### Departamento Estrategia — [[Upgrade & Review center]]
 
 Hub: **Upgrade & review center**. Es el bot que revisa y "sube de nivel" (upgrade) lo que produce toda esta rama — ideas, hallazgos de investigación, dictámenes legales — antes de que llegue a Efadam. Recibe directamente de **Cross department**, que es el agregador interno de esta rama (junta lo que producen Legal, Investigación/Skills y parte de Estrategia antes de pasarlo hacia arriba).
 
 Miembros:
-- **Estrategia/Crecimiento:** Establecer metas, Planner, Nuevos departamentos, Especialista en organización y métodos, Buscador de áreas de oportunidad, Out of the box thinker, Optimizador, Council (Counsil), Cross department, Automatizador.
+- **Estrategia:** Establecer metas, Planner, Nuevos departamentos, Especialista en organización y métodos, Buscador de áreas de oportunidad, Out of the box thinker, Optimizador, Council (Counsil), Cross department, Automatizador.
 - **Investigación/Skills:** Investigador, Skill finder (Youtube/Github/Reddit/Instagram), Observador de patrones replicables, Skill finder (genérico).
 - **Legal:** Abogado Scouter, Abogado Jefe, Abogado verificador.
 
 Flujo interno (aproximado): Investigador ↔ Skill finder ↔ Observador de patrones replicables ↔ Skill finder (genérico) → Automatizador; Abogado Scouter ↔ Abogado Jefe ↔ Abogado verificador → Investigador; todo esto converge en **Cross department**, que también recibe de Out of the box thinker; Cross department ↔ Especialista en organización y métodos ↔ Buscador de áreas de oportunidad ↔ Optimizador → Council; Establecer metas → Planner → Nuevos departamentos (con Planner también retroalimentando hacia Upgrade & review center); Cross department → **Upgrade & review center** → Efadam.
 
-### Rama 3 — [[Proyect center]] (Operación/Proyectos)
+### Departamento Proyectos — [[Proyect center]]
 
 Hub: **Proyect center**. Consolida el estado operativo de los proyectos/negocios y lo sube a Efadam.
 
@@ -50,7 +62,7 @@ Miembros: Proyectos, Tracker de clientes, Front end, Consultor negocios, Task ma
 Flujo interno: Proyectos → Tracker de clientes → Proyect center (y Front end también alimenta a Proyect center); Expansión ideas → Ventas ideas → Task manager ↔ Consultor negocios ↔ Mentor → Proyect center.
 
 > **Corrección 14/ago/2026:** este documento decía antes que Establecer Metas y
-> Planner eran "nodos compartidos con la Rama 2". Es incorrecto — cada
+> Planner eran "nodos compartidos con el departamento Estrategia". Es incorrecto — cada
 > departamento tiene **su propia instancia duplicada**, no comparte bot. Ver
 > [[Proyect center]] y [[Upgrade & Review center]].
 

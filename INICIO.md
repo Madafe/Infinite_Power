@@ -9,9 +9,27 @@ Infinite power — la visión, la propuesta de valor y el Método (contenido
 fusionado en `docs/archivo/plan_de_accion_completo.md`, 15/ago; la nota
 suelta que existía se eliminó).
 
-Sistema de agentes de IA para operar y hacer crecer los negocios de Mateo.
-Efadam en el centro + 3 ramas, cada una con su bot "center" que consolida,
-audita y aprueba antes de reportar hacia arriba.
+Sistema de agentes de IA que se adapta y trabaja activamente para mejorar
+cualquier proyecto que se le asigne. Efadam está en el centro y coordina tres
+departamentos; cada uno consolida, audita y aprueba su propio trabajo antes de
+reportar hacia arriba.
+
+## Propuesta de valor
+
+Infinite Power funciona como una empresa digital adaptable para el proyecto
+que se le asigne. En vez de limitarse a responder una petición puntual,
+evalúa el proyecto de forma continua, identifica oportunidades, propone
+mejoras, coordina trabajo especializado y aprende de los resultados para
+mejorar su desempeño y su costo.
+
+El usuario conserva el control: define el proyecto, los límites de autonomía,
+las aprobaciones y el presupuesto. Puede operar con herramientas gratuitas o
+escalar la inversión cuando el proyecto lo justifique, sin tener que formar,
+capacitar ni coordinar un equipo humano para cada especialidad.
+
+ChatGPT puede ayudar a resolver algo cuando se le pide; Infinite Power busca
+observar, sugerir, construir, corregir y evolucionar de forma constante a
+favor de los proyectos asignados.
 
 ## Estado actual
 
@@ -25,9 +43,9 @@ audita y aprueba antes de reportar hacia arriba.
   `docs/archivo/plan_de_accion_completo.md`, 15/ago)
 - Efadam — bot cabeza, enrutamiento y memoria (fusionado en
   `prompts/_core/efadam.md` y [[memoria_del_sistema]], 15/ago)
-	- [[Tech center]] — rama Dev/Tech
-	- [[Upgrade & Review center]] — rama Estrategia + Legal + Investigación
-	- [[Proyect center]] — rama Operación/Proyectos, dueño del Setup
+	- [[Tech center]] — departamento Dev/Tech
+	- [[Upgrade & Review center]] — departamento Estrategia
+	- [[Proyect center]] — departamento Proyectos
 - [[arquitectura_general]] — narrativa completa y el porqué de cada decisión
 
 ## Sistema (implementación)
@@ -47,21 +65,21 @@ Estos son cortos, en presente, solo hechos vigentes. Se sincronizan a la tabla
 - [[stack_y_convenciones]] — `docs/context/stack_y_convenciones.md`
 - [[reglas_generales]] — `docs/reglas_generales.md`
 
-## Prompts
+## Prompts y definición de departamentos
 
-- [[plantilla_prompt]] — plantilla estándar, usar para cualquier prompt nuevo
-- [[caso_prueba_1_cluster_investigacion]] — caso de referencia real, útil para
-  escribir los prompts de Investigación (rama Estrategia/Crecimiento)
-- `prompts/_core/` — Efadam (cross-rama)
-- `prompts/dev-tech/` — rama Dev/Tech (escritos, 12 prompts)
-- `prompts/estrategia-crecimiento/` — siguiente rama a escribir
-- `prompts/operacion-proyectos/`, `prompts/legal/`, `prompts/negocios-propios/`,
-  `prompts/investigacion-skills/` — pendientes
+La definición concreta de los prompts y del alcance interno de cada
+departamento está **por definir**. Antes de ampliar o crear prompts nuevos,
+definir para cada departamento su misión, responsabilidades, límites,
+integrantes y criterios de aprobación.
 
 ## Schema
 
 `schema/*.sql`, en orden. Correr con `docker cp` + `psql -f`, **nunca** con
 `Get-Content | docker exec` (corrompe acentos en PowerShell).
+
+Antes de instalar Infinite Power fuera de local (VPS o instalación de un
+tercero), verificar la portabilidad del schema y documentar el procedimiento
+de despliegue, configuración, secretos, migraciones y respaldo.
 
 ## Archivo
 
@@ -74,5 +92,4 @@ gana lo de arriba.
 
 ## Orden de construcción
 
-**Dev/Tech → Estrategia/Crecimiento → Operación/Proyectos.**
-Legal y Negocios propios pospuestos sin fecha (no hay necesidad de negocio hoy).
+**Efadam → Dev/Tech → Estrategia → Proyectos.**

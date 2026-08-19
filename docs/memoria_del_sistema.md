@@ -24,7 +24,7 @@ Efadam — ver sección nueva más abajo.
 Un bot que corre en el ejecutor genérico no sabe nada del sistema en el que
 vive: no sabe qué tablas hay, qué convenciones aplican, ni qué ya falló antes.
 Cada corrida empieza de cero. Sin memoria, Trouble shooter re-diagnostica el
-mismo error cada semana y Coder propone soluciones que contradicen decisiones
+mismo error cada semana y los agentes proponen soluciones que contradicen decisiones
 ya tomadas.
 
 ## Dos tablas, porque son dos cosas distintas
@@ -38,8 +38,7 @@ quiere decir que sea fijo: evoluciona con el tiempo conforme el sistema
 aprende, mediante el flujo descrito en "Efadam como cuello de botella
 intencional" más abajo.
 
-**Fuente de verdad: la tabla misma, no el repo.** Esto es un cambio respecto
-al diseño original del 14 de agosto (ver "Diseño descartado" al final). El
+**Fuente de verdad: la tabla misma, no el repo.** El
 repo (`docs/context/*.md`, `reglas_generales.md`) es el **seed inicial** —
 el estado día-cero del conocimiento, cargado una sola vez al arrancar el
 sistema. Después de ese arranque, la tabla evoluciona sola conforme el
@@ -49,11 +48,11 @@ dónde está hoy.
 
 Archivos canónicos del seed inicial:
 
-| slug | archivo | contenido |
-|---|---|---|
-| `arquitectura` | `docs/context/arquitectura.md` | ramas, bots, aprobaciones |
-| `stack_y_convenciones` | `docs/context/stack_y_convenciones.md` | infra, tablas, lean/robusto, gotchas |
-| `reglas_generales` | `reglas_generales.md` | las 5 reglas que van dentro de cada system_prompt |
+| slug                   | archivo                                | contenido                                         |
+| ---------------------- | -------------------------------------- | ------------------------------------------------- |
+| `arquitectura`         | `docs/context/arquitectura.md`         | ramas, bots, aprobaciones                         |
+| `stack_y_convenciones` | `docs/context/stack_y_convenciones.md` | infra, tablas, lean/robusto, gotchas              |
+| `reglas_generales`     | `reglas_generales.md`                  | las 5 reglas que van dentro de cada system_prompt |
 
 Regla de escritura para estos archivos (aplica igual al seed y a las
 actualizaciones que produce Upgrade & review center después): **presente,
@@ -67,10 +66,10 @@ revertidas que confundirían al modelo).
 
 Qué le ha pasado al sistema. Crece constantemente. Dos tipos, con dueño distinto:
 
-| tipo | quién redacta | quién dispara | ritmo | juicio requerido |
-|---|---|---|---|---|
-| `patron_fallo` | el ejecutor, automático, desde `patron_aprendido` de Trouble shooter | automático (ver excepción `conocimiento_directo` abajo) | alto | ninguno — ya viene estructurado |
-| `aprendizaje` | Upgrade & review center | Efadam | bajo | mucho |
+| tipo           | quién redacta                                                        | quién dispara                                           | ritmo | juicio requerido                |
+| -------------- | -------------------------------------------------------------------- | ------------------------------------------------------- | ----- | ------------------------------- |
+| `patron_fallo` | el ejecutor, automático, desde `patron_aprendido` de Trouble shooter | automático (ver excepción `conocimiento_directo` abajo) | alto  | ninguno — ya viene estructurado |
+| `aprendizaje`  | Upgrade & review center                                              | Efadam                                                  | bajo  | mucho                           |
 
 **Por qué no todo pasa por Efadam para redactar.** Para los patrones de fallo
 de Trouble shooter, Efadam no participa: Trouble shooter ya entrega el patrón

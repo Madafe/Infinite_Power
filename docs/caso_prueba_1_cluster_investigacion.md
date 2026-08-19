@@ -2,7 +2,7 @@
 
 > Vigente — usar como referencia real al escribir los prompts de Investigación,
 > Skill finder, Observador de patrones replicables y Automatizador (rama
-> Estrategia/Crecimiento, siguiente en el orden de construcción).
+> Estrategia, siguiente en el orden de construcción).
 
 ## Por qué existe este archivo
 

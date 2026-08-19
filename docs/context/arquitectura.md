@@ -9,11 +9,18 @@
 > y en presente: solo lo que es cierto HOY, sin historia ni justificaciones.
 > La narrativa y el porqué de cada decisión viven en `arquitectura_general.md`.
 
+## Propósito operativo
+
+Infinite Power mejora continuamente los proyectos que se le asignan. Organiza
+trabajo especializado mediante departamentos, aprende de los resultados y
+opera dentro de los límites de autonomía, aprobación y presupuesto que define
+el usuario. No sustituye el control humano sobre decisiones importantes.
+
 ## Forma general
 
-Jarvis (endpoint humano) → Efadam (cerebro de orquestación) en el centro + 3 ramas.
-Cada rama tiene un bot "center" que consolida, audita y retiene lo que produce
-su rama antes de reportar a Efadam.
+Jarvis (endpoint humano) → Efadam (cerebro de orquestación) en el centro + 3
+departamentos. Cada departamento tiene un bot "center" que consolida, audita
+y retiene lo que produce antes de reportar a Efadam.
 
 - **Jarvis** — endpoint de interacción humana, por texto y por voz. Es la
   superficie de conversación (hoy Telegram cumple ese rol de forma provisional
@@ -41,13 +48,13 @@ su rama antes de reportar a Efadam.
   lectura directa de `tasks`/`agent_runs` (qué está pasando ahora, cambia
   todo el tiempo) — única excepción del sistema al principio de que ningún
   bot lee Postgres directo.
-- **Tech center** — hub de la rama Dev/Tech. Gate de aprobación final antes de
-  producción en su rama.
-- **Upgrade & review center** — hub de la rama Estrategia + Legal + Investigación.
+- **Tech center** — hub del departamento Dev/Tech. Gate de aprobación final
+  antes de producción en su departamento.
+- **Upgrade & review center** — hub del departamento Estrategia.
   Misión: Observar → Analizar → Mejorar. Libera hacia Planner / Establecer metas.
   Redacta y evalúa las actualizaciones de `system_knowledge` y `knowledge_log`
   que Efadam le solicita.
-- **Proyect center** — hub de la rama Operación/Proyectos y negocios propios.
+- **Proyect center** — hub del departamento Proyectos.
 
 Los 3 centers son simétricos: su función principal es **retener** (auditoría
 activa de su rama), no solo enrutar. Efadam no re-audita el detalle de
@@ -61,11 +68,10 @@ al siguiente — ya no por fase horizontal ("escribir los 40 prompts primero"):
 1. **Efadam** — se construye primero, para que cuando las ramas empiecen a
    producir output ya exista a dónde mandarlo. Evita el problema de ramas
    terminadas sin un destino que las reciba.
-2. **Tech center** (rama Dev/Tech completa) — ya tiene 10 de 12 bots con
+2. **Tech center** (departamento Dev/Tech completo) — ya tiene 10 de 12 bots con
    prompt escrito; falta activarlo end-to-end contra un Efadam real.
-3. **Upgrade & review center** (rama Estrategia/Crecimiento + Legal +
-   Investigación completa).
-4. **Proyect center** (rama Operación/Proyectos + negocios propios completa).
+3. **Upgrade & review center** (departamento Estrategia completo).
+4. **Proyect center** (departamento Proyectos completo).
 5. **Jarvis** — al final. No tiene nada útil que enrutar ni con qué conversar
    hasta que Efadam y las 3 ramas ya existen y producen resultado real.
    Mientras tanto, Telegram (ya construido en la Fase 0 de infraestructura)
@@ -111,7 +117,7 @@ self-hosted) traduce ese nivel al modelo real vía alias de modelo
 configurados en su `config.yaml` — mecanismo concreto y ejemplo completo en
 `stack_y_convenciones.md`, sección "Niveles de importancia y BYOK".
 
-## Rama Dev/Tech (prompts escritos)
+## Departamento Dev/Tech (prompts escritos)
 
 Prompt perfection, Entrenador Agentes, Coder, Agent builder, Trouble shooter,
 Ciber seguridad scouter, Hacker ético, Ciber seguridad, Técnico jefe, Tech center.

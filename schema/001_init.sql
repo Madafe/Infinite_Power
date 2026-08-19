@@ -1,7 +1,7 @@
 -- =====================================================================
 -- 001_init.sql -- Esquema base de Infinite Power (tasks / bots / approvals
 -- / agent_runs). Reconstruido el 16 de agosto de 2026 a partir de un
--- pg_dump --schema-only contra la base real, restando lo que 002-005
+-- pg_dump --schema-only contra la base real, restando lo que 002-007
 -- agregan (ver detalle abajo) -- nunca se habia commiteado y por eso un
 -- clon nuevo del repo no podia levantar la base de datos (hallazgo del
 -- audit del 16/ago/2026, item de reproducibilidad).
@@ -9,7 +9,7 @@
 -- Corre PRIMERO, contra una base Postgres vacia. Despues, en orden:
 -- 002_conocimiento.sql, 003_trouble_shooter_v2.sql,
 -- 004_conocimiento_directo.sql, 005_nivel_importancia.sql,
--- 006_fix_encoding_comments.sql.
+-- 006_fix_encoding_comments.sql, 007_operaciones.sql.
 --
 -- Que agrega cada migracion posterior (para que quede claro que NO debe
 -- estar aqui):
@@ -22,6 +22,7 @@
 --   005 -> tasks.nivel_importancia.
 --   006 -> corrige encoding de dos comentarios de columna (sin cambios
 --         de estructura).
+--   007 -> tabla operations y tasks.operation_id.
 -- =====================================================================
 
 CREATE TABLE public.agent_runs (

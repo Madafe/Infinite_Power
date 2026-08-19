@@ -2,7 +2,7 @@
 
 > Extraído de `plan_de_accion_completo.md` (archivado). Es la plantilla que ya
 > siguen los 12 prompts en `prompts/dev-tech/` y `prompts/_core/` — se separa
-> aquí para que sea fácil de referenciar al escribir los de Estrategia/Crecimiento.
+> aquí para que sea fácil de referenciar al definir los del departamento Estrategia.
 
 Cada archivo `prompts/<cluster>/<bot>.md` sigue esta estructura:
 
