@@ -741,14 +741,27 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
 
 ## Lo que falta (pendientes reales)
 
-1. **Fallo en "Reclamar tarea pendiente" mismo — sin canal de alerta
-   (nuevo, 18/ago, noche).** Si Postgres no responde justo en el primer
-   paso (antes de que exista ningún `task_id`), "Marcar como fallida" corre
-   sin nada que actualizar — el fallo no queda registrado en `tasks` ni
-   genera una tarea de Trouble shooter. Es el caso más grave (Postgres
-   caído) y hoy el menos cubierto. Necesitaría un canal de alerta aparte
-   (ej. Telegram directo a Mateo) para este caso específico, no una fila en
-   `tasks`.
+1. ~~Fallo en "Reclamar tarea pendiente" mismo — sin canal de alerta~~ —
+   **hecho (19/ago), construido y probado en vivo.** Se agregó un nodo
+   Telegram nuevo, "Alerta critica Postgres", conectado en paralelo (fan-out)
+   a la salida de error de "Reclamar tarea pendiente" — además de la
+   conexión que ya existía hacia "Preparar fallo" (que sigue ahí, por si
+   el error es solo de la query y Postgres en sí responde, para que quede
+   logueado también en `tasks`/trouble_shooter como cualquier otro fallo).
+   El nodo nuevo no depende de Postgres para nada — solo lee
+   `$json.error.message` / `$json.message` del propio error que
+   "Reclamar tarea pendiente" entrega, así que si Postgres está
+   completamente inalcanzable, "Marcar como fallida" fallará también (como
+   ya se sabía) pero la alerta de Telegram sale igual. Probado en vivo
+   rompiendo la query contra una tabla inexistente (simula un fallo real,
+   no Postgres caído del todo — eso no se pudo probar sin tumbar el
+   contenedor, demasiado disruptivo para probar limpio): el mensaje llegó
+   a Telegram con el error real de Postgres embebido
+   (`relation "tablaquenoexiste" does not exist`), confirmado con
+   `ok: true` en la respuesta de la API de Telegram. 29 nodos ahora (eran
+   28). El mecanismo no depende de que Postgres responda — solo no se
+   probó el escenario exacto de "contenedor apagado", por diseño (no vale
+   la pena el riesgo de tumbar el stack para una prueba).
 2. **Comportamiento de error real de los 4 nodos IF con
    `continueErrorOutput` — sin confirmar en vivo (nuevo, 18/ago, noche).**
    Se conectaron a "Preparar fallo" por consistencia, pero dos intentos de

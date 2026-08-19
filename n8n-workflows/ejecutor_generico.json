@@ -1,5 +1,5 @@
 ﻿{
-    "updatedAt":  "2026-08-19T17:28:17.716Z",
+    "updatedAt":  "2026-08-19T17:44:04.381Z",
     "createdAt":  "2026-08-11T23:09:01.171Z",
     "id":  "aVORciBJl52lTxTU",
     "name":  "Ejecutor genérico",
@@ -760,6 +760,30 @@
                                    ],
                       "id":  "7d92dee4-7c49-4930-8cd6-13b8a4f9a552",
                       "name":  "Preparar error bot no encontrado"
+                  },
+                  {
+                      "parameters":  {
+                                         "chatId":  "-5436560130",
+                                         "text":  "={{ \"ALERTA CRITICA - Reclamar tarea pendiente fallo (posible Postgres caido o inalcanzable): \" + ($json.error?.message || $json.message || JSON.stringify($json)) }}",
+                                         "additionalFields":  {
+
+                                                              }
+                                     },
+                      "type":  "n8n-nodes-base.telegram",
+                      "typeVersion":  1.2,
+                      "position":  [
+                                       128,
+                                       220
+                                   ],
+                      "id":  "70d96c26-ad3f-4761-a4a2-b7973252ea1b",
+                      "name":  "Alerta critica Postgres",
+                      "credentials":  {
+                                          "telegramApi":  {
+                                                              "id":  "ERjVpxAa0CTVNhll",
+                                                              "name":  "Telegram account"
+                                                          }
+                                      },
+                      "webhookId":  "748b1ddd-1a64-4ed4-b01c-d55e2dad04c6"
                   }
               ],
     "connections":  {
@@ -786,6 +810,11 @@
                                                                       [
                                                                           {
                                                                               "node":  "Preparar fallo",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          },
+                                                                          {
+                                                                              "node":  "Alerta critica Postgres",
                                                                               "type":  "main",
                                                                               "index":  0
                                                                           }
@@ -1239,9 +1268,9 @@
     "pinData":  {
 
                 },
-    "versionId":  "e078bdd7-abb3-4057-857a-b13eb1cf77d6",
+    "versionId":  "da9fab95-28b5-48ba-8d0d-4ac9474dea76",
     "activeVersionId":  null,
-    "versionCounter":  285,
+    "versionCounter":  288,
     "triggerCount":  0,
     "sourceWorkflowId":  null,
     "shared":  [
