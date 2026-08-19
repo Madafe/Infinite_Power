@@ -5,7 +5,129 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 19 de agosto de 2026, segunda ronda (repo público confirmado; reexport a Git; primer pendiente técnico real cerrado post-pausa) — VIGENTE, léase primero
+## Actualización — 19 de agosto de 2026, tercera ronda (propuesta de Mateo: orquestadores siempre en modelo barato + aprobación como escalamiento hacia atrás por la misma cadena — conecta los puntos 34, 35 y 36) — EN DISCUSIÓN, no decidido, VIGENTE, léase primero
+
+Mateo propuso, a raíz del hallazgo del punto 36, un principio que integra los
+pendientes 34, 35 y 36 en un solo diseño: los bots orquestadores siempre
+corren en el nivel de modelo más barato/gratis disponible, sin excepción por
+costo — y cuando hace falta aprobación humana o hay duda real, el camino no
+es "seguir adelante y notificar después" (el problema post-hoc del punto 36)
+sino "regresar hacia atrás por la misma cadena que despachó la tarea", hasta
+llegar a Jarvis (hoy, Telegram como sustituto provisional), que es quien le
+habla al usuario. Esto resuelve dos problemas con el mismo mecanismo: (a) el
+costo de correr modelos caros en cada paso de coordinación, y (b) la
+necesidad de que la aprobación bloquee de verdad antes de actuar, no solo
+avise después.
+
+**Esto no es una idea nueva desconectada — es la generalización de dos
+principios que ya estaban documentados, solo que aplicados hasta ahora nada
+más a Efadam:**
+
+1. El "cuello de botella intencional" (`efadam.md`, `memoria_del_sistema.md`,
+   desde el 15 de agosto): todo lo que cruza de una rama a otra pasa por
+   Efadam. Mateo está extendiendo ese mismo principio de "todo pasa por el
+   punto central" a las aprobaciones — que también cruzan, en este caso desde
+   el cluster ejecutor hacia afuera, hacia el usuario.
+2. "Efadam corre en nivel `bajo`... pedirle que además juzgue con criterio
+   libre qué tan importante es cada tarea lo convertiría en el peor juez
+   posible para esa decisión" (`stack_y_convenciones.md`, sección "Niveles de
+   importancia y BYOK"). Esa regla ya existe, pero hoy solo está escrita para
+   Efadam mismo. Mateo la está generalizando a cualquier bot orquestador: no
+   le pagues a un modelo caro por juzgar, dale reglas fijas y que escale
+   cuando no le alcanzan.
+
+**Por qué el mecanismo es seguro incluso con modelos baratos/gratis en los
+orquestadores:** el disparador de "esto necesita aprobación" no depende de
+que el modelo barato "se dé cuenta" de que algo es riesgoso — eso sería
+confiar en el juicio del modelo más débil del sistema, justo lo que las
+reglas de asignación evitan a propósito. El disparador es una regla fija
+(dominio/tema → nivel, `requires_approval` por bot) evaluada de forma
+determinista, no una decisión del LLM. Los dos mecanismos de respaldo que ya
+existen — "si no encaja claramente en ninguna [regla], sube por default" y
+"si la ambigüedad es real, pregunta en vez de asumir" — ya están pensados
+exactamente para el caso donde un modelo barato podría no calibrar bien su
+propia incertidumbre. Esto quiere decir que correr los orquestadores en
+modelo barato no debilita la seguridad del sistema, siempre que el
+disparador de escalamiento siga siendo la regla, no el criterio del modelo.
+
+**Preguntas que hacen falta responder antes de construir esto (pendiente 34,
+versión refinada):**
+
+1. **Alcance de "orquestador".** La tabla `bots` ya tiene la columna
+   `dispatches_tasks` (bot que no entrega un resultado final, entrega
+   asignaciones que el ejecutor convierte en tareas hijas). Propuesta: usar
+   `dispatches_tasks = true` como la definición operativa de "orquestador"
+   para efectos de "siempre modelo barato" — evita inventar una categoría
+   nueva, reutiliza algo que ya existe en el schema. Bajo esta definición:
+   Efadam, Técnico jefe, Consultor de arquitectura, y los 3 centers (Tech
+   center, Upgrade & review center, Proyect center) correrían siempre en
+   `bajo`, independientemente de las reglas de asignación por dominio — esas
+   reglas seguirían aplicando normal a los bots que sí ejecutan el trabajo
+   final (Coder, etc.), que es donde de verdad importa la calidad del
+   modelo. ¿Es esto lo que tenías en mente, o hay algún orquestador que
+   debería quedar fuera de esta regla?
+2. **El paso de "explicar bien la solicitud" no necesita una excepción
+   nueva — ya existe una.** `efadam.md` ya dice: "Para las corridas
+   puntuales que sí requieren síntesis real..., Efadam puede correr en nivel
+   `medio` para esa tarea específica." Redactar el mensaje de aprobación
+   para el usuario es exactamente ese tipo de corrida puntual — no pasa en
+   cada mensaje, solo cuando hay algo que escalar. Propuesta: aplicar esa
+   excepción ya existente, explícitamente, al paso final de composición del
+   mensaje de escalamiento (Efadam sube a `medio` solo para esa tarea
+   puntual, sigue en `bajo` para todo lo demás). ¿De acuerdo, o preferirías
+   que ese paso también se quede en `bajo`?
+3. **Mecanismo técnico concreto para "regresar hasta atrás".** Propuesta,
+   usando lo que ya existe en el schema (nada nuevo que crear): cuando un
+   bot determina que hace falta aprobación o tiene duda real, en vez de solo
+   marcar su propia tarea `needs_approval` y seguir (el problema post-hoc
+   del punto 36), sube por `parent_task_id` hasta la raíz de la `operation`,
+   marca la `operation` completa como `bloqueada` (el estado ya existe en
+   `operations.status`), y crea una tarea nueva dirigida a Efadam con un
+   objeto estructurado (motivo, contexto, opciones, nivel de riesgo — no
+   prosa libre) en vez de texto ya redactado. Efadam es el único que redacta
+   el mensaje final en lenguaje llano para el usuario (aplicando la
+   excepción del punto 2), lo manda por el canal humano (hoy Telegram,
+   mañana Jarvis), y cuando el usuario responde, se desbloquea la
+   `operation` — extendiendo el mismo patrón que ya usa "Reanudador de
+   bloqueados" para tareas individuales, aplicado ahora a operaciones
+   completas. Ventaja de que el objeto sea estructurado y no prosa: evita el
+   "teléfono descompuesto" de que cada bot en la cadena vuelva a redactar
+   con su propio modelo barato, perdiendo o distorsionando detalle en cada
+   paso — y evita gastar una llamada a LLM en cada nodo intermedio de la
+   cadena solo para reformatear texto. ¿Te hace sentido este mecanismo, o lo
+   ves distinto?
+
+**Nota práctica: Jarvis no existe todavía.** Hoy, "la aprobación regresa
+hasta Jarvis para hablar con el usuario" en la práctica es "la aprobación
+regresa hasta Efadam, que manda el mensaje final por Telegram" — el mismo
+canal provisional que ya usan las alertas actuales (ej. "Alerta critica
+Postgres", construida hoy mismo). La arquitectura queda correcta y no
+depende de construir Jarvis primero; el día que Jarvis exista, el mismo
+mecanismo se conecta ahí en vez de a Telegram directo, sin cambiar el diseño
+de fondo.
+
+**Relación con el punto 35 (nivel_importancia de operación vs. reglas de
+asignación por tarea):** esto no lo resuelve, son dos ejes distintos. El
+punto 35 es sobre qué nivel de riesgo/modelo le corresponde a una tarea de
+ejecución específica dentro de una operación. Lo de hoy es sobre si el bot
+que coordina (no ejecuta) esa tarea corre barato sin importar el dominio.
+Ambos ejes conviven: un orquestador (Técnico jefe) puede correr en `bajo`
+mientras coordina una tarea que, por las reglas de asignación, terminará
+ejecutándose en `critico` (por el bot especialista que sí hace el trabajo
+final). El punto 35 sigue pendiente de tu confirmación por separado.
+
+**Relación con el punto 36 (aprobación post-hoc, no pre-hoc):** si el
+mecanismo de la pregunta 3 se construye tal como está propuesto (operación
+bloqueada antes de que la tarea hija se ejecute, no después), esto cierra el
+hueco identificado en el punto 36 — la aprobación pasa a ser un gate real
+antes de la acción, no una notificación después de que ya ocurrió. Eso sí
+depende de que el bloqueo de la operación ocurra antes de que "Crear tareas
+hijas" inserte las filas ejecutables, no después — es un detalle de orden de
+operaciones que hay que respetar al construirlo.
+
+---
+
+## Actualización — 19 de agosto de 2026, segunda ronda (repo público confirmado; reexport a Git; primer pendiente técnico real cerrado post-pausa) — vigente
 
 Mateo preguntó si C1 sigue importando ya que la contraseña vieja del
 historial "ya no es esa" (la actual, rotada) — pregunta legítima sobre
@@ -2853,7 +2975,7 @@ para el razonamiento completo.
 31. ~~Hacer una pasada de verificación en vivo sobre los 5 hallazgos C~~ — **hecho (19/ago):** verificado contra evidencia primaria (git log, contenido real de archivos, texto original de la auditoría). Resultado, con corrección de 2 errores propios (C4 sí tiene tabla `approvals`; C5 nunca fue parte de la auditoría original) — ver actualización del 19 de agosto, arriba, para el detalle completo con evidencia de cada punto. Esto generó los puntos 32-38 de abajo, que sí quedan pendientes de resolver.
 32. ~~Reexportar el n8n vivo actual a `n8n-workflows/*.json`~~ — **hecho (19/ago).** Reexportado vía API (mismo mecanismo que las ediciones — GET, `ConvertTo-Json -Depth 100`, `Out-File`) para Ejecutor genérico y Reanudador de bloqueados. Confirmado con `grep`: la SQL de "Obtener config del bot" ya sale parametrizada (`slug = $1`) y `operation_id` aparece en el archivo. Commits `cb31874` y el de más abajo tras el fix del punto 8 (ver siguiente actualización). El Reanudador no tuvo cambios reales (el export ya estaba al día, confirmado el mismo día).
 33. ~~Decidir qué hacer con la exposición histórica de la contraseña vieja de Postgres (`infpower154`) en el historial de Git~~ — **decidido (19/ago): se acepta el riesgo residual, no se reescribe el historial.** Mateo confirmó que la contraseña nueva es distinta (no reutilizada) — con eso, el beneficio marginal de `git filter-repo` + force-push a 5 ramas es bajo (el repo es público, cualquier cosecha automática ya ocurrió y es irreversible de todos modos) frente al costo/riesgo de reescribir historial en 5 ramas de un repo activo. C1 queda formalmente como **mitigado, riesgo residual aceptado** — no como "cerrado" en el sentido de que el string ya no está en el historial (sigue estando), sino en el sentido de que ya no es un pendiente abierto de decisión.
-34. **Nuevo (19/ago):** construir el workflow de aprobación humana bidireccional (C4) usando la tabla `approvals` que ya existe en `schema/001_init.sql` (no hace falta crearla) — falta la lógica: registrar la decisión, validar quién responde, y disparar la transición de estado atómica (continuar/cancelar la tarea) para que `needs_approval` deje de ser solo una notificación saliente sin ruta de vuelta.
+34. **Refinado (19/ago, tercera ronda) — propuesta en discusión, no decidido.** Construir el workflow de aprobación humana bidireccional (C4) usando la tabla `approvals` que ya existe en `schema/001_init.sql`, más `operations.status = 'bloqueada'` y el mismo patrón de "Reanudador de bloqueados" aplicado a operaciones completas en vez de a tareas sueltas — ver actualización del 19 de agosto, tercera ronda, arriba, para el diseño completo. Quedan 3 preguntas concretas pendientes de que Mateo confirme antes de construir: (1) si `dispatches_tasks = true` es la definición correcta de "orquestador" para efectos de "siempre modelo barato"; (2) si el paso de redactar el mensaje de escalamiento usa la excepción de nivel `medio` que `efadam.md` ya documenta para "corridas puntuales de síntesis real"; (3) si el mecanismo de bloqueo/desbloqueo por `parent_task_id` + `operations.status` + objeto estructurado (no prosa) es el que Mateo tenía en mente.
 35. **Nuevo (19/ago):** decidir cómo conviven `operations.nivel_importancia` (fijo una sola vez al abrir la operación, según el diseño del 18/ago) con las "Reglas de asignación" por tarea de `stack_y_convenciones.md` (que dicen que el nivel puede/debe subir según el dominio de cada tarea específica, nunca redondear hacia abajo). Tal como quedó el diseño de operaciones, una tarea hija que caiga en un dominio más sensible que el nivel fijo de su operación no puede subir de nivel — reintroduce el modo de falla que describía el C3 original. Recomendación a confirmar: nivel efectivo de la tarea = `max(nivel de la operación, nivel por reglas de asignación)`. Decisión de arquitectura de Mateo, ver actualización del 19 de agosto, arriba.
 36. **Revisado (19/ago), sigue abierto — hallazgo real de análisis de código, no un exploit reproducido en vivo.** El vector es más amplio de lo que sugería la nota original. `input.text` de cualquier tarea (rol `user` hacia el LLM, `ejecutor_generico.json` línea 115) puede venir, sin ningún paso de sanitización entremedio, de: (a) un mensaje de Telegram de un usuario externo, o (b) el campo `a.input` que otro bot generó como salida de su propio LLM al crear tareas hijas (nodo "Parsear asignaciones", línea ~205) — es decir, el input de una tarea puede ser texto que un modelo anterior "decidió" escribir, no solo lo que un humano tecleó. El `parent_input` (misma línea 115, interpolado en el mensaje de sistema de contexto) es interpolación de string en JS, no ejecución de código — el riesgo ahí es de instrucción al LLM, no de RCE.
 
