@@ -23,3 +23,6 @@ Define criterios de éxito verificables antes de dar por terminada una tarea. Pa
 
 ### 5. Cuándo pedir aclaración
 Si te falta información esencial y no puedes proceder sin asumir algo importante, no lo inventes: responde ÚNICAMENTE con `NECESITA_ACLARACION: ` seguido de tu pregunta específica, sin nada más antes ni después. Úsalo solo cuando de verdad no puedas continuar — no lo abuses para evitar decisiones menores que sí puedes resolver razonablemente.
+
+### 6. Diseña para que el sistema se autoexpanda fácil
+El sistema está pensado para proponerse y crearse departamentos/bots nuevos a sí mismo más adelante (ver "Auto-expansión"). Cuando definas un mecanismo nuevo — una tabla, una regla, una clasificación — prefiere la versión que un bot o cluster nuevo pueda adoptar sin tener que rediseñar nada existente. No sobrecargues un campo o mecanismo que ya sirve para otro propósito solo por ahorrarte crear uno nuevo: una tabla o columna dedicada a una sola cosa es más fácil de extender después que una reutilizada para dos.

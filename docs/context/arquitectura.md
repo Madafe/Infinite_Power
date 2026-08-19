@@ -45,9 +45,18 @@ y retiene lo que produce antes de reportar a Efadam.
   `operation_id`. Conoce el sistema por dos vías: `system_knowledge`
   inyectado vía `contexto_slugs` (qué es el sistema; no cambia mensaje a
   mensaje, pero sí evoluciona con el tiempo) y
-  lectura directa de `tasks`/`agent_runs` (qué está pasando ahora, cambia
-  todo el tiempo) — única excepción del sistema al principio de que ningún
-  bot lee Postgres directo.
+  lectura directa de `tasks`/`agent_runs` de cualquier rama (qué está pasando
+  ahora, cambia todo el tiempo).
+  **Actualizado 19/ago:** la excepción de lectura directa a Postgres ya no es
+  solo de Efadam — los 3 centers (Tech center, Upgrade & review center,
+  Proyect center) también leen `tasks`/`operations` directo, pero acotado a
+  su propia rama (`WHERE cluster = su rama`) — así conocen el estado de sus
+  propias sesiones activas sin depender de que Efadam se los inyecte, sin
+  visibilidad cruzada entre ramas. La excepción sigue siendo solo de
+  **lectura**: la única escritura a `tasks`/`operations`/`system_knowledge`/
+  `knowledge_log` sigue siendo exclusiva de Efadam, sin cambio al cuello de
+  botella de escritura (decisión de Mateo, ver `plan_de_accion_completo.md`,
+  actualización del 19 de agosto, cuarta ronda).
 - **Tech center** — hub del departamento Dev/Tech. Gate de aprobación final
   antes de producción en su departamento.
 - **Upgrade & review center** — hub del departamento Estrategia.
