@@ -11,13 +11,13 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${BIND_HOST:-127.0.0.1}:5432:5432"
 
   n8n:
     image: n8nio/n8n:latest
     restart: unless-stopped
     ports:
-      - "5678:5678"
+      - "${BIND_HOST:-127.0.0.1}:5678:5678"
     environment:
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
@@ -36,7 +36,7 @@ services:
     image: diegosouzapw/omniroute:latest
     restart: unless-stopped
     ports:
-      - "20128:20128"
+      - "${BIND_HOST:-127.0.0.1}:20128:20128"
     environment:
       - JWT_SECRET=${OMNIROUTE_JWT_SECRET}
       - API_KEY_SECRET=${OMNIROUTE_API_KEY_SECRET}
