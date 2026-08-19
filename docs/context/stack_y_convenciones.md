@@ -24,8 +24,21 @@
   parent_task_id, nivel_importancia, operation_id, created_at, updated_at`.
   Estados: `pending, running, done, failed, blocked, needs_approval`.
   `output` es **text**, no jsonb. `nivel_importancia` (`bajo`/`medio`/`alto`/`critico`,
-  sin tilde) la fija Efadam una sola vez, al abrir la operación de la que forma
-  parte la tarea — ver "Niveles de importancia y BYOK" y `operations` abajo.
+  sin tilde) — **resuelto el 19 de agosto de 2026 (pendiente 35 de
+  `plan_de_accion_completo.md`):** el nivel de cada tarea es el más alto
+  entre el nivel fijo de la `operation` a la que pertenece y el que le
+  corresponda por su propio contenido según las "Reglas de asignación" de
+  abajo (`max(nivel de la operación, nivel por reglas de asignación de esa
+  tarea)`) — así una operación abierta en `bajo` (ej. investigación) no se
+  convierte en la forma de que una tarea hija que sí implica gasto de
+  dinero/legal/publicación termine corriendo sin aprobación. **Importante:**
+  esto se calcula y se guarda solo en `tasks.nivel_importancia` de esa tarea
+  específica — nunca se escribe de vuelta a `operations.nivel_importancia`.
+  Una tarea hija crítica no vuelve crítica a toda la operación ni a las
+  demás tareas hermanas; el nivel de la operación se queda fijo tal como se
+  abrió (decisión explícita de Mateo: "no puedes transformar toda la
+  operación en crítica basado en la decisión de 1 solo agente"). Ver
+  "Niveles de importancia y BYOK" y `operations` abajo.
   `operation_id` (nullable) referencia a `operations` — se propaga de padre a
   hijo automáticamente al crear tareas nuevas. Las tareas de síntesis de
   aprendizaje se identifican en `input.tipo = "sintesis_aprendizaje"`; no
@@ -38,6 +51,9 @@
   — a diferencia de `tasks`, que cualquier cluster puede seguir despachando
   directo a otro sin pasar por Efadam. Un cluster que necesita arrancar un
   hilo de trabajo nuevo le pregunta a Efadam primero.
+  `nivel_importancia` se fija una sola vez al abrir la operación y **nunca
+  se actualiza después** — ni siquiera si una tarea hija individual termina
+  en un nivel más alto (ver corrección de `tasks.nivel_importancia` arriba).
   Al completar o alcanzar un hito de una tarea concreta, la operación puede
   generar una tarea asíncrona de síntesis de aprendizaje con el mismo
   `operation_id`; no bloquea la respuesta ni el avance de la tarea concreta.
@@ -45,6 +61,16 @@
   system_prompt (derivado), contexto_slugs, conocimiento_directo,
   requires_approval, dispatches_tasks, active`. `default_model` sigue en la
   tabla pero sin uso activo desde que `nivel_importancia` pasó a `tasks`.
+- `bot_niveles_fijos` (nueva, 19/ago) — `bot_slug` (FK a `bots.slug`, único),
+  `nivel_fijo`, `razon`. Un bot con fila aquí corre **siempre** en ese nivel,
+  sin importar el dominio de la tarea que coordina — pensado para bots
+  orquestadores (Efadam, Técnico jefe, Consultor de arquitectura, los 3
+  centers), que no deben pagar un modelo caro solo por coordinar. Deliberadamente
+  separada de `bots.dispatches_tasks` — son dos conceptos distintos que hoy
+  coinciden pero no tienen por qué seguir coincidiendo (ver
+  `reglas_generales.md`, punto 6). Solo afecta qué modelo ejecuta al bot,
+  nunca el `tasks.nivel_importancia` de la tarea que está coordinando — esos
+  dos ejes son independientes a propósito. `schema/008_bot_roles.sql`.
 - `approvals`, `agent_runs` — aprobaciones y logs (agent_runs se llena en Fase 4).
 
 - `system_knowledge` — autoconciencia del sistema: arquitectura, stack, reglas.

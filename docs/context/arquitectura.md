@@ -52,7 +52,10 @@ y retiene lo que produce antes de reportar a Efadam.
   Proyect center) también leen `tasks`/`operations` directo, pero acotado a
   su propia rama (`WHERE cluster = su rama`) — así conocen el estado de sus
   propias sesiones activas sin depender de que Efadam se los inyecte, sin
-  visibilidad cruzada entre ramas. La excepción sigue siendo solo de
+  visibilidad cruzada entre ramas. Si un center necesita información fuera de
+  su propia rama, le pregunta a Efadam en vez de leerla directo — Efadam
+  sigue siendo el único con visibilidad de todo el sistema (confirmado por
+  Mateo, 19/ago). La excepción sigue siendo solo de
   **lectura**: la única escritura a `tasks`/`operations`/`system_knowledge`/
   `knowledge_log` sigue siendo exclusiva de Efadam, sin cambio al cuello de
   botella de escritura (decisión de Mateo, ver `plan_de_accion_completo.md`,
