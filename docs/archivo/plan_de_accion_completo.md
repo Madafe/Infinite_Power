@@ -5,7 +5,167 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 18 de agosto de 2026, noche (pausa — merge `correcciones` → `main`) — VIGENTE, léase primero
+## Actualización — 19 de agosto de 2026 (corrección de Mateo: "cerrado en n8n vivo" ≠ "cerrado en el proyecto versionado" — C1-C5 reevaluados con evidencia) — VIGENTE, léase primero
+
+Le pedí a Mateo que anotara como pendiente "revisar los C en general" (ver
+punto 31 del checklist), y en vez de esperar a que yo lo hiciera le
+respondí con un resumen del estado de C1-C5. Mateo corrigió ese resumen
+con seis puntos concretos, cada uno con evidencia (número de línea de
+archivo, o el hecho de que la auditoría original solo llega a C4). Antes
+de escribir esta actualización verifiqué cada uno de los seis contra la
+fuente primaria (git log, contenido real de los archivos, texto original
+de `auditoria_tecnica_y_vision_17ago2026.md`) — no los di por buenos solo
+porque venían de Mateo, igual que él me pide no dar nada por bueno solo
+porque lo dice un documento. Los seis se confirmaron exactos.
+
+### El error de fondo en mi resumen anterior
+
+Confundí dos cosas distintas: "el bug ya no existe si le mando una tarea
+de prueba a la instancia de n8n corriendo ahorita" y "el proyecto, tal
+como está versionado en Git, ya no tiene el bug". Casi todas las
+correcciones de C1-C5 esta semana se hicieron editando el JSON del
+workflow **directo en la instancia de n8n vía su API REST** (GET → editar
+`parameters.query` en memoria → PUT) — nunca se volvió a exportar ese
+workflow a `n8n-workflows/*.json` después. Confirmado con
+`git log --oneline -- n8n-workflows/`: el único commit que toca esa
+carpeta es `0fe3d88`, del 16 de agosto ("Bloque 0: exporta workflows...") —
+anterior a **todas** las correcciones de C2, C3, el bug de manejo de
+errores, y la construcción completa de operaciones. El repositorio, si
+alguien lo clona hoy y lo importa a un n8n limpio, reproduce los bugs
+originales — no lo que corre ahorita en la instancia de Mateo.
+
+### Los seis puntos, verificados uno por uno
+
+**1. C1 (contraseña de Postgres) — mitigado, no cerrado.** Confirmado con
+`git log --all -p -- docker-compose.yml`: la contraseña vieja
+(`infpower154`) sigue en el historial y es alcanzable desde las 5 ramas
+remotas (`main`, `alphav0.1`, `alphav0.2`, `efadam`, `correcciones`). Más
+importante: el texto original de C1 en la auditoría ya incluía un paso 4
+explícito — "Coordinar reescritura del historial remoto. Rotar primero;
+limpiar historial después" — que nunca se ejecutó. Rotar la contraseña en
+Postgres (hecho, probado en vivo) cierra el riesgo *hacia adelante*, pero
+no borra la exposición *hacia atrás*: cualquiera con acceso al repo, a un
+clon viejo, o a un fork, puede sacar `infpower154` del historial con
+`git log -p`. Queda como pendiente real (ver checklist): reescribir el
+historial (`git filter-repo` + force-push a las 5 ramas, asumiendo que
+cualquier clon/fork previo sigue teniendo el secreto expuesto de todos
+modos) o aceptar el riesgo residual explícitamente y documentarlo como tal
+— es una decisión de Mateo, no algo que se resuelva solo.
+
+**2 y 3. C2 (inyección SQL) y C3 (`nivel_importancia` perdido en tareas
+hijas) — corregidos en n8n vivo, no reflejados en Git.** Confirmado
+leyendo `n8n-workflows/ejecutor_generico.json` línea por línea ahora
+mismo: la línea 87 todavía dice
+`"query": "SELECT * FROM bots WHERE slug = '{{ $json.bot }}' AND active = true LIMIT 1;"`
+— exactamente la inyección que describía C2, sin parametrizar. Un
+`grep -n "operation_id|nivel_importancia"` sobre el archivo completo
+encuentra un solo resultado (`nivel_importancia` dentro del `jsonBody` de
+"Llamar a omniroute") — "Crear tareas hijas" en el export no inserta
+`nivel_importancia`, tal como describía el C3 original, y `operation_id`
+no aparece ni una sola vez: el concepto completo construido ayer no existe
+en el archivo versionado. Estado correcto: **corregidos en la instancia de
+n8n, pendientes de exportación/versionado** — no "cerrados".
+
+**Corrección adicional sobre C3 específicamente:** dije que "no era un
+hallazgo nuevo, ya estaba cubierto por el pendiente #8" — eso fue un
+error. El texto original de la auditoría (`auditoria_tecnica_y_vision_17ago2026.md`,
+línea 53) es explícito: *"Parsear asignaciones no conserva
+nivel_importancia y Crear tareas hijas no lo inserta"* — era un hallazgo
+real sobre el estado que se auditó. Que la corrección ya estuviera
+planeada o parcialmente construida antes de esa auditoría no cambia que el
+export auditado tenía el bug. Lo correcto: **resuelto en vivo, pendiente
+de sincronización** — igual que C2, no un caso aparte.
+
+**4. C4 (aprobación humana bidireccional) — sigue abierto, pero corrijo un
+error mío: la tabla `approvals` sí existe.** Confirmado en
+`schema/001_init.sql`, alrededor de la línea 56-64: `CREATE TABLE
+public.approvals (id, task_id, requested_at, resolved_at, approved,
+approver)`. Dije que no existía — falso. Lo que sí falta, tal como decía
+el texto original de C4, es el workflow que la use: registrar la decisión,
+validar quién responde, y hacer que eso dispare una transición de estado
+atómica (continuar o cancelar la tarea) — hoy `needs_approval` solo manda
+un mensaje de Telegram sin ruta de vuelta. El hueco es de lógica de
+workflow, no de schema — más angosto de lo que dije, pero sigue sin
+resolverse.
+
+**5. C5 — no es un hallazgo de la auditoría del 17 de agosto.** Confirmado
+con una búsqueda de `C[1-9]` sobre `auditoria_tecnica_y_vision_17ago2026.md`
+completo: solo aparecen C1, C2, C3, C4 (líneas 26, 41, 53, 61). "C5" es una
+etiqueta que empezamos a usar después, el 18 de agosto, para nombrar el
+bug real de manejo de errores en el Ejecutor genérico (normalización de
+forma de error + `.first()` vs `.item()` en "Preparar fallo") — nunca
+estuvo en la auditoría original. La nota de "Corrección de nombres" que
+dejé en `ejecutor_generico.md` decía "redefinir el nombre hacia adelante",
+lo cual todavía daba a entender que venía de la auditoría — se corrige
+abajo para dejar claro que ese bug (ya cerrado, con prueba en vivo) nunca
+fue "C5" de nada, es solo un bug con nombre propio.
+
+**6. El pendiente de "Reanudador de bloqueados: convertir Manual a
+Schedule" estaba mal, pero al revés del patrón de arriba — aquí el export
+sí está al día y mi lista era la desactualizada.** Confirmado leyendo
+`n8n-workflows/reanudador_de_bloqueados.json`: `"active": true`, con un
+nodo `n8n-nodes-base.scheduleTrigger` ("Cada 5 minutos",
+`minutesInterval: 5`), `updatedAt: 2026-08-15`. Ese pendiente (anotado en
+`ejecutor_generico.md`, "Lo que falta", punto 4) ya estaba resuelto desde
+antes del 16 de agosto y nadie lo volvió a verificar antes de seguir
+repitiéndolo en las listas — se corrige ahí también.
+
+### Riesgos que faltaban en mi resumen (agregados al checklist, sin resolver)
+
+Mateo señaló que mi resumen omitía varios riesgos ya identificados en
+rondas anteriores o nunca antes puestos en la lista central: **prompt
+injection entre agentes** (contenido de una tarea hija, generado por un
+modelo, termina interpretado como instrucción de sistema en la siguiente
+tarea — ej. `parent_input` inyectado sin sanitizar en el prompt de
+"Llamar a omniroute"), **límites de fan-out/costo** (nada impide hoy que
+una operación genere una cadena de tareas hijas sin tope, ni existe un
+tope de gasto por operación o por ventana de tiempo), **puertos Docker
+expuestos** (falta revisar `docker-compose.yml` — qué puertos están
+publicados al host/red y si deberían estarlo), **imágenes `latest` sin pin
+de versión** en `docker-compose.yml` (un `docker compose pull` puede
+romper todo sin aviso, sin forma de volver atrás a una versión conocida),
+y **ausencia de pruebas automatizadas / CI**. Se agregan al checklist como
+pendientes nuevos, sin fecha de resolución todavía.
+
+### Inconsistencia nueva, encontrada al verificar esto (no buscada a propósito)
+
+`operations.nivel_importancia` se diseñó ayer (18/ago, cuarta ronda) para
+fijarse **una sola vez, al abrir la operación, y no cambiar después** —
+pero las "Reglas de asignación" de `stack_y_convenciones.md` (15 de
+agosto) clasifican **por tarea**, por dominio/tema ("gasto de dinero",
+"publicación de contenido público", etc.), y dicen explícitamente que ante
+ambigüedad el nivel "sube... nunca se redondea hacia abajo". Con el
+mecanismo de operaciones fijado ayer, una tarea hija que caiga
+objetivamente en una fila de nivel más alto que su operación (ej. una
+operación clasificada `medio` que termina redactando una publicación
+pública, que por regla debería ser `critico`) hereda el nivel fijo de la
+operación sin poder subir nunca — exactamente el modo de falla que
+describía el C3 original ("una tarea legal, pública o de seguridad puede
+no usar el nivel exigido"), reintroducido sin querer por el mecanismo que
+se construyó ayer mismo para organizar todo esto. No lo resolví — es una
+decisión de arquitectura de Mateo, no mía. Mi recomendación inicial, a
+confirmar: que el nivel efectivo de una tarea sea
+`max(nivel de la operación, nivel que le tocaría por las reglas de
+asignación de stack_y_convenciones.md)` — nunca baja del piso fijado por
+Efadam al abrir la operación, pero puede subir si una tarea específica
+cae en un dominio más sensible; sin ronda de ida y vuelta a Efadam para el
+caso común, preservando la garantía de "nunca se redondea hacia abajo" que
+ya existía antes de operaciones.
+
+### Siguiente paso más importante, antes de activar Efadam
+
+Reexportar el n8n vivo actual (Ejecutor genérico y Reanudador de
+bloqueados) a `n8n-workflows/*.json` y confirmar con revisión línea por
+línea (no solo "el JSON es válido") que el export coincide con lo
+instalado. Sin esto, ningún hallazgo puede llamarse "cerrado" de forma
+auditable desde el repo — y cualquier decisión futura, incluida la de
+reescribir el historial de Git por C1, se estaría tomando sobre
+información parcial. Se sube al principio del checklist, antes incluso de
+activar Efadam.
+
+---
+
+## Actualización — 18 de agosto de 2026, noche (pausa — merge `correcciones` → `main`) — vigente
 
 Mateo pidió pausar y mergear `correcciones` a `main` en GitHub. `main`
 estaba en `b41c7e2` (mismo commit que `alphav0.2`) — desde ahí, `main` es
@@ -2600,9 +2760,16 @@ para el razonamiento completo.
 23. ~~Insertar `trouble_shooter` en `bots`~~ — **ya no aplica (18 de agosto):** al intentar correr el `INSERT`, Postgres devolvió `duplicate key` — la fila ya existía. El diagnóstico del 17 de agosto que daba esto como pendiente estaba mal (ver actualización del 18 de agosto, arriba, sección 1, para la corrección completa). ~~Agregar el nodo Postgres de disparo automático en el Ejecutor genérico después de "Marcar como fallida"~~ — **hecho (18/ago, tarde-noche):** construido y probado en vivo, ver actualización del 18 de agosto, tarde-noche, arriba (sección 2).
 24. ~~Decidir si vale la pena seguir con Pollinations/Cloudflare/Qwen~~ — **cerrado por ahora (18/ago, noche, tercera ronda):** Mateo decidió no seguir con eso mientras dure la construcción — se retoma cuando el sistema ya esté operando.
 30. ~~Construir el concepto de "operación"~~ — **hecho (18/ago, noche, cuarta ronda):** Mateo confirmó las dos preguntas abiertas (mezclar `nivel_importancia` sin reconstruir; operaciones centralizadas en Efadam). Construido de verdad: `schema/007_operaciones.sql` corrido contra Postgres real, `operation_id` propagado en "Crear tarea de aclaración", "Crear tareas hijas" y "Despachar a trouble_shooter" (por subquery SQL, no referencia cruzada de n8n), probado en vivo dos veces. De paso se encontraron y corrigieron 2 bugs reales de `nivel_importancia` (aclaración y trouble_shooter nacían sin nivel, condenadas a fallar). Ver actualización del 18 de agosto, noche, cuarta ronda, arriba, y `ejecutor_generico.md` para el detalle completo. **Sigue pendiente, no cubierto por este punto:** nada abre una operación de verdad todavía — depende de que Efadam exista como bot activo (Bloque 3).
-25. ~~Hallazgo C5 — corregir el manejo de errores en los nodos del Ejecutor genérico~~ — **hecho (18/ago, noche, segunda ronda), con corrección importante:** el diagnóstico original (13 nodos rotos por el mismo bug que `"Llamar a omniroute"`) **era incorrecto** — probado en vivo, nodo por nodo: Postgres, Code y Telegram enrutan sus errores correctamente sin ningún arreglo. El bug real era otro: (a) cada tipo de nodo entrega el error con una forma de JSON distinta y "Marcar como fallida" necesitaba una normalización que no existía, y (b) un bug de n8n nunca documentado antes — `$('Reclamar tarea pendiente').first()` truena con `TypeError` cuando el nodo que lo llama se alcanza por una ruta de error rescatada, mientras que `.item` sí funciona. Arreglo aplicado: se generalizó el Code node "Preparar fallo" (normaliza las 4 formas de error observadas, usa `.item` en vez de `.first()`) y se re-cablearon 17 conexiones para pasar por él — cero nodos nuevos. Probado en vivo de punta a punta dos veces (una vía Postgres, la original vía omniroute) más una confirmación extra del guard anti-loop de Trouble shooter. Ver actualización del 18 de agosto, noche, segunda ronda, arriba, y `ejecutor_generico.md` para el detalle completo y el código final.
-26. ~~Rotar la contraseña de Postgres (hallazgo C1)~~ — **hecho (18/ago, noche):** los 4 pasos coordinados (`ALTER USER`, `.env`, credencial de n8n vía API, reinicio) ejecutados y probados en vivo de punta a punta (no solo "n8n arrancó bien" — se confirmó con una ejecución real que los nodos Postgres del workflow conectan con la contraseña nueva). Ver actualización del 18 de agosto, noche, arriba, para el detalle completo.
+25. ~~Corregir el manejo de errores en los nodos del Ejecutor genérico~~ — **hecho (18/ago, noche, segunda ronda), con corrección importante:** este punto se venía llamando "hallazgo C5", pero la auditoría del 17/ago solo enumera C1-C4 (confirmado 19/ago) — nunca fue parte de ella, es un bug encontrado y nombrado después; se deja de usar el prefijo "C" para este punto de aquí en adelante. El diagnóstico original (13 nodos rotos por el mismo bug que `"Llamar a omniroute"`) **era incorrecto** — probado en vivo, nodo por nodo: Postgres, Code y Telegram enrutan sus errores correctamente sin ningún arreglo. El bug real era otro: (a) cada tipo de nodo entrega el error con una forma de JSON distinta y "Marcar como fallida" necesitaba una normalización que no existía, y (b) un bug de n8n nunca documentado antes — `$('Reclamar tarea pendiente').first()` truena con `TypeError` cuando el nodo que lo llama se alcanza por una ruta de error rescatada, mientras que `.item` sí funciona. Arreglo aplicado: se generalizó el Code node "Preparar fallo" (normaliza las 4 formas de error observadas, usa `.item` en vez de `.first()`) y se re-cablearon 17 conexiones para pasar por él — cero nodos nuevos. Probado en vivo de punta a punta dos veces (una vía Postgres, la original vía omniroute) más una confirmación extra del guard anti-loop de Trouble shooter. Ver actualización del 18 de agosto, noche, segunda ronda, arriba, y `ejecutor_generico.md` para el detalle completo y el código final.
+26. ~~Rotar la contraseña de Postgres (hallazgo C1)~~ — **hecho, pero corrige alcance (19/ago): esto es "mitigado", no "cerrado".** Los 4 pasos de rotación (`ALTER USER`, `.env`, credencial de n8n vía API, reinicio) sí se ejecutaron y probaron en vivo de punta a punta el 18/ago — pero el paso 4 original de C1 ("reescribir/limpiar el historial remoto") nunca se hizo, y la contraseña vieja sigue siendo alcanzable desde las 5 ramas remotas vía `git log -p`. Ver punto 33 de este mismo checklist y la actualización del 19 de agosto, arriba.
 27. **Nuevo (18/ago, tarde-noche):** eliminar la API key temporal de n8n (`N8N_API_KEY_TEMP` en `.env`) — revocarla en n8n y borrar la línea — una vez que el pendiente 25, la ingesta Telegram → `tasks` y la aprobación humana bidireccional estén resueltos. Instrucción explícita de Mateo, no automática.
 28. **Nuevo (18/ago, noche, segunda ronda):** si "Reclamar tarea pendiente" falla en sí mismo (ej. Postgres caído), no hay `task_id` todavía, así que "Marcar como fallida" no hace nada — hoy este es el modo de falla más grave (Postgres caído) y queda completamente sin registrar ni alertar. No hay hoy ningún mecanismo (ej. un aviso directo a Mateo por Telegram que no dependa de la tabla `tasks`) que cubra este caso. Ver `ejecutor_generico.md`, sección "Lo que falta".
 29. **Nuevo (18/ago, noche, segunda ronda):** los 4 nodos IF del Ejecutor genérico quedaron cableados hacia "Preparar fallo" por consistencia, pero su comportamiento real de enrutamiento de errores nunca se confirmó en vivo — dos intentos de forzar un error genuino en un nodo IF fallaron (el nodo simplemente evaluó la condición como falsa en vez de tronar). Queda como no confirmado, no como arreglado. Ver `ejecutor_generico.md`, sección "Lo que falta".
-31. **Nuevo (18/ago, noche, tras la pausa):** hacer una pasada de verificación en vivo sobre los 5 hallazgos C de la auditoría del 17 de agosto (C1-C5) — no dar por buena solo la palabra de los documentos. El más débil es C3 (`nivel_importancia`): el texto de respuesta a la auditoría del 17/ago lo marcó como "ya cubierto por el pendiente #8", pero eso nunca se volvió a confirmar en vivo, y menos después de que el trabajo de "operaciones" de esta ronda tocó justo ese mecanismo (agregó `operations.nivel_importancia` como fuente conceptual y la copia a la tarea raíz). C1, C2 y C5 sí tienen prueba en vivo documentada (ver puntos 26, 25 y actualizaciones del 18/ago arriba) — quedan como candidatos a confirmar rápido, no a rehacer. C4 sigue simplemente sin empezar (punto 28 más abajo cubre una parte, aprobación bidireccional en general no tiene punto propio todavía). Instrucción explícita de Mateo (18/ago, noche): "anota como pendiente revisar eso", en respuesta a mi resumen de qué hallazgos C se habían resuelto.
+31. ~~Hacer una pasada de verificación en vivo sobre los 5 hallazgos C~~ — **hecho (19/ago):** verificado contra evidencia primaria (git log, contenido real de archivos, texto original de la auditoría). Resultado, con corrección de 2 errores propios (C4 sí tiene tabla `approvals`; C5 nunca fue parte de la auditoría original) — ver actualización del 19 de agosto, arriba, para el detalle completo con evidencia de cada punto. Esto generó los puntos 32-38 de abajo, que sí quedan pendientes de resolver.
+32. **Nuevo (19/ago), el más urgente — antes de activar Efadam:** reexportar el n8n vivo actual (Ejecutor genérico y Reanudador de bloqueados) a `n8n-workflows/*.json` y confirmar línea por línea que el export coincide con lo instalado. Hoy el repo no refleja ninguna de las correcciones de C2, C3, el bug de manejo de errores, ni la construcción de operaciones — todo eso se hizo vía API directo contra la instancia de n8n, nunca se volvió a exportar (único commit sobre `n8n-workflows/` es `0fe3d88`, del 16/ago). Ver actualización del 19 de agosto, arriba.
+33. **Nuevo (19/ago):** decidir qué hacer con la exposición histórica de la contraseña vieja de Postgres (`infpower154`) en el historial de Git — alcanzable hoy desde las 5 ramas remotas (confirmado con `git log --all -p`). La auditoría original ya pedía reescribir el historial como paso 4 de C1 y nunca se hizo. Dos caminos: reescribir historial (`git filter-repo` + force-push a las 5 ramas) o aceptar el riesgo residual explícitamente y documentarlo. Decisión de Mateo.
+34. **Nuevo (19/ago):** construir el workflow de aprobación humana bidireccional (C4) usando la tabla `approvals` que ya existe en `schema/001_init.sql` (no hace falta crearla) — falta la lógica: registrar la decisión, validar quién responde, y disparar la transición de estado atómica (continuar/cancelar la tarea) para que `needs_approval` deje de ser solo una notificación saliente sin ruta de vuelta.
+35. **Nuevo (19/ago):** decidir cómo conviven `operations.nivel_importancia` (fijo una sola vez al abrir la operación, según el diseño del 18/ago) con las "Reglas de asignación" por tarea de `stack_y_convenciones.md` (que dicen que el nivel puede/debe subir según el dominio de cada tarea específica, nunca redondear hacia abajo). Tal como quedó el diseño de operaciones, una tarea hija que caiga en un dominio más sensible que el nivel fijo de su operación no puede subir de nivel — reintroduce el modo de falla que describía el C3 original. Recomendación a confirmar: nivel efectivo de la tarea = `max(nivel de la operación, nivel por reglas de asignación)`. Decisión de arquitectura de Mateo, ver actualización del 19 de agosto, arriba.
+36. **Nuevo (19/ago):** revisar prompt injection entre agentes — contenido de una tarea hija (generado por un modelo) que termina interpretado como instrucción de sistema en la siguiente tarea (ej. `parent_input` sin sanitizar en el prompt de "Llamar a omniroute").
+37. **Nuevo (19/ago):** definir límites de fan-out/costo — hoy nada impide que una operación genere una cadena de tareas hijas sin tope, ni existe un tope de gasto por operación o por ventana de tiempo.
+38. **Nuevo (19/ago):** revisar puertos Docker expuestos en `docker-compose.yml` (cuáles están publicados al host/red y si deberían estarlo) e imágenes `latest` sin pin de versión (un `docker compose pull` puede romper todo sin aviso ni forma de volver a una versión conocida); y evaluar pruebas automatizadas/CI — hoy no existe ninguna.

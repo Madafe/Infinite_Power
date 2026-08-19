@@ -181,13 +181,24 @@ si algún día un IF de estos falla de verdad en producción, vale la pena
 revisar la ejecución real para confirmar que efectivamente llegó a
 "Preparar fallo" y no se perdió en otro lado.
 
-**Corrección de nombres para no perder el hilo en futuros documentos:** lo
-que la tarde llamó "hallazgo C5" (13 nodos con el mismo bug que omniroute)
-**no era correcto como se planteó** — el bug real era más angosto (la
-transformación de dato + `.first()` vs `.item()`) y ya está cerrado. Si se
-sigue usando el nombre "hallazgo C5" en otros documentos, que se refiera de
-aquí en adelante a este arreglo (ya cerrado), no al diagnóstico original de
-la tarde (que quedó desmentido).
+**Corrección de nombres para no perder el hilo en futuros documentos —
+actualizada 19/ago tras corrección de Mateo:** lo que la tarde llamó
+"hallazgo C5" (13 nodos con el mismo bug que omniroute) **no era correcto
+como se planteó** — el bug real era más angosto (la transformación de dato
++ `.first()` vs `.item()`) y ya está cerrado. Además: "C5" **nunca fue un
+hallazgo de la auditoría del 17 de agosto** — esa auditoría solo enumera
+C1-C4 (confirmado 19/ago, `grep "C[1-9]"` sobre
+`auditoria_tecnica_y_vision_17ago2026.md` completo). El nombre "hallazgo
+C5" se dejó de usar — este arreglo se nombra sin el prefijo "C" (ej. "bug
+de normalización de errores, 18/ago") para no seguir insinuando que viene
+de esa auditoría.
+
+**Aviso 19/ago — este arreglo, y todos los demás de esta semana hechos vía
+API de n8n, no están reflejados en `n8n-workflows/ejecutor_generico.json`.**
+El único commit que toca esa carpeta es del 16 de agosto, anterior a todo
+esto. Ver actualización del 19 de agosto en `plan_de_accion_completo.md`
+para el detalle completo — reexportar es ahora el pendiente más urgente,
+antes de activar Efadam.
 
 ## Operaciones: hilo de trabajo completo — nuevo, 18/ago, cuarta ronda
 
@@ -728,9 +739,15 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    `bot` que no existe o no está activo se queda trabada en `running` para
    siempre, sin pasar por "Marcar como fallida". Necesita un IF explícito
    después de esta query.
-4. **`Reanudador de bloqueados`** (workflow separado, `3fKEODc6f6jH9VCJ`): el
-   query central ya está completo y correcto — solo le falta cambiar el
-   trigger de **Manual a Schedule** para que corra solo.
+4. ~~`Reanudador de bloqueados` necesita cambiar el trigger de Manual a
+   Schedule~~ — **esto estaba mal, corregido 19/ago:** el export
+   (`n8n-workflows/reanudador_de_bloqueados.json`) muestra `"active": true`
+   con un nodo `n8n-nodes-base.scheduleTrigger` ("Cada 5 minutos",
+   `minutesInterval: 5`), `updatedAt: 2026-08-15` — ya estaba resuelto
+   desde antes del 16 de agosto y este punto se venía repitiendo sin
+   volver a verificarse. Este es el caso inverso al resto de este
+   documento: aquí el export sí está al día, era la lista la que estaba
+   vieja.
 5. El workflow completo sigue en `active: false` en n8n — correrlo hoy
    requiere disparar el Manual Trigger a mano (o, como se hizo hoy para
    probar, un Webhook Trigger temporal). Pasarlo a Schedule Trigger es parte
@@ -745,6 +762,16 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    inserte una fila nueva en `operations` — solo se puede probar insertando
    una a mano, como se hizo para las pruebas de esta ronda. Se destraba
    junto con Bloque 3 (activar Efadam).
+8. **El más urgente de todos, agregado 19/ago tras corrección de Mateo:
+   reexportar este workflow a `n8n-workflows/ejecutor_generico.json`.**
+   Todas las correcciones de C2, C3, el bug de manejo de errores y la
+   construcción completa de operaciones se hicieron vía API directo contra
+   la instancia de n8n — el export en el repo sigue siendo el del 16 de
+   agosto, previo a todo esto. Confirmado con `grep`: el export actual
+   todavía tiene la SQL vulnerable de C2 en "Obtener config del bot"
+   (línea 87) y no tiene ni un solo `operation_id`. Sin esto, nada de lo
+   que dice este documento es verificable desde el repo. Ver actualización
+   del 19 de agosto en `plan_de_accion_completo.md`.
 
 ## Cómo probarlo hoy
 
