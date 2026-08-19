@@ -229,6 +229,28 @@ agosto, noche, tercera y cuarta ronda, para la discusión completa):
    ningún cambio de código. Es un cambio de dónde nace el valor, no de
    cómo viaja.
 
+### Tarea concreta y síntesis de aprendizaje — decisión del 19/ago
+
+Una operación separa su trabajo en dos rutas. La **tarea concreta** es la
+ruta crítica: entrega el resultado solicitado y permite a Efadam confirmar
+de inmediato que el trabajo quedó registrado y despachado. La **síntesis de
+aprendizaje** es una tarea distinta, asíncrona y asociada al mismo
+`operation_id`, que se crea al cierre o en un hito relevante. Recibe la
+evidencia, resultados, decisiones, errores y patrones de la tarea concreta,
+pero no puede ejecutar trabajo de negocio ni escribir conocimiento directo.
+
+El contrato de esa tarea usa `tasks.input.tipo = "sintesis_aprendizaje"` y
+debe dirigirse a Upgrade & review center para producir una propuesta
+revisable. Solo después se conserva el gobierno vigente: U&R center evalúa y
+redacta; Efadam inserta el resultado aprobado en `knowledge_log` o
+`system_knowledge` cuando aplique.
+
+**Estado:** decisión documentada; el Ejecutor genérico todavía no crea esta
+tarea automáticamente al cerrar o alcanzar un hito. Implementarla requiere
+un nodo posterior al cierre que construya la tarea con el `operation_id` y
+la evidencia de la tarea concreta, sin esperar su resultado para contestar al
+usuario.
+
 ### Schema (`schema/007_operaciones.sql`, ya corrido contra Postgres real)
 
 ```sql
@@ -734,11 +756,28 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    falso en vez de lanzar error). No es urgente — los IF de este workflow
    rara vez deberían fallar — pero si alguno falla de verdad algún día, vale
    la pena confirmar en la ejecución real que llegó a donde debía.
-3. **`Obtener config del bot` no distingue "bot no existe" de "bot existe"
-   (18/ago).** 0 filas no es un error en Postgres, así que una tarea con un
-   `bot` que no existe o no está activo se queda trabada en `running` para
-   siempre, sin pasar por "Marcar como fallida". Necesita un IF explícito
-   después de esta query.
+3. ~~`Obtener config del bot` no distingue "bot no existe" de "bot existe"~~
+   — **hecho (19/ago), construido y probado en vivo.** El diagnóstico decía
+   "necesita un IF explícito" pero eso solo no bastaba: confirmado en vivo
+   que un Postgres node con 0 filas en `executeQuery` emite **0 items** en
+   ambas salidas (`"data":{"main":[[],[]]}`) — no un item vacío — así que
+   un IF conectado después nunca llega a evaluarse, la ejecución simplemente
+   muere en silencio en esa rama. El fix real tiene dos partes: (a) se
+   activó `alwaysOutputData: true` en el nodo "Obtener config del bot" para
+   que emita un item vacío cuando no hay fila, y (b) se agregó un nodo IF
+   nuevo, "Bot encontrado" (`{{ $json.id }}` notEmpty, mismo patrón que
+   "¿Hay tarea?"), entre "Obtener config del bot" y el resto del flujo —
+   rama verdadera sigue igual que antes (a "Obtener contexto de tarea
+   padre"), rama falsa pasa por un Code node nuevo, "Preparar error bot no
+   encontrado" (arma `error: "Bot no encontrado o inactivo: <slug>"`
+   leyendo `$('Reclamar tarea pendiente').item.json.bot`), que entra a
+   "Preparar fallo" igual que cualquier otro error. Probado en vivo dos
+   veces: (1) tarea con bot inexistente → `failed` con mensaje claro,
+   trouble_shooter auto-despachado correctamente con `nivel_importancia` y
+   diagnosticó el problema real ("No se encontró el bot..."); (2) tarea con
+   bot válido (`tecnico_jefe`) → sin regresión, terminó `done` normal. 28
+   nodos ahora (eran 26). Reexportado a
+   `n8n-workflows/ejecutor_generico.json`.
 4. ~~`Reanudador de bloqueados` necesita cambiar el trigger de Manual a
    Schedule~~ — **esto estaba mal, corregido 19/ago:** el export
    (`n8n-workflows/reanudador_de_bloqueados.json`) muestra `"active": true`

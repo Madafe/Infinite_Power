@@ -5,7 +5,92 @@ Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de a
 
 ---
 
-## Actualización — 19 de agosto de 2026 (corrección de Mateo: "cerrado en n8n vivo" ≠ "cerrado en el proyecto versionado" — C1-C5 reevaluados con evidencia) — VIGENTE, léase primero
+## Actualización — 19 de agosto de 2026, segunda ronda (repo público confirmado; reexport a Git; primer pendiente técnico real cerrado post-pausa) — VIGENTE, léase primero
+
+Mateo preguntó si C1 sigue importando ya que la contraseña vieja del
+historial "ya no es esa" (la actual, rotada) — pregunta legítima sobre
+severidad práctica, no algo a descartar de plano ni a sobre-defender.
+Verificando esa pregunta salió un dato nuevo que cambia el análisis:
+**el repositorio es público** (confirmado con `WebFetch` sobre
+`github.com/Madafe/Infinite_Power` — etiqueta "Public" visible, contenido
+accesible sin login). Esto no estaba considerado en la actualización
+anterior. Luego Mateo dio luz verde para avanzar solo con el resto de
+pendientes ("avanza con el resto de pendientes hasta que me ocupes") —
+esta sección documenta ese trabajo.
+
+### Respuesta a la pregunta de Mateo sobre C1
+
+Tiene razón en la parte concreta: la contraseña vieja (`infpower154`) ya
+no sirve para entrar a Postgres — eso quedó neutralizado al rotarla. Pero
+eso no hace que el punto 33 (reescribir vs. aceptar el riesgo) sea
+irrelevante, por el dato nuevo: al ser el repo **público**, la exposición
+nunca fue "solo quien tenga acceso al repo" (que hubiera sido nomás Mateo,
+tratándose de un proyecto individual) — fue **internet entero, desde el
+momento del push**, incluyendo escáneres automáticos de secretos que
+GitHub y terceros corren rutinariamente sobre repos públicos. Eso importa
+por dos razones que sí sobreviven a la rotación: (1) si `infpower154` o un
+patrón parecido se reutilizó en algún otro lado (otra cuenta, otro
+servicio), ese dato ya es público y utilizable ahí; (2) es probable que ya
+haya sido cosechado por algún escáner o archivo (GH Archive, Software
+Heritage, etc.) desde antes de rotar — lo cual significa que reescribir el
+historial del propio repo **no necesariamente deshace la exposición ya
+ocurrida**, solo evita que siga siendo cosechable desde ahora en adelante.
+Dado esto, mi recomendación concreta (no decisión unilateral, sigue
+pendiente confirmación de Mateo en el punto 33): si `infpower154` nunca se
+reutilizó en ningún otro lado, **no vale la pena el esfuerzo de
+`git filter-repo` + force-push a 5 ramas** — el beneficio marginal es bajo
+porque el daño principal (cosecha automática) probablemente ya está hecho
+y es irreversible de todos modos; lo que sí vale la pena es (a) confirmar
+que la contraseña nueva es única, fuerte, y no reutilizada en ningún otro
+lado, y (b) revisar si algo más quedó expuesto en texto plano en algún
+otro punto del historial, ya que el repo sí es público y probablemente
+seguirá siéndolo.
+
+### Reexport a Git — pendiente 32 cerrado
+
+Se reexportaron `n8n-workflows/ejecutor_generico.json` y
+`n8n-workflows/reanudador_de_bloqueados.json` desde la instancia viva de
+n8n vía API (mismo mecanismo `Invoke-RestMethod` + `ConvertTo-Json -Depth
+100` + `Out-File -Encoding utf8` que ya usaba el export original del 16 de
+agosto, para mantener el mismo estilo de archivo y diffs limpios).
+Confirmado con `grep` antes de commitear: la SQL de "Obtener config del
+bot" ya sale parametrizada (`slug = $1`) y `operation_id` aparece varias
+veces en el archivo — el repo ahora sí refleja lo que corre en producción.
+El Reanudador de bloqueados no tuvo cambios reales (ya estaba al día desde
+antes del 16/ago, ver actualización anterior).
+
+### Primer pendiente técnico real, cerrado post-pausa: "Obtener config del bot" no distinguía bot inexistente de bot existente
+
+Con luz verde de Mateo para avanzar, se atacó el pendiente 39 (antes
+documentado en `ejecutor_generico.md` como punto 3 de "Lo que falta"). El
+diagnóstico original decía "necesita un IF explícito" — construirlo así,
+tal cual, **no hubiera funcionado**: se confirmó en vivo (`includeData=true`
+sobre la ejecución de prueba) que el nodo Postgres con 0 filas en
+`executeQuery` emite **cero items en ambas salidas**
+(`"data":{"main":[[],[]]}`), ni siquiera activa la rama de error — así que
+cualquier IF conectado después simplemente nunca se evalúa, la ejecución
+muere en silencio en esa rama exactamente como describía el bug original.
+El fix real necesitó dos piezas, no una: (1) `alwaysOutputData: true` en
+el nodo "Obtener config del bot", para forzarlo a emitir un item vacío
+cuando no hay fila; (2) un nodo IF nuevo, "Bot encontrado"
+(`{{ $json.id }}` notEmpty, mismo patrón que el ya usado en "¿Hay tarea?"),
+más un Code node nuevo, "Preparar error bot no encontrado", que arma un
+mensaje claro (`Bot no encontrado o inactivo: <slug>`) y lo enruta a
+"Preparar fallo" igual que cualquier otro error real. Probado en vivo dos
+veces con la técnica ya establecida (webhook temporal + activar +
+disparar + revisar ejecución + limpiar): (1) tarea con
+`bot = 'bot_que_no_existe'` → terminó `failed` con el mensaje correcto,
+disparó correctamente una tarea de Trouble shooter con
+`nivel_importancia` heredado, que a su vez diagnosticó el problema real
+sin ayuda ("No se encontró el bot 'bot_que_no_existe' en el sistema...");
+(2) tarea con un bot válido (`tecnico_jefe`) → terminó `done` sin ninguna
+regresión. 28 nodos en el workflow ahora (eran 26). Todos los datos y
+archivos de prueba se limpiaron, workflow reexportado y desactivado de
+nuevo al terminar.
+
+---
+
+## Actualización — 19 de agosto de 2026 (corrección de Mateo: "cerrado en n8n vivo" ≠ "cerrado en el proyecto versionado" — C1-C5 reevaluados con evidencia) — vigente
 
 Le pedí a Mateo que anotara como pendiente "revisar los C en general" (ver
 punto 31 del checklist), y en vez de esperar a que yo lo hiciera le
@@ -2766,10 +2851,11 @@ para el razonamiento completo.
 28. **Nuevo (18/ago, noche, segunda ronda):** si "Reclamar tarea pendiente" falla en sí mismo (ej. Postgres caído), no hay `task_id` todavía, así que "Marcar como fallida" no hace nada — hoy este es el modo de falla más grave (Postgres caído) y queda completamente sin registrar ni alertar. No hay hoy ningún mecanismo (ej. un aviso directo a Mateo por Telegram que no dependa de la tabla `tasks`) que cubra este caso. Ver `ejecutor_generico.md`, sección "Lo que falta".
 29. **Nuevo (18/ago, noche, segunda ronda):** los 4 nodos IF del Ejecutor genérico quedaron cableados hacia "Preparar fallo" por consistencia, pero su comportamiento real de enrutamiento de errores nunca se confirmó en vivo — dos intentos de forzar un error genuino en un nodo IF fallaron (el nodo simplemente evaluó la condición como falsa en vez de tronar). Queda como no confirmado, no como arreglado. Ver `ejecutor_generico.md`, sección "Lo que falta".
 31. ~~Hacer una pasada de verificación en vivo sobre los 5 hallazgos C~~ — **hecho (19/ago):** verificado contra evidencia primaria (git log, contenido real de archivos, texto original de la auditoría). Resultado, con corrección de 2 errores propios (C4 sí tiene tabla `approvals`; C5 nunca fue parte de la auditoría original) — ver actualización del 19 de agosto, arriba, para el detalle completo con evidencia de cada punto. Esto generó los puntos 32-38 de abajo, que sí quedan pendientes de resolver.
-32. **Nuevo (19/ago), el más urgente — antes de activar Efadam:** reexportar el n8n vivo actual (Ejecutor genérico y Reanudador de bloqueados) a `n8n-workflows/*.json` y confirmar línea por línea que el export coincide con lo instalado. Hoy el repo no refleja ninguna de las correcciones de C2, C3, el bug de manejo de errores, ni la construcción de operaciones — todo eso se hizo vía API directo contra la instancia de n8n, nunca se volvió a exportar (único commit sobre `n8n-workflows/` es `0fe3d88`, del 16/ago). Ver actualización del 19 de agosto, arriba.
+32. ~~Reexportar el n8n vivo actual a `n8n-workflows/*.json`~~ — **hecho (19/ago).** Reexportado vía API (mismo mecanismo que las ediciones — GET, `ConvertTo-Json -Depth 100`, `Out-File`) para Ejecutor genérico y Reanudador de bloqueados. Confirmado con `grep`: la SQL de "Obtener config del bot" ya sale parametrizada (`slug = $1`) y `operation_id` aparece en el archivo. Commits `cb31874` y el de más abajo tras el fix del punto 8 (ver siguiente actualización). El Reanudador no tuvo cambios reales (el export ya estaba al día, confirmado el mismo día).
 33. **Nuevo (19/ago):** decidir qué hacer con la exposición histórica de la contraseña vieja de Postgres (`infpower154`) en el historial de Git — alcanzable hoy desde las 5 ramas remotas (confirmado con `git log --all -p`). La auditoría original ya pedía reescribir el historial como paso 4 de C1 y nunca se hizo. Dos caminos: reescribir historial (`git filter-repo` + force-push a las 5 ramas) o aceptar el riesgo residual explícitamente y documentarlo. Decisión de Mateo.
 34. **Nuevo (19/ago):** construir el workflow de aprobación humana bidireccional (C4) usando la tabla `approvals` que ya existe en `schema/001_init.sql` (no hace falta crearla) — falta la lógica: registrar la decisión, validar quién responde, y disparar la transición de estado atómica (continuar/cancelar la tarea) para que `needs_approval` deje de ser solo una notificación saliente sin ruta de vuelta.
 35. **Nuevo (19/ago):** decidir cómo conviven `operations.nivel_importancia` (fijo una sola vez al abrir la operación, según el diseño del 18/ago) con las "Reglas de asignación" por tarea de `stack_y_convenciones.md` (que dicen que el nivel puede/debe subir según el dominio de cada tarea específica, nunca redondear hacia abajo). Tal como quedó el diseño de operaciones, una tarea hija que caiga en un dominio más sensible que el nivel fijo de su operación no puede subir de nivel — reintroduce el modo de falla que describía el C3 original. Recomendación a confirmar: nivel efectivo de la tarea = `max(nivel de la operación, nivel por reglas de asignación)`. Decisión de arquitectura de Mateo, ver actualización del 19 de agosto, arriba.
 36. **Nuevo (19/ago):** revisar prompt injection entre agentes — contenido de una tarea hija (generado por un modelo) que termina interpretado como instrucción de sistema en la siguiente tarea (ej. `parent_input` sin sanitizar en el prompt de "Llamar a omniroute").
 37. **Nuevo (19/ago):** definir límites de fan-out/costo — hoy nada impide que una operación genere una cadena de tareas hijas sin tope, ni existe un tope de gasto por operación o por ventana de tiempo.
 38. **Nuevo (19/ago):** revisar puertos Docker expuestos en `docker-compose.yml` (cuáles están publicados al host/red y si deberían estarlo) e imágenes `latest` sin pin de versión (un `docker compose pull` puede romper todo sin aviso ni forma de volver a una versión conocida); y evaluar pruebas automatizadas/CI — hoy no existe ninguna.
+39. ~~`Obtener config del bot` no distingue "bot no existe" de "bot existe"~~ — **hecho (19/ago).** No bastaba con un IF: confirmado en vivo que el Postgres node con 0 filas emite 0 items en ambas salidas (ni siquiera pasa por la rama de error) — cualquier IF después nunca se evalúa. Fix real: `alwaysOutputData: true` en el nodo + un IF nuevo ("Bot encontrado") + un Code node nuevo que arma el mensaje de error, todo enrutado a "Preparar fallo" igual que cualquier otro fallo. Probado en vivo dos veces (bot inexistente → `failed` + trouble_shooter correcto; bot válido → sin regresión). 28 nodos ahora. Reexportado a `n8n-workflows/ejecutor_generico.json`. Ver `ejecutor_generico.md`, "Lo que falta", punto 3, para el detalle técnico completo.
