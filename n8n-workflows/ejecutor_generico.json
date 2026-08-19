@@ -1,5 +1,5 @@
 ﻿{
-    "updatedAt":  "2026-08-16T05:01:49.686Z",
+    "updatedAt":  "2026-08-18T18:56:05.252Z",
     "createdAt":  "2026-08-11T23:09:01.171Z",
     "id":  "aVORciBJl52lTxTU",
     "name":  "Ejecutor genérico",
@@ -84,9 +84,9 @@
                   {
                       "parameters":  {
                                          "operation":  "executeQuery",
-                                         "query":  "SELECT * FROM bots WHERE slug = \u0027{{ $json.bot }}\u0027 AND active = true LIMIT 1;",
+                                         "query":  "SELECT * FROM bots WHERE slug = $1 AND active = true LIMIT 1;",
                                          "options":  {
-
+                                                         "queryReplacement":  "={{ [$json.bot] }}"
                                                      }
                                      },
                       "type":  "n8n-nodes-base.postgres",
@@ -201,7 +201,7 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "const salida = JSON.parse($(\u0027Llamar a omniroute\u0027).first().json.choices[0].message.content);\nconst parentId = $(\u0027Reclamar tarea pendiente\u0027).first().json.id;\nconst clusterPropio = $(\u0027Obtener config del bot\u0027).first().json.cluster;\nreturn salida.asignaciones.map(a =\u003e ({\n  json: {\n    cluster: a.cluster || clusterPropio,\n    bot: a.bot,\n    status: \"pending\",\n    input: { text: a.input, modo: a.modo },\n    parent_task_id: parentId\n  }\n}));"
+                                         "jsCode":  "const salida = JSON.parse($(\u0027Llamar a omniroute\u0027).first().json.choices[0].message.content);\nconst parentId = $(\u0027Reclamar tarea pendiente\u0027).first().json.id;\nconst clusterPropio = $(\u0027Obtener config del bot\u0027).first().json.cluster;\nconst nivelPropio = $(\u0027Reclamar tarea pendiente\u0027).first().json.nivel_importancia;\nreturn salida.asignaciones.map(a =\u003e ({\n  json: {\n    cluster: a.cluster || clusterPropio,\n    bot: a.bot,\n    status: \"pending\",\n    input: { text: a.input, modo: a.modo },\n    parent_task_id: parentId,\n    nivel_importancia: a.nivel_importancia || nivelPropio\n  }\n}));"
                                      },
                       "type":  "n8n-nodes-base.code",
                       "typeVersion":  2,
@@ -216,9 +216,9 @@
                   {
                       "parameters":  {
                                          "operation":  "executeQuery",
-                                         "query":  "INSERT INTO tasks (cluster, bot, status, input, parent_task_id) VALUES ($1, $2, $3, $4, $5);",
+                                         "query":  "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id) VALUES ($1, $2, $3, $4, $5, $6, (SELECT operation_id FROM tasks WHERE id = $5));",
                                          "options":  {
-                                                         "queryReplacement":  "={{ [$json.cluster, $json.bot, $json.status, JSON.stringify($json.input), $json.parent_task_id] }}"
+                                                         "queryReplacement":  "={{ [$json.cluster, $json.bot, $json.status, JSON.stringify($json.input), $json.parent_task_id, $json.nivel_importancia] }}"
                                                      }
                                      },
                       "type":  "n8n-nodes-base.postgres",
@@ -302,9 +302,9 @@
                   {
                       "parameters":  {
                                          "operation":  "executeQuery",
-                                         "query":  "UPDATE tasks SET status = \u0027failed\u0027, output = $1, updated_at = now() WHERE id = $2;",
+                                         "query":  "UPDATE tasks SET status = \u0027failed\u0027, output = $1, updated_at = now() WHERE id = $2\nRETURNING *;",
                                          "options":  {
-                                                         "queryReplacement":  "={{ [$json.error?.message ?? JSON.stringify($json), $(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
+                                                         "queryReplacement":  "={{ [$json.errMsg, $json.taskId] }}"
                                                      }
                                      },
                       "type":  "n8n-nodes-base.postgres",
@@ -460,7 +460,7 @@
                   {
                       "parameters":  {
                                          "operation":  "executeQuery",
-                                         "query":  "INSERT INTO tasks (cluster, bot, status, input, parent_task_id) VALUES ($1, $2, \u0027pending\u0027, $3, $4);",
+                                         "query":  "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id) VALUES ($1, $2, \u0027pending\u0027, $3, $4, (SELECT nivel_importancia FROM tasks WHERE id = $4), (SELECT operation_id FROM tasks WHERE id = $4));",
                                          "options":  {
                                                          "queryReplacement":  "={{ [$json.cluster_padre, $json.bot_padre, JSON.stringify({ text: $(\u0027Llamar a omniroute\u0027).first().json.choices[0].message.content.replace(\u0027NECESITA_ACLARACION: \u0027, \u0027\u0027) }), $(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
                                                      }
@@ -590,6 +590,125 @@
                                                        }
                                       },
                       "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "c6e31f79-d07a-4a56-aa95-e15d78d692e7",
+                                                                                   "leftValue":  "={{ $json.bot }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "notEmpty",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               },
+                                                                               {
+                                                                                   "id":  "07b9add6-ef12-4e8c-a3b5-70e244011fbc",
+                                                                                   "leftValue":  "={{ $json.bot }}",
+                                                                                   "rightValue":  "trouble_shooter",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "notEquals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "looseTypeValidation":  true,
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       3040,
+                                       16
+                                   ],
+                      "id":  "890c9e9c-50bf-4ce7-ba9c-1b80e49c0cb9",
+                      "name":  "¿Bot que falló no es trouble_shooter?"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "INSERT INTO tasks (cluster, bot, status, input, nivel_importancia, operation_id) VALUES ($1, \u0027trouble_shooter\u0027, \u0027pending\u0027, jsonb_build_object(\u0027text\u0027, $2), $3, $4);",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$json.cluster, $json.output, $json.nivel_importancia, $json.operation_id] }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       3264,
+                                       16
+                                   ],
+                      "id":  "965224a6-bdc8-474f-872e-621738474c8f",
+                      "name":  "Despachar a trouble_shooter",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "ej8w00p6sjEzbq6J",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "18b332b0-e29a-4ef7-b32a-eee0ed302ccb",
+                                                                                   "leftValue":  "={{ $json.error !== undefined }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "looseTypeValidation":  true,
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       1360,
+                                       372
+                                   ],
+                      "id":  "f259d81c-8678-447b-b619-8761bbbdf3cf",
+                      "name":  "¿Falló la llamada a omniroute?"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const taskId = $(\u0027Reclamar tarea pendiente\u0027).item.json.id;\n\nlet errMsg;\nif (typeof $json.error === \u0027string\u0027) {\n  errMsg = $json.error;\n} else if ($json.error \u0026\u0026 typeof $json.error === \u0027object\u0027) {\n  errMsg = $json.error.message || $json.error.description || JSON.stringify($json.error);\n} else if ($json.message) {\n  errMsg = $json.message;\n} else {\n  errMsg = JSON.stringify($json);\n}\n\nreturn [{ json: { taskId, errMsg } }];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1584,
+                                       372
+                                   ],
+                      "id":  "286971bd-329a-4660-8397-d010c1458233",
+                      "name":  "Preparar fallo"
                   }
               ],
     "connections":  {
@@ -615,7 +734,7 @@
                                                                       ],
                                                                       [
                                                                           {
-                                                                              "node":  "Marcar como fallida",
+                                                                              "node":  "Preparar fallo",
                                                                               "type":  "main",
                                                                               "index":  0
                                                                           }
@@ -644,7 +763,7 @@
                                                                     ],
                                                                     [
                                                                         {
-                                                                            "node":  "Marcar como fallida",
+                                                                            "node":  "Preparar fallo",
                                                                             "type":  "main",
                                                                             "index":  0
                                                                         }
@@ -655,17 +774,13 @@
                                                    "main":  [
                                                                 [
                                                                     {
-                                                                        "node":  "¿Necesita aclaración?",
+                                                                        "node":  "¿Falló la llamada a omniroute?",
                                                                         "type":  "main",
                                                                         "index":  0
                                                                     }
                                                                 ],
                                                                 [
-                                                                    {
-                                                                        "node":  "Marcar como fallida",
-                                                                        "type":  "main",
-                                                                        "index":  0
-                                                                    }
+
                                                                 ]
                                                             ]
                                                },
@@ -685,7 +800,7 @@
                                                                ],
                                                                [
                                                                    {
-                                                                       "node":  "Marcar como fallida",
+                                                                       "node":  "Preparar fallo",
                                                                        "type":  "main",
                                                                        "index":  0
                                                                    }
@@ -710,7 +825,7 @@
                                                                         ],
                                                                         [
                                                                             {
-                                                                                "node":  "Marcar como fallida",
+                                                                                "node":  "Preparar fallo",
                                                                                 "type":  "main",
                                                                                 "index":  0
                                                                             }
@@ -728,7 +843,7 @@
                                                                   ],
                                                                   [
                                                                       {
-                                                                          "node":  "Marcar como fallida",
+                                                                          "node":  "Preparar fallo",
                                                                           "type":  "main",
                                                                           "index":  0
                                                                       }
@@ -742,7 +857,7 @@
                                                                 ],
                                                                 [
                                                                     {
-                                                                        "node":  "Marcar como fallida",
+                                                                        "node":  "Preparar fallo",
                                                                         "type":  "main",
                                                                         "index":  0
                                                                     }
@@ -767,7 +882,7 @@
                                                                    ],
                                                                    [
                                                                        {
-                                                                           "node":  "Marcar como fallida",
+                                                                           "node":  "Preparar fallo",
                                                                            "type":  "main",
                                                                            "index":  0
                                                                        }
@@ -785,7 +900,7 @@
                                                                  ],
                                                                  [
                                                                      {
-                                                                         "node":  "Marcar como fallida",
+                                                                         "node":  "Preparar fallo",
                                                                          "type":  "main",
                                                                          "index":  0
                                                                      }
@@ -806,7 +921,7 @@
                                                                     ],
                                                                     [
                                                                         {
-                                                                            "node":  "Marcar como fallida",
+                                                                            "node":  "Preparar fallo",
                                                                             "type":  "main",
                                                                             "index":  0
                                                                         }
@@ -842,7 +957,7 @@
                                                                     ],
                                                                     [
                                                                         {
-                                                                            "node":  "Marcar como fallida",
+                                                                            "node":  "Preparar fallo",
                                                                             "type":  "main",
                                                                             "index":  0
                                                                         }
@@ -867,7 +982,7 @@
                                                            ],
                                                            [
                                                                {
-                                                                   "node":  "Marcar como fallida",
+                                                                   "node":  "Preparar fallo",
                                                                    "type":  "main",
                                                                    "index":  0
                                                                }
@@ -885,7 +1000,7 @@
                                                                        ],
                                                                        [
                                                                            {
-                                                                               "node":  "Marcar como fallida",
+                                                                               "node":  "Preparar fallo",
                                                                                "type":  "main",
                                                                                "index":  0
                                                                            }
@@ -899,7 +1014,7 @@
                                                                      ],
                                                                      [
                                                                          {
-                                                                             "node":  "Marcar como fallida",
+                                                                             "node":  "Preparar fallo",
                                                                              "type":  "main",
                                                                              "index":  0
                                                                          }
@@ -917,7 +1032,7 @@
                                                                              ],
                                                                              [
                                                                                  {
-                                                                                     "node":  "Marcar como fallida",
+                                                                                     "node":  "Preparar fallo",
                                                                                      "type":  "main",
                                                                                      "index":  0
                                                                                  }
@@ -935,7 +1050,7 @@
                                                              ],
                                                              [
                                                                  {
-                                                                     "node":  "Marcar como fallida",
+                                                                     "node":  "Preparar fallo",
                                                                      "type":  "main",
                                                                      "index":  0
                                                                  }
@@ -953,7 +1068,7 @@
                                                             ],
                                                             [
                                                                 {
-                                                                    "node":  "Marcar como fallida",
+                                                                    "node":  "Preparar fallo",
                                                                     "type":  "main",
                                                                     "index":  0
                                                                 }
@@ -965,6 +1080,60 @@
                                                             [
 
                                                             ],
+                                                            [
+                                                                {
+                                                                    "node":  "Preparar fallo",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Marcar como fallida":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "¿Bot que falló no es trouble_shooter?",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "¿Bot que falló no es trouble_shooter?":  {
+                                                                      "main":  [
+                                                                                   [
+                                                                                       {
+                                                                                           "node":  "Despachar a trouble_shooter",
+                                                                                           "type":  "main",
+                                                                                           "index":  0
+                                                                                       }
+                                                                                   ],
+                                                                                   [
+
+                                                                                   ]
+                                                                               ]
+                                                                  },
+                        "¿Falló la llamada a omniroute?":  {
+                                                               "main":  [
+                                                                            [
+                                                                                {
+                                                                                    "node":  "Preparar fallo",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ],
+                                                                            [
+                                                                                {
+                                                                                    "node":  "¿Necesita aclaración?",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ]
+                                                                        ]
+                                                           },
+                        "Preparar fallo":  {
+                                               "main":  [
                                                             [
                                                                 {
                                                                     "node":  "Marcar como fallida",
@@ -990,10 +1159,10 @@
     "pinData":  {
 
                 },
-    "versionId":  "6700d452-5bf0-4d1f-bd59-c2d097c1b82d",
+    "versionId":  "1373f160-c7fd-4a08-a72e-dbfc1f177864",
     "activeVersionId":  null,
-    "versionCounter":  245,
-    "triggerCount":  0,
+    "versionCounter":  278,
+    "triggerCount":  1,
     "sourceWorkflowId":  null,
     "shared":  [
                    {
