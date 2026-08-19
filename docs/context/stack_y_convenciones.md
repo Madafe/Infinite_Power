@@ -27,7 +27,9 @@
   sin tilde) la fija Efadam una sola vez, al abrir la operación de la que forma
   parte la tarea — ver "Niveles de importancia y BYOK" y `operations` abajo.
   `operation_id` (nullable) referencia a `operations` — se propaga de padre a
-  hijo automáticamente al crear tareas nuevas.
+  hijo automáticamente al crear tareas nuevas. Las tareas de síntesis de
+  aprendizaje se identifican en `input.tipo = "sintesis_aprendizaje"`; no
+  ejecutan trabajo de negocio ni escriben conocimiento directamente.
 - `operations` — el hilo de trabajo completo detrás de una tarea o grupo de
   tareas relacionadas (una petición de usuario, una investigación, una ronda
   de autoexpansión). `id, tipo, titulo, descripcion, nivel_importancia,
@@ -36,6 +38,9 @@
   — a diferencia de `tasks`, que cualquier cluster puede seguir despachando
   directo a otro sin pasar por Efadam. Un cluster que necesita arrancar un
   hilo de trabajo nuevo le pregunta a Efadam primero.
+  Al completar o alcanzar un hito de una tarea concreta, la operación puede
+  generar una tarea asíncrona de síntesis de aprendizaje con el mismo
+  `operation_id`; no bloquea la respuesta ni el avance de la tarea concreta.
 - `bots` — configuración de cada bot: `slug, cluster, prompt_especifico,
   system_prompt (derivado), contexto_slugs, conocimiento_directo,
   requires_approval, dispatches_tasks, active`. `default_model` sigue en la

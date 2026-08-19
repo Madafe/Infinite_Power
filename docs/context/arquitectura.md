@@ -32,7 +32,10 @@ su rama antes de reportar a Efadam.
   `bots.conocimiento_directo` (hoy, solo Trouble shooter — ver
   `memoria_del_sistema.md`). Es también quien asigna el nivel de importancia
   de cada tarea que despacha (ver "Quién decide el modelo" más abajo) — los
-  bots destino no deciden su propio nivel. Conoce el sistema por dos vías: `system_knowledge`
+  bots destino no deciden su propio nivel. Al abrir una operación, confirma
+  su registro y despacha la tarea concreta sin esperar la síntesis de
+  aprendizaje, que ocurre después de un cierre o hito y conserva el mismo
+  `operation_id`. Conoce el sistema por dos vías: `system_knowledge`
   inyectado vía `contexto_slugs` (qué es el sistema; no cambia mensaje a
   mensaje, pero sí evoluciona con el tiempo) y
   lectura directa de `tasks`/`agent_runs` (qué está pasando ahora, cambia

@@ -121,6 +121,15 @@ Cuando un hallazgo de cualquier rama implica que algo en `system_knowledge` o
    igual que ya hace con el resto de lo que U&R center le reporta, solo
    revisa que no haya discrepancia con la meta de negocio establecida.
 
+La ejecución de una operación y el aprendizaje derivado de ella no comparten
+la ruta crítica. Efadam confirma y despacha la **tarea concreta** sin esperar
+la **síntesis de aprendizaje**. Al cerrar o alcanzar un hito, la síntesis se
+dispara como una tarea independiente con el mismo `operation_id`; reúne
+evidencia y produce una propuesta, pero no escribe `knowledge_log` ni
+`system_knowledge`. Upgrade & review center conserva el juicio de fondo y
+Efadam conserva la inserción aprobada. Así, el aprendizaje queda trazable sin
+convertirse en una fuente de latencia o bloqueo para el usuario.
+
 Esto mantiene la simetría del diseño existente (los 3 centers retienen y
 auditan su rama; Efadam enruta y no re-audita el detalle) en vez de crear una
 excepción especial para el conocimiento del sistema.
