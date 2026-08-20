@@ -804,9 +804,14 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    requiere disparar el Manual Trigger a mano (o, como se hizo hoy para
    probar, un Webhook Trigger temporal). Pasarlo a Schedule Trigger es parte
    de sacarlo de modo prueba.
-6. Prueba end-to-end en vivo del loop completo (memoria + aclaración +
-   reanudador) — construido y verificado en estructura, falta correrlo con
-   una tarea real de principio a fin y confirmar el resultado.
+6. **Parcialmente probado (20/ago).** Corrida real de `tecnico_jefe` →
+   `coder` de punta a punta confirmada (memoria/contexto funcionando, salida
+   real de modelo). **Pero reveló que el camino de aclaración no se probó
+   con éxito** — `coder` respondió con `NECESITA_ACLARACION:` envuelto en
+   Markdown y la tarea quedó `done` en vez de disparar el escalamiento (ver
+   punto 9 de arriba y pendiente 40 en `plan_de_accion_completo.md`). Falta
+   todavía: una prueba limpia del camino de aclaración (sin el problema del
+   Markdown) y del reanudador de bloqueados end-to-end.
 7. **Nada abre una `operations` de verdad todavía (18/ago, cuarta ronda).**
    La tabla, la columna y la propagación están construidas y probadas, pero
    como el diseño quedó centralizado en Efadam (decisión de Mateo) y Efadam
@@ -814,18 +819,26 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    inserte una fila nueva en `operations` — solo se puede probar insertando
    una a mano, como se hizo para las pruebas de esta ronda. Se destraba
    junto con Bloque 3 (activar Efadam).
-8. **El más urgente de todos, agregado 19/ago tras corrección de Mateo:
-   reexportar este workflow a `n8n-workflows/ejecutor_generico.json`.**
-   Todas las correcciones de C2, C3, el bug de manejo de errores y la
-   construcción completa de operaciones se hicieron vía API directo contra
-   la instancia de n8n — el export en el repo sigue siendo el del 16 de
-   agosto, previo a todo esto. Confirmado con `grep`: el export actual
-   todavía tiene la SQL vulnerable de C2 en "Obtener config del bot"
-   (línea 87) y no tiene ni un solo `operation_id`. Sin esto, nada de lo
-   que dice este documento es verificable desde el repo. Ver actualización
-   del 19 de agosto en `plan_de_accion_completo.md`.
-9. **Pendiente 34 (aprobación Tipo A) + pendiente 37 (topes de fan-out) —
-   armado y validado, sin aplicar en vivo (20/ago).** El Tipo B (duda de
+8. ~~El más urgente de todos, agregado 19/ago tras corrección de Mateo:
+   reexportar este workflow a `n8n-workflows/ejecutor_generico.json`~~ —
+   **hecho (20/ago, segunda ronda), vía GET fresco con Python (explícitamente
+   UTF-8, evita el bug de encoding de PowerShell).** Confirmado con `grep`:
+   `operation_id` aparece 10 veces en el export, cero caracteres de
+   reemplazo (sin corrupción de encoding). El export ahora refleja el
+   workflow real de 36 nodos (post pendientes 34/37).
+9. ~~Pendiente 34 (aprobación Tipo A) + pendiente 37 (topes de fan-out) —
+   armado y validado, sin aplicar en vivo~~ — **aplicado en vivo y probado en
+   el camino normal (20/ago, segunda ronda).** El workflow vivo ya tiene 36
+   nodos. Prueba real: tarea de `tecnico_jefe` → hija de `coder` heredó
+   `nivel_importancia` correctamente, `bot_niveles_fijos` vacía cayó a
+   `tasks.nivel_importancia` sin romper nada, el gate nuevo no bloqueó nada
+   (correcto, ningún bot tiene `requires_approval = true` todavía). **Falta
+   probar en vivo el truncado de fan-out y el tope por operación en sí**
+   (esta prueba solo generó 1 tarea hija) — ver `plan_de_accion_completo.md`,
+   pendiente 41. **Hallazgo nuevo, no relacionado con esto:** la detección de
+   "¿Necesita aclaración?" (Tipo B) no disparó cuando el modelo envolvió la
+   marca en Markdown (`**NECESITA_ACLARACION:**`) — ver pendiente 40 del
+   mismo archivo. Detalle original de la construcción: El Tipo B (duda de
    coordinación, escalamiento al padre inmediato) ya existía desde antes —
    ver la cadena "¿Necesita aclaración?" → "Obtener bot que asignó" →
    "¿Tiene padre?" en el mapa de arriba, no hizo falta construirlo. Lo

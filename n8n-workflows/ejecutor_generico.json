@@ -1,1302 +1,1646 @@
-﻿{
-    "updatedAt":  "2026-08-19T17:44:04.381Z",
-    "createdAt":  "2026-08-11T23:09:01.171Z",
-    "id":  "aVORciBJl52lTxTU",
-    "name":  "Ejecutor genérico",
-    "description":  null,
-    "active":  false,
-    "isArchived":  false,
-    "nodes":  [
-                  {
-                      "parameters":  {
-
-                                     },
-                      "type":  "n8n-nodes-base.manualTrigger",
-                      "typeVersion":  1,
-                      "position":  [
-                                       -96,
-                                       0
-                                   ],
-                      "id":  "aeb520fe-566a-4201-9d98-780d896b7d0c",
-                      "name":  "When clicking ‘Execute workflow’"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "UPDATE tasks\nSET status = \u0027running\u0027, updated_at = now()\nWHERE id = (\n  SELECT id FROM tasks\n  WHERE status = \u0027pending\u0027\n  ORDER BY created_at\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n)\nRETURNING *;",
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       128,
-                                       0
-                                   ],
-                      "id":  "d48e6e6c-56e2-4160-b8f2-19533ee6c02f",
-                      "name":  "Reclamar tarea pendiente",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "conditions":  {
-                                                            "options":  {
-                                                                            "caseSensitive":  true,
-                                                                            "leftValue":  "",
-                                                                            "typeValidation":  "loose",
-                                                                            "version":  3
-                                                                        },
-                                                            "conditions":  [
-                                                                               {
-                                                                                   "id":  "d118eff9-ab2d-453e-b2ed-1fba1550bc6f",
-                                                                                   "leftValue":  "={{ $json.id }}",
-                                                                                   "rightValue":  "",
-                                                                                   "operator":  {
-                                                                                                    "type":  "string",
-                                                                                                    "operation":  "notEmpty",
-                                                                                                    "singleValue":  true
-                                                                                                }
-                                                                               }
-                                                                           ],
-                                                            "combinator":  "and"
-                                                        },
-                                         "looseTypeValidation":  true,
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.if",
-                      "typeVersion":  2.3,
-                      "position":  [
-                                       352,
-                                       64
-                                   ],
-                      "id":  "dcfbcc91-1aaf-492e-a1cf-cfd07cf60965",
-                      "name":  "¿Hay tarea?"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "SELECT * FROM bots WHERE slug = $1 AND active = true LIMIT 1;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$json.bot] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       576,
-                                       64
-                                   ],
-                      "id":  "4bbaaa71-68a8-47cd-8ce5-91762f17e624",
-                      "name":  "Obtener config del bot",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput",
-                      "alwaysOutputData":  true
-                  },
-                  {
-                      "parameters":  {
-                                         "method":  "POST",
-                                         "url":  "http://omniroute:20128/v1/chat/completions",
-                                         "sendBody":  true,
-                                         "specifyBody":  "json",
-                                         "jsonBody":  "={{ JSON.stringify({\n  model: $(\u0027Reclamar tarea pendiente\u0027).first().json.nivel_importancia,\n  messages: [\n    { role: \"system\", content: $(\u0027Obtener config del bot\u0027).first().json.system_prompt },\n    { role: \"system\", content: $(\u0027Obtener contexto de tarea padre\u0027).first().json.parent_input ? `Contexto: esta tarea fue asignada por ${$(\u0027Obtener contexto de tarea padre\u0027).first().json.parent_bot} a partir de: ${$(\u0027Obtener contexto de tarea padre\u0027).first().json.parent_input}` : \"Esta tarea no tiene contexto previo; es la primera de su cadena.\" },\n    ...($(\u0027Cargar contexto\u0027).first().json.system_knowledge ? [{ role: \"system\", content: \"## Conocimiento del sistema\\n\\n\" + $(\u0027Cargar contexto\u0027).first().json.system_knowledge }] : []),\n    ...($(\u0027Cargar contexto\u0027).first().json.knowledge_log ? [{ role: \"system\", content: \"## Casos y patrones ya conocidos - usalos, no los re-investigues\\n\\n\" + $(\u0027Cargar contexto\u0027).first().json.knowledge_log }] : []),\n    { role: \"user\", content: $(\u0027Reclamar tarea pendiente\u0027).first().json.input.text }\n  ]\n}) }}",
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.httpRequest",
-                      "typeVersion":  4.5,
-                      "position":  [
-                                       1248,
-                                       112
-                                   ],
-                      "id":  "d3023428-2a64-490f-9308-ab94ba77fc2f",
-                      "name":  "Llamar a omniroute",
-                      "retryOnFail":  true,
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "UPDATE tasks SET status = $1, output = $2, updated_at = now() WHERE id = $3;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$(\u0027Obtener config del bot\u0027).first().json.requires_approval ? \u0027needs_approval\u0027 : \u0027done\u0027, $json.choices[0].message.content, $(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       1696,
-                                       48
-                                   ],
-                      "id":  "48b34caf-1148-4c3c-9c96-b6da5265271d",
-                      "name":  "Guardar resultado",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "conditions":  {
-                                                            "options":  {
-                                                                            "caseSensitive":  true,
-                                                                            "leftValue":  "",
-                                                                            "typeValidation":  "loose",
-                                                                            "version":  3
-                                                                        },
-                                                            "conditions":  [
-                                                                               {
-                                                                                   "id":  "3f1503c4-c5e6-476d-87ca-48dc01467a96",
-                                                                                   "leftValue":  "={{ $(\u0027Obtener config del bot\u0027).first().json.dispatches_tasks }}",
-                                                                                   "rightValue":  "",
-                                                                                   "operator":  {
-                                                                                                    "type":  "boolean",
-                                                                                                    "operation":  "true",
-                                                                                                    "singleValue":  true
-                                                                                                }
-                                                                               },
-                                                                               {
-                                                                                   "id":  "3860e7e7-8f91-458d-8dc2-4e27ea3b91e2",
-                                                                                   "leftValue":  "={{ $(\u0027Obtener config del bot\u0027).first().json.requires_approval }}",
-                                                                                   "rightValue":  "",
-                                                                                   "operator":  {
-                                                                                                    "type":  "boolean",
-                                                                                                    "operation":  "false",
-                                                                                                    "singleValue":  true
-                                                                                                }
-                                                                               }
-                                                                           ],
-                                                            "combinator":  "and"
-                                                        },
-                                         "looseTypeValidation":  true,
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.if",
-                      "typeVersion":  2.3,
-                      "position":  [
-                                       1920,
-                                       32
-                                   ],
-                      "id":  "98032e6c-4969-42aa-983b-eeba58d8bce5",
-                      "name":  "¿Este bot despacha tareas?",
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "jsCode":  "const salida = JSON.parse($(\u0027Llamar a omniroute\u0027).first().json.choices[0].message.content);\nconst parentId = $(\u0027Reclamar tarea pendiente\u0027).first().json.id;\nconst clusterPropio = $(\u0027Obtener config del bot\u0027).first().json.cluster;\nconst nivelPropio = $(\u0027Reclamar tarea pendiente\u0027).first().json.nivel_importancia;\nreturn salida.asignaciones.map(a =\u003e ({\n  json: {\n    cluster: a.cluster || clusterPropio,\n    bot: a.bot,\n    status: \"pending\",\n    input: { text: a.input, modo: a.modo },\n    parent_task_id: parentId,\n    nivel_importancia: a.nivel_importancia || nivelPropio\n  }\n}));"
-                                     },
-                      "type":  "n8n-nodes-base.code",
-                      "typeVersion":  2,
-                      "position":  [
-                                       2368,
-                                       464
-                                   ],
-                      "id":  "f5dc8107-d5b3-4d80-922a-c6f438a0452f",
-                      "name":  "Parsear asignaciones",
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id) VALUES ($1, $2, $3, $4, $5, $6, (SELECT operation_id FROM tasks WHERE id = $5));",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$json.cluster, $json.bot, $json.status, JSON.stringify($json.input), $json.parent_task_id, $json.nivel_importancia] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       2592,
-                                       512
-                                   ],
-                      "id":  "b55ab6a0-ff74-483e-8d10-9086afc0aea3",
-                      "name":  "Crear tareas hijas",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "conditions":  {
-                                                            "options":  {
-                                                                            "caseSensitive":  true,
-                                                                            "leftValue":  "",
-                                                                            "typeValidation":  "strict",
-                                                                            "version":  3
-                                                                        },
-                                                            "conditions":  [
-                                                                               {
-                                                                                   "id":  "9a9f103d-aeed-4d6f-a61e-f286159ea884",
-                                                                                   "leftValue":  "={{ $(\u0027Obtener config del bot\u0027).first().json.requires_approval }}",
-                                                                                   "rightValue":  "",
-                                                                                   "operator":  {
-                                                                                                    "type":  "boolean",
-                                                                                                    "operation":  "true",
-                                                                                                    "singleValue":  true
-                                                                                                }
-                                                                               }
-                                                                           ],
-                                                            "combinator":  "and"
-                                                        },
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.if",
-                      "typeVersion":  2.3,
-                      "position":  [
-                                       2144,
-                                       240
-                                   ],
-                      "id":  "b44f788d-adbe-490c-8c54-07decd9df92e",
-                      "name":  "¿Requiere aprobación?",
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "chatId":  "-5436560130",
-                                         "text":  "={{ $(\u0027Llamar a omniroute\u0027).item.json.choices[0].message.content }}",
-                                         "additionalFields":  {
-
-                                                              }
-                                     },
-                      "type":  "n8n-nodes-base.telegram",
-                      "typeVersion":  1.2,
-                      "position":  [
-                                       2368,
-                                       -688
-                                   ],
-                      "id":  "bc2ffe26-8704-43dd-869e-6543a6ab1a15",
-                      "name":  "Send a text message",
-                      "webhookId":  "1455de8c-8b23-4329-8937-0077dbcc8832",
-                      "credentials":  {
-                                          "telegramApi":  {
-                                                              "id":  "ERjVpxAa0CTVNhll",
-                                                              "name":  "Telegram account"
-                                                          }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "UPDATE tasks SET status = \u0027failed\u0027, output = $1, updated_at = now() WHERE id = $2\nRETURNING *;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$json.errMsg, $json.taskId] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       2816,
-                                       16
-                                   ],
-                      "id":  "95516d5e-db42-4334-a28b-bf8192613ddd",
-                      "name":  "Marcar como fallida",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      }
-                  },
-                  {
-                      "parameters":  {
-                                         "conditions":  {
-                                                            "options":  {
-                                                                            "caseSensitive":  true,
-                                                                            "leftValue":  "",
-                                                                            "typeValidation":  "strict",
-                                                                            "version":  3
-                                                                        },
-                                                            "conditions":  [
-                                                                               {
-                                                                                   "id":  "9a9f103d-aeed-4d6f-a61e-f286159ea884",
-                                                                                   "leftValue":  "={{ $(\u0027Obtener config del bot\u0027).first().json.requires_approval }}",
-                                                                                   "rightValue":  "",
-                                                                                   "operator":  {
-                                                                                                    "type":  "boolean",
-                                                                                                    "operation":  "true",
-                                                                                                    "singleValue":  true
-                                                                                                }
-                                                                               }
-                                                                           ],
-                                                            "combinator":  "and"
-                                                        },
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.if",
-                      "typeVersion":  2.3,
-                      "position":  [
-                                       2144,
-                                       -144
-                                   ],
-                      "id":  "fa16ab11-b8b1-4439-a34a-32a0740db5af",
-                      "name":  "¿Requiere aprobación?1",
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "conditions":  {
-                                                            "options":  {
-                                                                            "caseSensitive":  true,
-                                                                            "leftValue":  "",
-                                                                            "typeValidation":  "strict",
-                                                                            "version":  3
-                                                                        },
-                                                            "conditions":  [
-                                                                               {
-                                                                                   "id":  "36078b7f-60f7-4a0e-88b3-8babfb15ff28",
-                                                                                   "leftValue":  "={{ $json.choices[0].message.content.startsWith(\u0027NECESITA_ACLARACION:\u0027) }}",
-                                                                                   "rightValue":  "",
-                                                                                   "operator":  {
-                                                                                                    "type":  "boolean",
-                                                                                                    "operation":  "true",
-                                                                                                    "singleValue":  true
-                                                                                                }
-                                                                               }
-                                                                           ],
-                                                            "combinator":  "and"
-                                                        },
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.if",
-                      "typeVersion":  2.3,
-                      "position":  [
-                                       1472,
-                                       -320
-                                   ],
-                      "id":  "bc495257-1401-4e36-a2ba-528899dc74f0",
-                      "name":  "¿Necesita aclaración?"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "SELECT p.bot AS bot_padre, p.cluster AS cluster_padre\nFROM tasks t\nLEFT JOIN tasks p ON p.id = t.parent_task_id\nWHERE t.id = $1;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       1920,
-                                       -560
-                                   ],
-                      "id":  "f817ea73-a92d-4f38-808e-3440375d90ad",
-                      "name":  "Obtener bot que asignó",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "conditions":  {
-                                                            "options":  {
-                                                                            "caseSensitive":  true,
-                                                                            "leftValue":  "",
-                                                                            "typeValidation":  "loose",
-                                                                            "version":  3
-                                                                        },
-                                                            "conditions":  [
-                                                                               {
-                                                                                   "id":  "d346c925-3bc3-46dc-91aa-f8aa14f8b794",
-                                                                                   "leftValue":  "={{ $json.bot_padre }}",
-                                                                                   "rightValue":  "",
-                                                                                   "operator":  {
-                                                                                                    "type":  "string",
-                                                                                                    "operation":  "notEmpty",
-                                                                                                    "singleValue":  true
-                                                                                                }
-                                                                               }
-                                                                           ],
-                                                            "combinator":  "and"
-                                                        },
-                                         "looseTypeValidation":  true,
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.if",
-                      "typeVersion":  2.3,
-                      "position":  [
-                                       2144,
-                                       -704
-                                   ],
-                      "id":  "77a3a807-2412-44c3-b2ea-50e59d0d9f55",
-                      "name":  "¿Tiene padre?",
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id) VALUES ($1, $2, \u0027pending\u0027, $3, $4, (SELECT nivel_importancia FROM tasks WHERE id = $4), (SELECT operation_id FROM tasks WHERE id = $4));",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$json.cluster_padre, $json.bot_padre, JSON.stringify({ text: $(\u0027Llamar a omniroute\u0027).first().json.choices[0].message.content.replace(\u0027NECESITA_ACLARACION: \u0027, \u0027\u0027) }), $(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       2368,
-                                       -896
-                                   ],
-                      "id":  "0ddea90a-5e0d-4709-a6d9-12c362d2e655",
-                      "name":  "Crear tarea de aclaración",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "UPDATE tasks SET status = \u0027blocked\u0027, updated_at = now() WHERE id = $1 AND status \u003c\u003e \u0027needs_approval\u0027;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       2592,
-                                       -976
-                                   ],
-                      "id":  "ecebdd47-4cfc-45c6-b6a3-8cd2cc1ad890",
-                      "name":  "Bloquear tarea original",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "SELECT p.input-\u003e\u003e\u0027text\u0027 AS parent_input, p.bot AS parent_bot\nFROM tasks t\nLEFT JOIN tasks p ON p.id = t.parent_task_id\nWHERE t.id = $1;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       800,
-                                       0
-                                   ],
-                      "id":  "7b245428-7cff-4112-b88b-b48086e6c8a0",
-                      "name":  "Obtener contexto de tarea padre",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "with sk as (\n  select coalesce(string_agg(titulo || E\u0027\\n\u0027 || contenido, E\u0027\\n\\n---\\n\\n\u0027 order by slug), \u0027\u0027) as txt\n  from system_knowledge\n  where slug = any($1::text[])\n),\nkl_rows as (\n  select tipo, titulo, resumen_corto, detalle_completo, veces_visto, updated_at\n  from knowledge_log\n  where activo and (cluster is null or cluster = $2)\n  order by updated_at desc\n  limit 15\n),\nkl as (\n  select coalesce(string_agg(\n      \u0027- [\u0027 || tipo || \u0027 - visto \u0027 || veces_visto || \u0027x] \u0027 || titulo || \u0027 -\u003e \u0027 || resumen_corto\n      || coalesce(E\u0027\\n  Fix conocido: \u0027 || detalle_completo, \u0027\u0027),\n      E\u0027\\n\u0027 order by updated_at desc), \u0027\u0027) as txt\n  from kl_rows\n)\nselect sk.txt as system_knowledge, kl.txt as knowledge_log from sk, kl;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$(\u0027Obtener config del bot\u0027).first().json.contexto_slugs, $(\u0027Reclamar tarea pendiente\u0027).first().json.cluster] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       1024,
-                                       -80
-                                   ],
-                      "id":  "6593bfb6-e66a-4c68-84d8-2a4393c8909a",
-                      "name":  "Cargar contexto",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "jsCode":  "const cfg = $(\u0027Obtener config del bot\u0027).first().json;\nif (!cfg.conocimiento_directo) return [];\nlet out;\ntry { out = JSON.parse($(\u0027Llamar a omniroute\u0027).first().json.choices[0].message.content); }\ncatch (e) { return []; }\nconst p = out.patron_aprendido;\nif (!p || !p.patron) return [];\nconst tarea = $(\u0027Reclamar tarea pendiente\u0027).first().json;\nreturn [{ json: {\n  titulo: String(p.patron).slice(0, 200),\n  resumen_corto: p.causa_raiz || \u0027\u0027,\n  detalle_completo: p.fix || \u0027\u0027,\n  cluster: tarea.cluster,\n  origen_bot: tarea.bot,\n  task_id: tarea.id\n}}];"
-                                     },
-                      "type":  "n8n-nodes-base.code",
-                      "typeVersion":  2,
-                      "position":  [
-                                       2368,
-                                       752
-                                   ],
-                      "id":  "db055c0e-5528-4120-a3bc-309a199c8fd5",
-                      "name":  "Extraer patron",
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "insert into knowledge_log (tipo, titulo, resumen_corto, detalle_completo, cluster, origen_bot, task_id)\nvalues (\u0027patron_fallo\u0027, $1, $2, $3, $4, $5, $6)\non conflict (lower(titulo)) where tipo = \u0027patron_fallo\u0027\ndo update set veces_visto = knowledge_log.veces_visto + 1, updated_at = now();",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$json.titulo, $json.resumen_corto, $json.detalle_completo, $json.cluster, $json.origen_bot, $json.task_id] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       2592,
-                                       800
-                                   ],
-                      "id":  "c7cf01a5-a259-463c-b0ed-f8e9e6494bbf",
-                      "name":  "Guardar patron",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  },
-                  {
-                      "parameters":  {
-                                         "conditions":  {
-                                                            "options":  {
-                                                                            "caseSensitive":  true,
-                                                                            "leftValue":  "",
-                                                                            "typeValidation":  "loose",
-                                                                            "version":  3
-                                                                        },
-                                                            "conditions":  [
-                                                                               {
-                                                                                   "id":  "c6e31f79-d07a-4a56-aa95-e15d78d692e7",
-                                                                                   "leftValue":  "={{ $json.bot }}",
-                                                                                   "rightValue":  "",
-                                                                                   "operator":  {
-                                                                                                    "type":  "string",
-                                                                                                    "operation":  "notEmpty",
-                                                                                                    "singleValue":  true
-                                                                                                }
-                                                                               },
-                                                                               {
-                                                                                   "id":  "07b9add6-ef12-4e8c-a3b5-70e244011fbc",
-                                                                                   "leftValue":  "={{ $json.bot }}",
-                                                                                   "rightValue":  "trouble_shooter",
-                                                                                   "operator":  {
-                                                                                                    "type":  "string",
-                                                                                                    "operation":  "notEquals"
-                                                                                                }
-                                                                               }
-                                                                           ],
-                                                            "combinator":  "and"
-                                                        },
-                                         "looseTypeValidation":  true,
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.if",
-                      "typeVersion":  2.3,
-                      "position":  [
-                                       3040,
-                                       16
-                                   ],
-                      "id":  "890c9e9c-50bf-4ce7-ba9c-1b80e49c0cb9",
-                      "name":  "¿Bot que falló no es trouble_shooter?"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "INSERT INTO tasks (cluster, bot, status, input, nivel_importancia, operation_id) VALUES ($1, \u0027trouble_shooter\u0027, \u0027pending\u0027, jsonb_build_object(\u0027text\u0027, $2), $3, $4);",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$json.cluster, $json.output, $json.nivel_importancia, $json.operation_id] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       3264,
-                                       16
-                                   ],
-                      "id":  "965224a6-bdc8-474f-872e-621738474c8f",
-                      "name":  "Despachar a trouble_shooter",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      }
-                  },
-                  {
-                      "parameters":  {
-                                         "conditions":  {
-                                                            "options":  {
-                                                                            "caseSensitive":  true,
-                                                                            "leftValue":  "",
-                                                                            "typeValidation":  "loose",
-                                                                            "version":  3
-                                                                        },
-                                                            "conditions":  [
-                                                                               {
-                                                                                   "id":  "18b332b0-e29a-4ef7-b32a-eee0ed302ccb",
-                                                                                   "leftValue":  "={{ $json.error !== undefined }}",
-                                                                                   "rightValue":  "",
-                                                                                   "operator":  {
-                                                                                                    "type":  "boolean",
-                                                                                                    "operation":  "true",
-                                                                                                    "singleValue":  true
-                                                                                                }
-                                                                               }
-                                                                           ],
-                                                            "combinator":  "and"
-                                                        },
-                                         "looseTypeValidation":  true,
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.if",
-                      "typeVersion":  2.3,
-                      "position":  [
-                                       1360,
-                                       372
-                                   ],
-                      "id":  "f259d81c-8678-447b-b619-8761bbbdf3cf",
-                      "name":  "¿Falló la llamada a omniroute?"
-                  },
-                  {
-                      "parameters":  {
-                                         "jsCode":  "const taskId = $(\u0027Reclamar tarea pendiente\u0027).item.json.id;\n\nlet errMsg;\nif (typeof $json.error === \u0027string\u0027) {\n  errMsg = $json.error;\n} else if ($json.error \u0026\u0026 typeof $json.error === \u0027object\u0027) {\n  errMsg = $json.error.message || $json.error.description || JSON.stringify($json.error);\n} else if ($json.message) {\n  errMsg = $json.message;\n} else {\n  errMsg = JSON.stringify($json);\n}\n\nreturn [{ json: { taskId, errMsg } }];"
-                                     },
-                      "type":  "n8n-nodes-base.code",
-                      "typeVersion":  2,
-                      "position":  [
-                                       1584,
-                                       372
-                                   ],
-                      "id":  "286971bd-329a-4660-8397-d010c1458233",
-                      "name":  "Preparar fallo"
-                  },
-                  {
-                      "parameters":  {
-                                         "conditions":  {
-                                                            "options":  {
-                                                                            "caseSensitive":  true,
-                                                                            "leftValue":  "",
-                                                                            "typeValidation":  "loose",
-                                                                            "version":  3
-                                                                        },
-                                                            "conditions":  [
-                                                                               {
-                                                                                   "id":  "3c5cfcf1-b3d2-4f7d-a953-082f466caa99",
-                                                                                   "leftValue":  "={{ $json.id }}",
-                                                                                   "rightValue":  "",
-                                                                                   "operator":  {
-                                                                                                    "type":  "string",
-                                                                                                    "operation":  "notEmpty",
-                                                                                                    "singleValue":  true
-                                                                                                }
-                                                                               }
-                                                                           ],
-                                                            "combinator":  "and"
-                                                        },
-                                         "looseTypeValidation":  true,
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.if",
-                      "typeVersion":  2.3,
-                      "position":  [
-                                       800,
-                                       64
-                                   ],
-                      "id":  "0498793d-e2a0-4ca2-9937-1f065fae4728",
-                      "name":  "Bot encontrado"
-                  },
-                  {
-                      "parameters":  {
-                                         "jsCode":  "const slug = $(\u0027Reclamar tarea pendiente\u0027).item.json.bot;\nreturn [{ json: { error: `Bot no encontrado o inactivo: ${slug}` } }];"
-                                     },
-                      "type":  "n8n-nodes-base.code",
-                      "typeVersion":  2,
-                      "position":  [
-                                       800,
-                                       300
-                                   ],
-                      "id":  "7d92dee4-7c49-4930-8cd6-13b8a4f9a552",
-                      "name":  "Preparar error bot no encontrado"
-                  },
-                  {
-                      "parameters":  {
-                                         "chatId":  "-5436560130",
-                                         "text":  "={{ \"ALERTA CRITICA - Reclamar tarea pendiente fallo (posible Postgres caido o inalcanzable): \" + ($json.error?.message || $json.message || JSON.stringify($json)) }}",
-                                         "additionalFields":  {
-
-                                                              }
-                                     },
-                      "type":  "n8n-nodes-base.telegram",
-                      "typeVersion":  1.2,
-                      "position":  [
-                                       128,
-                                       220
-                                   ],
-                      "id":  "70d96c26-ad3f-4761-a4a2-b7973252ea1b",
-                      "name":  "Alerta critica Postgres",
-                      "credentials":  {
-                                          "telegramApi":  {
-                                                              "id":  "ERjVpxAa0CTVNhll",
-                                                              "name":  "Telegram account"
-                                                          }
-                                      },
-                      "webhookId":  "748b1ddd-1a64-4ed4-b01c-d55e2dad04c6"
-                  }
-              ],
-    "connections":  {
-                        "When clicking ‘Execute workflow’":  {
-                                                                 "main":  [
-                                                                              [
-                                                                                  {
-                                                                                      "node":  "Reclamar tarea pendiente",
-                                                                                      "type":  "main",
-                                                                                      "index":  0
-                                                                                  }
-                                                                              ]
-                                                                          ]
-                                                             },
-                        "Reclamar tarea pendiente":  {
-                                                         "main":  [
-                                                                      [
-                                                                          {
-                                                                              "node":  "¿Hay tarea?",
-                                                                              "type":  "main",
-                                                                              "index":  0
-                                                                          }
-                                                                      ],
-                                                                      [
-                                                                          {
-                                                                              "node":  "Preparar fallo",
-                                                                              "type":  "main",
-                                                                              "index":  0
-                                                                          },
-                                                                          {
-                                                                              "node":  "Alerta critica Postgres",
-                                                                              "type":  "main",
-                                                                              "index":  0
-                                                                          }
-                                                                      ]
-                                                                  ]
-                                                     },
-                        "¿Hay tarea?":  {
-                                            "main":  [
-                                                         [
-                                                             {
-                                                                 "node":  "Obtener config del bot",
-                                                                 "type":  "main",
-                                                                 "index":  0
-                                                             }
-                                                         ]
-                                                     ]
-                                        },
-                        "Obtener config del bot":  {
-                                                       "main":  [
-                                                                    [
-                                                                        {
-                                                                            "node":  "Bot encontrado",
-                                                                            "type":  "main",
-                                                                            "index":  0
-                                                                        }
-                                                                    ],
-                                                                    [
-                                                                        {
-                                                                            "node":  "Preparar fallo",
-                                                                            "type":  "main",
-                                                                            "index":  0
-                                                                        }
-                                                                    ]
-                                                                ]
-                                                   },
-                        "Llamar a omniroute":  {
-                                                   "main":  [
-                                                                [
-                                                                    {
-                                                                        "node":  "¿Falló la llamada a omniroute?",
-                                                                        "type":  "main",
-                                                                        "index":  0
-                                                                    }
-                                                                ],
-                                                                [
-
-                                                                ]
-                                                            ]
-                                               },
-                        "Guardar resultado":  {
-                                                  "main":  [
-                                                               [
-                                                                   {
-                                                                       "node":  "¿Este bot despacha tareas?",
-                                                                       "type":  "main",
-                                                                       "index":  0
-                                                                   },
-                                                                   {
-                                                                       "node":  "Extraer patron",
-                                                                       "type":  "main",
-                                                                       "index":  0
-                                                                   }
-                                                               ],
-                                                               [
-                                                                   {
-                                                                       "node":  "Preparar fallo",
-                                                                       "type":  "main",
-                                                                       "index":  0
-                                                                   }
-                                                               ]
-                                                           ]
-                                              },
-                        "¿Este bot despacha tareas?":  {
-                                                           "main":  [
-                                                                        [
-                                                                            {
-                                                                                "node":  "¿Requiere aprobación?",
-                                                                                "type":  "main",
-                                                                                "index":  0
-                                                                            }
-                                                                        ],
-                                                                        [
-                                                                            {
-                                                                                "node":  "¿Requiere aprobación?1",
-                                                                                "type":  "main",
-                                                                                "index":  0
-                                                                            }
-                                                                        ],
-                                                                        [
-                                                                            {
-                                                                                "node":  "Preparar fallo",
-                                                                                "type":  "main",
-                                                                                "index":  0
-                                                                            }
-                                                                        ]
-                                                                    ]
-                                                       },
-                        "Parsear asignaciones":  {
-                                                     "main":  [
-                                                                  [
-                                                                      {
-                                                                          "node":  "Crear tareas hijas",
-                                                                          "type":  "main",
-                                                                          "index":  0
-                                                                      }
-                                                                  ],
-                                                                  [
-                                                                      {
-                                                                          "node":  "Preparar fallo",
-                                                                          "type":  "main",
-                                                                          "index":  0
-                                                                      }
-                                                                  ]
-                                                              ]
-                                                 },
-                        "Crear tareas hijas":  {
-                                                   "main":  [
-                                                                [
-
-                                                                ],
-                                                                [
-                                                                    {
-                                                                        "node":  "Preparar fallo",
-                                                                        "type":  "main",
-                                                                        "index":  0
-                                                                    }
-                                                                ]
-                                                            ]
-                                               },
-                        "¿Requiere aprobación?":  {
-                                                      "main":  [
-                                                                   [
-                                                                       {
-                                                                           "node":  "Send a text message",
-                                                                           "type":  "main",
-                                                                           "index":  0
-                                                                       }
-                                                                   ],
-                                                                   [
-                                                                       {
-                                                                           "node":  "Parsear asignaciones",
-                                                                           "type":  "main",
-                                                                           "index":  0
-                                                                       }
-                                                                   ],
-                                                                   [
-                                                                       {
-                                                                           "node":  "Preparar fallo",
-                                                                           "type":  "main",
-                                                                           "index":  0
-                                                                       }
-                                                                   ]
-                                                               ]
-                                                  },
-                        "Send a text message":  {
-                                                    "main":  [
-                                                                 [
-                                                                     {
-                                                                         "node":  "Bloquear tarea original",
-                                                                         "type":  "main",
-                                                                         "index":  0
-                                                                     }
-                                                                 ],
-                                                                 [
-                                                                     {
-                                                                         "node":  "Preparar fallo",
-                                                                         "type":  "main",
-                                                                         "index":  0
-                                                                     }
-                                                                 ]
-                                                             ]
-                                                },
-                        "¿Requiere aprobación?1":  {
-                                                       "main":  [
-                                                                    [
-                                                                        {
-                                                                            "node":  "Send a text message",
-                                                                            "type":  "main",
-                                                                            "index":  0
-                                                                        }
-                                                                    ],
-                                                                    [
-
-                                                                    ],
-                                                                    [
-                                                                        {
-                                                                            "node":  "Preparar fallo",
-                                                                            "type":  "main",
-                                                                            "index":  0
-                                                                        }
-                                                                    ]
-                                                                ]
-                                                   },
-                        "¿Necesita aclaración?":  {
-                                                      "main":  [
-                                                                   [
-                                                                       {
-                                                                           "node":  "Obtener bot que asignó",
-                                                                           "type":  "main",
-                                                                           "index":  0
-                                                                       }
-                                                                   ],
-                                                                   [
-                                                                       {
-                                                                           "node":  "Guardar resultado",
-                                                                           "type":  "main",
-                                                                           "index":  0
-                                                                       }
-                                                                   ]
-                                                               ]
-                                                  },
-                        "Obtener bot que asignó":  {
-                                                       "main":  [
-                                                                    [
-                                                                        {
-                                                                            "node":  "¿Tiene padre?",
-                                                                            "type":  "main",
-                                                                            "index":  0
-                                                                        }
-                                                                    ],
-                                                                    [
-                                                                        {
-                                                                            "node":  "Preparar fallo",
-                                                                            "type":  "main",
-                                                                            "index":  0
-                                                                        }
-                                                                    ]
-                                                                ]
-                                                   },
-                        "¿Tiene padre?":  {
-                                              "main":  [
-                                                           [
-                                                               {
-                                                                   "node":  "Crear tarea de aclaración",
-                                                                   "type":  "main",
-                                                                   "index":  0
-                                                               }
-                                                           ],
-                                                           [
-                                                               {
-                                                                   "node":  "Send a text message",
-                                                                   "type":  "main",
-                                                                   "index":  0
-                                                               }
-                                                           ],
-                                                           [
-                                                               {
-                                                                   "node":  "Preparar fallo",
-                                                                   "type":  "main",
-                                                                   "index":  0
-                                                               }
-                                                           ]
-                                                       ]
-                                          },
-                        "Crear tarea de aclaración":  {
-                                                          "main":  [
-                                                                       [
-                                                                           {
-                                                                               "node":  "Bloquear tarea original",
-                                                                               "type":  "main",
-                                                                               "index":  0
-                                                                           }
-                                                                       ],
-                                                                       [
-                                                                           {
-                                                                               "node":  "Preparar fallo",
-                                                                               "type":  "main",
-                                                                               "index":  0
-                                                                           }
-                                                                       ]
-                                                                   ]
-                                                      },
-                        "Bloquear tarea original":  {
-                                                        "main":  [
-                                                                     [
-
-                                                                     ],
-                                                                     [
-                                                                         {
-                                                                             "node":  "Preparar fallo",
-                                                                             "type":  "main",
-                                                                             "index":  0
-                                                                         }
-                                                                     ]
-                                                                 ]
-                                                    },
-                        "Obtener contexto de tarea padre":  {
-                                                                "main":  [
-                                                                             [
-                                                                                 {
-                                                                                     "node":  "Cargar contexto",
-                                                                                     "type":  "main",
-                                                                                     "index":  0
-                                                                                 }
-                                                                             ],
-                                                                             [
-                                                                                 {
-                                                                                     "node":  "Preparar fallo",
-                                                                                     "type":  "main",
-                                                                                     "index":  0
-                                                                                 }
-                                                                             ]
-                                                                         ]
-                                                            },
-                        "Cargar contexto":  {
-                                                "main":  [
-                                                             [
-                                                                 {
-                                                                     "node":  "Llamar a omniroute",
-                                                                     "type":  "main",
-                                                                     "index":  0
-                                                                 }
-                                                             ],
-                                                             [
-                                                                 {
-                                                                     "node":  "Preparar fallo",
-                                                                     "type":  "main",
-                                                                     "index":  0
-                                                                 }
-                                                             ]
-                                                         ]
-                                            },
-                        "Extraer patron":  {
-                                               "main":  [
-                                                            [
-                                                                {
-                                                                    "node":  "Guardar patron",
-                                                                    "type":  "main",
-                                                                    "index":  0
-                                                                }
-                                                            ],
-                                                            [
-                                                                {
-                                                                    "node":  "Preparar fallo",
-                                                                    "type":  "main",
-                                                                    "index":  0
-                                                                }
-                                                            ]
-                                                        ]
-                                           },
-                        "Guardar patron":  {
-                                               "main":  [
-                                                            [
-
-                                                            ],
-                                                            [
-                                                                {
-                                                                    "node":  "Preparar fallo",
-                                                                    "type":  "main",
-                                                                    "index":  0
-                                                                }
-                                                            ]
-                                                        ]
-                                           },
-                        "Marcar como fallida":  {
-                                                    "main":  [
-                                                                 [
-                                                                     {
-                                                                         "node":  "¿Bot que falló no es trouble_shooter?",
-                                                                         "type":  "main",
-                                                                         "index":  0
-                                                                     }
-                                                                 ]
-                                                             ]
-                                                },
-                        "¿Bot que falló no es trouble_shooter?":  {
-                                                                      "main":  [
-                                                                                   [
-                                                                                       {
-                                                                                           "node":  "Despachar a trouble_shooter",
-                                                                                           "type":  "main",
-                                                                                           "index":  0
-                                                                                       }
-                                                                                   ],
-                                                                                   [
-
-                                                                                   ]
-                                                                               ]
-                                                                  },
-                        "¿Falló la llamada a omniroute?":  {
-                                                               "main":  [
-                                                                            [
-                                                                                {
-                                                                                    "node":  "Preparar fallo",
-                                                                                    "type":  "main",
-                                                                                    "index":  0
-                                                                                }
-                                                                            ],
-                                                                            [
-                                                                                {
-                                                                                    "node":  "¿Necesita aclaración?",
-                                                                                    "type":  "main",
-                                                                                    "index":  0
-                                                                                }
-                                                                            ]
-                                                                        ]
-                                                           },
-                        "Preparar fallo":  {
-                                               "main":  [
-                                                            [
-                                                                {
-                                                                    "node":  "Marcar como fallida",
-                                                                    "type":  "main",
-                                                                    "index":  0
-                                                                }
-                                                            ]
-                                                        ]
-                                           },
-                        "Bot encontrado":  {
-                                               "main":  [
-                                                            [
-                                                                {
-                                                                    "node":  "Obtener contexto de tarea padre",
-                                                                    "type":  "main",
-                                                                    "index":  0
-                                                                }
-                                                            ],
-                                                            [
-                                                                {
-                                                                    "node":  "Preparar error bot no encontrado",
-                                                                    "type":  "main",
-                                                                    "index":  0
-                                                                }
-                                                            ]
-                                                        ]
-                                           },
-                        "Preparar error bot no encontrado":  {
-                                                                 "main":  [
-                                                                              [
-                                                                                  {
-                                                                                      "node":  "Preparar fallo",
-                                                                                      "type":  "main",
-                                                                                      "index":  0
-                                                                                  }
-                                                                              ]
-                                                                          ]
-                                                             }
-                    },
-    "settings":  {
-                     "executionOrder":  "v1",
-                     "binaryMode":  "separate",
-                     "availableInMCP":  false
-                 },
-    "staticData":  null,
-    "meta":  {
-                 "templateCredsSetupCompleted":  true
-             },
-    "nodeGroups":  [
-
-                   ],
-    "pinData":  {
-
+{
+  "updatedAt": "2026-08-20T03:36:26.222Z",
+  "createdAt": "2026-08-11T23:09:01.171Z",
+  "id": "aVORciBJl52lTxTU",
+  "name": "Ejecutor genérico",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        0
+      ],
+      "id": "aeb520fe-566a-4201-9d98-780d896b7d0c",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE tasks\nSET status = 'running', updated_at = now()\nWHERE id = (\n  SELECT id FROM tasks\n  WHERE status = 'pending'\n  ORDER BY created_at\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n)\nRETURNING *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        128,
+        0
+      ],
+      "id": "d48e6e6c-56e2-4160-b8f2-19533ee6c02f",
+      "name": "Reclamar tarea pendiente",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d118eff9-ab2d-453e-b2ed-1fba1550bc6f",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        352,
+        64
+      ],
+      "id": "dcfbcc91-1aaf-492e-a1cf-cfd07cf60965",
+      "name": "¿Hay tarea?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM bots WHERE slug = $1 AND active = true LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.bot] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        576,
+        64
+      ],
+      "id": "4bbaaa71-68a8-47cd-8ce5-91762f17e624",
+      "name": "Obtener config del bot",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://omniroute:20128/v1/chat/completions",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: ($('Obtener nivel fijo del bot').first().json.nivel_fijo) || $('Reclamar tarea pendiente').first().json.nivel_importancia,\n  messages: [\n    { role: \"system\", content: $('Obtener config del bot').first().json.system_prompt },\n    { role: \"system\", content: $('Obtener contexto de tarea padre').first().json.parent_input ? `Contexto: esta tarea fue asignada por ${$('Obtener contexto de tarea padre').first().json.parent_bot} a partir de: ${$('Obtener contexto de tarea padre').first().json.parent_input}` : \"Esta tarea no tiene contexto previo; es la primera de su cadena.\" },\n    ...($('Cargar contexto').first().json.system_knowledge ? [{ role: \"system\", content: \"## Conocimiento del sistema\\n\\n\" + $('Cargar contexto').first().json.system_knowledge }] : []),\n    ...($('Cargar contexto').first().json.knowledge_log ? [{ role: \"system\", content: \"## Casos y patrones ya conocidos - usalos, no los re-investigues\\n\\n\" + $('Cargar contexto').first().json.knowledge_log }] : []),\n    { role: \"user\", content: $('Reclamar tarea pendiente').first().json.input.text }\n  ]\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1248,
+        112
+      ],
+      "id": "d3023428-2a64-490f-9308-ab94ba77fc2f",
+      "name": "Llamar a omniroute",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE tasks SET status = $1, output = $2, updated_at = now() WHERE id = $3;",
+        "options": {
+          "queryReplacement": "={{ [$('Obtener config del bot').first().json.requires_approval ? 'needs_approval' : 'done', $json.choices[0].message.content, $('Reclamar tarea pendiente').first().json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1696,
+        48
+      ],
+      "id": "48b34caf-1148-4c3c-9c96-b6da5265271d",
+      "name": "Guardar resultado",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3f1503c4-c5e6-476d-87ca-48dc01467a96",
+              "leftValue": "={{ $('Obtener config del bot').first().json.dispatches_tasks }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "3860e7e7-8f91-458d-8dc2-4e27ea3b91e2",
+              "leftValue": "={{ $('Obtener config del bot').first().json.requires_approval }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1920,
+        32
+      ],
+      "id": "98032e6c-4969-42aa-983b-eeba58d8bce5",
+      "name": "¿Este bot despacha tareas?",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const RANK = { bajo: 0, medio: 1, alto: 2, critico: 3 };\nconst CAP_POR_NIVEL = {\n  bajo:    { porDespacho: 5,  porOperacion: 50  },\n  medio:   { porDespacho: 10, porOperacion: 100 },\n  alto:    { porDespacho: 15, porOperacion: 150 },\n  critico: { porDespacho: 20, porOperacion: 200 }\n};\n\nconst salida = JSON.parse($('Llamar a omniroute').first().json.choices[0].message.content);\nconst parentId = $('Reclamar tarea pendiente').first().json.id;\nconst clusterPropio = $('Obtener config del bot').first().json.cluster;\nconst nivelPropio = $('Reclamar tarea pendiente').first().json.nivel_importancia;\nconst operationId = $('Reclamar tarea pendiente').first().json.operation_id;\nconst totalOperacion = $('Contar tareas de operacion').first().json.total;\n// nivelOperacion = nivel fijo de la operacion (nunca cambia). Base OBLIGATORIA\n// para calcular el nivel de las tareas hijas -- NUNCA usar nivelPropio (el\n// nivel de la tarea actual) como base, porque si esta tarea ya fue escalada\n// por su propia regla, todos sus hijos heredarian esa escalada en cascada,\n// aunque no tengan relacion con el motivo de la escalacion. Eso es justo lo\n// que Mateo prohibio: \"no puedes transformar toda la operacion en critica\n// basado en la decision de 1 solo agente\" -- aqui aplica igual a nivel\n// subarbol: la escalacion de 1 tarea no debe propagarse a sus hijos.\nconst nivelOperacion = $('Contar tareas de operacion').first().json.nivel_operacion || nivelPropio;\nconst botsRequierenAprobacion = $('Obtener bots que requieren aprobacion').first().json.slugs || [];\nconst botPropio = $('Reclamar tarea pendiente').first().json.bot;\n\nconst cap = CAP_POR_NIVEL[nivelPropio] || CAP_POR_NIVEL.bajo;\nconst asignaciones = salida.asignaciones || [];\n\nif (operationId && totalOperacion >= cap.porOperacion) {\n  return [{\n    json: {\n      _tipo: 'tope_operacion',\n      operation_id: operationId,\n      total_actual: totalOperacion,\n      tope: cap.porOperacion,\n      bot: botPropio\n    }\n  }];\n}\n\nconst truncadas = asignaciones.length > cap.porDespacho ? asignaciones.length - cap.porDespacho : 0;\nconst asignacionesLimitadas = asignaciones.slice(0, cap.porDespacho);\n\nfunction mayorNivel(a, b) {\n  const ra = RANK[a] !== undefined ? RANK[a] : RANK.bajo;\n  const rb = RANK[b] !== undefined ? RANK[b] : RANK.bajo;\n  return ra >= rb ? a : b;\n}\n\nconst items = asignacionesLimitadas.map(a => {\n  // max(nivel de la operacion [fijo], nivel por reglas de asignacion de ESTA\n  // tarea hija especifica). Se guarda solo en tasks.nivel_importancia de la\n  // hija -- jamas se reescribe operations.nivel_importancia.\n  const nivelEfectivo = mayorNivel(a.nivel_importancia || nivelOperacion, nivelOperacion);\n  const requiereAprobacion = nivelEfectivo === 'critico' || botsRequierenAprobacion.includes(a.bot);\n  return {\n    json: {\n      _tipo: requiereAprobacion ? 'requiere_aprobacion' : 'normal',\n      cluster: a.cluster || clusterPropio,\n      bot: a.bot,\n      status: 'pending',\n      input: { text: a.input, modo: a.modo },\n      parent_task_id: parentId,\n      nivel_importancia: nivelEfectivo,\n      operation_id: operationId\n    }\n  };\n});\n\nif (truncadas > 0) {\n  items.push({\n    json: {\n      _tipo: 'fanout_truncado',\n      operation_id: operationId,\n      truncadas: truncadas,\n      tope: cap.porDespacho,\n      bot: botPropio\n    }\n  });\n}\n\nreturn items;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        464
+      ],
+      "id": "f5dc8107-d5b3-4d80-922a-c6f438a0452f",
+      "name": "Parsear asignaciones",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id) VALUES ($1, $2, $3, $4, $5, $6, (SELECT operation_id FROM tasks WHERE id = $5));",
+        "options": {
+          "queryReplacement": "={{ [$json.cluster, $json.bot, $json.status, JSON.stringify($json.input), $json.parent_task_id, $json.nivel_importancia] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2592,
+        512
+      ],
+      "id": "b55ab6a0-ff74-483e-8d10-9086afc0aea3",
+      "name": "Crear tareas hijas",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9a9f103d-aeed-4d6f-a61e-f286159ea884",
+              "leftValue": "={{ $('Obtener config del bot').first().json.requires_approval }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2144,
+        240
+      ],
+      "id": "b44f788d-adbe-490c-8c54-07decd9df92e",
+      "name": "¿Requiere aprobación?",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "-5436560130",
+        "text": "={{ $('Llamar a omniroute').item.json.choices[0].message.content }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2368,
+        -688
+      ],
+      "id": "bc2ffe26-8704-43dd-869e-6543a6ab1a15",
+      "name": "Send a text message",
+      "webhookId": "1455de8c-8b23-4329-8937-0077dbcc8832",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERjVpxAa0CTVNhll",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE tasks SET status = 'failed', output = $1, updated_at = now() WHERE id = $2\nRETURNING *;",
+        "options": {
+          "queryReplacement": "={{ [$json.errMsg, $json.taskId] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2816,
+        16
+      ],
+      "id": "95516d5e-db42-4334-a28b-bf8192613ddd",
+      "name": "Marcar como fallida",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9a9f103d-aeed-4d6f-a61e-f286159ea884",
+              "leftValue": "={{ $('Obtener config del bot').first().json.requires_approval }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2144,
+        -144
+      ],
+      "id": "fa16ab11-b8b1-4439-a34a-32a0740db5af",
+      "name": "¿Requiere aprobación?1",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "36078b7f-60f7-4a0e-88b3-8babfb15ff28",
+              "leftValue": "={{ $json.choices[0].message.content.startsWith('NECESITA_ACLARACION:') }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1472,
+        -320
+      ],
+      "id": "bc495257-1401-4e36-a2ba-528899dc74f0",
+      "name": "¿Necesita aclaración?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.bot AS bot_padre, p.cluster AS cluster_padre\nFROM tasks t\nLEFT JOIN tasks p ON p.id = t.parent_task_id\nWHERE t.id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Reclamar tarea pendiente').first().json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1920,
+        -560
+      ],
+      "id": "f817ea73-a92d-4f38-808e-3440375d90ad",
+      "name": "Obtener bot que asignó",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d346c925-3bc3-46dc-91aa-f8aa14f8b794",
+              "leftValue": "={{ $json.bot_padre }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2144,
+        -704
+      ],
+      "id": "77a3a807-2412-44c3-b2ea-50e59d0d9f55",
+      "name": "¿Tiene padre?",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id) VALUES ($1, $2, 'pending', $3, $4, (SELECT nivel_importancia FROM tasks WHERE id = $4), (SELECT operation_id FROM tasks WHERE id = $4));",
+        "options": {
+          "queryReplacement": "={{ [$json.cluster_padre, $json.bot_padre, JSON.stringify({ text: $('Llamar a omniroute').first().json.choices[0].message.content.replace('NECESITA_ACLARACION: ', '') }), $('Reclamar tarea pendiente').first().json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2368,
+        -896
+      ],
+      "id": "0ddea90a-5e0d-4709-a6d9-12c362d2e655",
+      "name": "Crear tarea de aclaración",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE tasks SET status = 'blocked', updated_at = now() WHERE id = $1 AND status <> 'needs_approval';",
+        "options": {
+          "queryReplacement": "={{ [$('Reclamar tarea pendiente').first().json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2592,
+        -976
+      ],
+      "id": "ecebdd47-4cfc-45c6-b6a3-8cd2cc1ad890",
+      "name": "Bloquear tarea original",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.input->>'text' AS parent_input, p.bot AS parent_bot\nFROM tasks t\nLEFT JOIN tasks p ON p.id = t.parent_task_id\nWHERE t.id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Reclamar tarea pendiente').first().json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        800,
+        0
+      ],
+      "id": "7b245428-7cff-4112-b88b-b48086e6c8a0",
+      "name": "Obtener contexto de tarea padre",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with sk as (\n  select coalesce(string_agg(titulo || E'\\n' || contenido, E'\\n\\n---\\n\\n' order by slug), '') as txt\n  from system_knowledge\n  where slug = any($1::text[])\n),\nkl_rows as (\n  select tipo, titulo, resumen_corto, detalle_completo, veces_visto, updated_at\n  from knowledge_log\n  where activo and (cluster is null or cluster = $2)\n  order by updated_at desc\n  limit 15\n),\nkl as (\n  select coalesce(string_agg(\n      '- [' || tipo || ' - visto ' || veces_visto || 'x] ' || titulo || ' -> ' || resumen_corto\n      || coalesce(E'\\n  Fix conocido: ' || detalle_completo, ''),\n      E'\\n' order by updated_at desc), '') as txt\n  from kl_rows\n)\nselect sk.txt as system_knowledge, kl.txt as knowledge_log from sk, kl;",
+        "options": {
+          "queryReplacement": "={{ [$('Obtener config del bot').first().json.contexto_slugs, $('Reclamar tarea pendiente').first().json.cluster] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1024,
+        -80
+      ],
+      "id": "6593bfb6-e66a-4c68-84d8-2a4393c8909a",
+      "name": "Cargar contexto",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Obtener config del bot').first().json;\nif (!cfg.conocimiento_directo) return [];\nlet out;\ntry { out = JSON.parse($('Llamar a omniroute').first().json.choices[0].message.content); }\ncatch (e) { return []; }\nconst p = out.patron_aprendido;\nif (!p || !p.patron) return [];\nconst tarea = $('Reclamar tarea pendiente').first().json;\nreturn [{ json: {\n  titulo: String(p.patron).slice(0, 200),\n  resumen_corto: p.causa_raiz || '',\n  detalle_completo: p.fix || '',\n  cluster: tarea.cluster,\n  origen_bot: tarea.bot,\n  task_id: tarea.id\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        752
+      ],
+      "id": "db055c0e-5528-4120-a3bc-309a199c8fd5",
+      "name": "Extraer patron",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into knowledge_log (tipo, titulo, resumen_corto, detalle_completo, cluster, origen_bot, task_id)\nvalues ('patron_fallo', $1, $2, $3, $4, $5, $6)\non conflict (lower(titulo)) where tipo = 'patron_fallo'\ndo update set veces_visto = knowledge_log.veces_visto + 1, updated_at = now();",
+        "options": {
+          "queryReplacement": "={{ [$json.titulo, $json.resumen_corto, $json.detalle_completo, $json.cluster, $json.origen_bot, $json.task_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2592,
+        800
+      ],
+      "id": "c7cf01a5-a259-463c-b0ed-f8e9e6494bbf",
+      "name": "Guardar patron",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c6e31f79-d07a-4a56-aa95-e15d78d692e7",
+              "leftValue": "={{ $json.bot }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "07b9add6-ef12-4e8c-a3b5-70e244011fbc",
+              "leftValue": "={{ $json.bot }}",
+              "rightValue": "trouble_shooter",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3040,
+        16
+      ],
+      "id": "890c9e9c-50bf-4ce7-ba9c-1b80e49c0cb9",
+      "name": "¿Bot que falló no es trouble_shooter?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tasks (cluster, bot, status, input, nivel_importancia, operation_id) VALUES ($1, 'trouble_shooter', 'pending', jsonb_build_object('text', $2), $3, $4);",
+        "options": {
+          "queryReplacement": "={{ [$json.cluster, $json.output, $json.nivel_importancia, $json.operation_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        3264,
+        16
+      ],
+      "id": "965224a6-bdc8-474f-872e-621738474c8f",
+      "name": "Despachar a trouble_shooter",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "18b332b0-e29a-4ef7-b32a-eee0ed302ccb",
+              "leftValue": "={{ $json.error !== undefined }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1360,
+        372
+      ],
+      "id": "f259d81c-8678-447b-b619-8761bbbdf3cf",
+      "name": "¿Falló la llamada a omniroute?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const taskId = $('Reclamar tarea pendiente').item.json.id;\n\nlet errMsg;\nif (typeof $json.error === 'string') {\n  errMsg = $json.error;\n} else if ($json.error && typeof $json.error === 'object') {\n  errMsg = $json.error.message || $json.error.description || JSON.stringify($json.error);\n} else if ($json.message) {\n  errMsg = $json.message;\n} else {\n  errMsg = JSON.stringify($json);\n}\n\nreturn [{ json: { taskId, errMsg } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        372
+      ],
+      "id": "286971bd-329a-4660-8397-d010c1458233",
+      "name": "Preparar fallo"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3c5cfcf1-b3d2-4f7d-a953-082f466caa99",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        800,
+        64
+      ],
+      "id": "0498793d-e2a0-4ca2-9937-1f065fae4728",
+      "name": "Bot encontrado"
+    },
+    {
+      "parameters": {
+        "jsCode": "const slug = $('Reclamar tarea pendiente').item.json.bot;\nreturn [{ json: { error: `Bot no encontrado o inactivo: ${slug}` } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        300
+      ],
+      "id": "7d92dee4-7c49-4930-8cd6-13b8a4f9a552",
+      "name": "Preparar error bot no encontrado"
+    },
+    {
+      "parameters": {
+        "chatId": "-5436560130",
+        "text": "={{ \"ALERTA CRITICA - Reclamar tarea pendiente fallo (posible Postgres caido o inalcanzable): \" + ($json.error?.message || $json.message || JSON.stringify($json)) }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        128,
+        220
+      ],
+      "id": "70d96c26-ad3f-4761-a4a2-b7973252ea1b",
+      "name": "Alerta critica Postgres",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERjVpxAa0CTVNhll",
+          "name": "Telegram account"
+        }
+      },
+      "webhookId": "748b1ddd-1a64-4ed4-b01c-d55e2dad04c6"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*)::int AS total, (SELECT nivel_importancia FROM operations WHERE id = $1) AS nivel_operacion FROM tasks WHERE operation_id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Reclamar tarea pendiente').first().json.operation_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2144,
+        600
+      ],
+      "id": "c1a1a001-0000-4000-8000-000000000001",
+      "name": "Contar tareas de operacion",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(array_agg(slug), ARRAY[]::text[]) AS slugs FROM bots WHERE requires_approval = true;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2144,
+        700
+      ],
+      "id": "c1a1a002-0000-4000-8000-000000000002",
+      "name": "Obtener bots que requieren aprobacion",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
                 },
-    "versionId":  "da9fab95-28b5-48ba-8d0d-4ac9474dea76",
-    "activeVersionId":  null,
-    "versionCounter":  288,
-    "triggerCount":  0,
-    "sourceWorkflowId":  null,
-    "shared":  [
-                   {
-                       "updatedAt":  "2026-08-11T23:09:01.171Z",
-                       "createdAt":  "2026-08-11T23:09:01.171Z",
-                       "role":  "workflow:owner",
-                       "workflowId":  "aVORciBJl52lTxTU",
-                       "projectId":  "mr3ONFLuLoDFG9LP",
-                       "project":  {
-                                       "updatedAt":  "2026-08-11T16:44:47.998Z",
-                                       "createdAt":  "2026-08-11T16:41:49.033Z",
-                                       "id":  "mr3ONFLuLoDFG9LP",
-                                       "name":  "Mateo Varela \u003cmvarela@bintix.mx\u003e",
-                                       "type":  "personal",
-                                       "icon":  null,
-                                       "description":  null,
-                                       "customTelemetryTags":  [
-
-                                                               ],
-                                       "creatorId":  "a271e2bc-ff73-41ca-9dfd-a55cb54ad81f"
-                                   }
-                   }
-               ],
-    "tags":  [
-
-             ],
-    "activeVersion":  null
+                "conditions": [
+                  {
+                    "id": "s1a1a001-0000-4000-8000-000000000001",
+                    "leftValue": "={{ $json._tipo }}",
+                    "rightValue": "normal",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "normal"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "s1a1a002-0000-4000-8000-000000000002",
+                    "leftValue": "={{ $json._tipo }}",
+                    "rightValue": "requiere_aprobacion",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "or"
+              },
+              "renameOutput": true,
+              "outputKey": "requiere_aprobacion_o_tope"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "s1a1a003-0000-4000-8000-000000000003",
+                    "leftValue": "={{ $json._tipo }}",
+                    "rightValue": "tope_operacion",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "or"
+              },
+              "renameOutput": true,
+              "outputKey": "requiere_aprobacion_o_tope_b"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "s1a1a004-0000-4000-8000-000000000004",
+                    "leftValue": "={{ $json._tipo }}",
+                    "rightValue": "fanout_truncado",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "fanout_truncado"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2592,
+        464
+      ],
+      "id": "c1a1a003-0000-4000-8000-000000000003",
+      "name": "Enrutar tipo de asignacion",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE operations SET status = 'bloqueada', updated_at = now() WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$json.operation_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2896,
+        560
+      ],
+      "id": "c1a1a004-0000-4000-8000-000000000004",
+      "name": "Marcar operacion bloqueada",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "-5436560130",
+        "text": "={{ $json._tipo === 'tope_operacion' ? (\"Tope de fan-out por operacion alcanzado. Operacion: \" + $json.operation_id + \". Total actual: \" + $json.total_actual + \"/\" + $json.tope + \". Bot que intentaba despachar: \" + $json.bot + \". La operacion quedo bloqueada, ningun despacho nuevo se creara hasta desbloquearla manualmente.\") : (\"Aprobacion requerida antes de crear esta tarea. Operacion: \" + $json.operation_id + \". Bot destino: \" + $json.bot + \". Cluster: \" + $json.cluster + \". Nivel: \" + $json.nivel_importancia + \". Input: \" + JSON.stringify($json.input) + \". Esta tarea NO se creo automaticamente -- la operacion quedo bloqueada. La reanudacion automatica via respuesta de Telegram todavia no existe, hay que desbloquearla a mano.\") }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3120,
+        560
+      ],
+      "id": "c1a1a005-0000-4000-8000-000000000005",
+      "name": "Alerta de aprobacion pendiente",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERjVpxAa0CTVNhll",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "webhookId": "d7438f44-d00e-4c45-9c3b-45043bfd89f3"
+    },
+    {
+      "parameters": {
+        "chatId": "-5436560130",
+        "text": "={{ \"Fan-out truncado en un despacho. Bot: \" + $json.bot + \". Se descartaron \" + $json.truncadas + \" tareas hijas (tope: \" + $json.tope + \"). Operacion: \" + $json.operation_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2896,
+        760
+      ],
+      "id": "c1a1a006-0000-4000-8000-000000000006",
+      "name": "Alerta fan-out truncado",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERjVpxAa0CTVNhll",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "webhookId": "5b3ef688-4072-4025-bcbd-6e895508b289"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT nivel_fijo FROM bot_niveles_fijos WHERE bot_slug = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Reclamar tarea pendiente').first().json.bot] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1696,
+        -320
+      ],
+      "id": "c1a1a007-0000-4000-8000-000000000007",
+      "name": "Obtener nivel fijo del bot",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Reclamar tarea pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reclamar tarea pendiente": {
+      "main": [
+        [
+          {
+            "node": "¿Hay tarea?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alerta critica Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay tarea?": {
+      "main": [
+        [
+          {
+            "node": "Obtener config del bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener config del bot": {
+      "main": [
+        [
+          {
+            "node": "Bot encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar a omniroute": {
+      "main": [
+        [
+          {
+            "node": "¿Falló la llamada a omniroute?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Guardar resultado": {
+      "main": [
+        [
+          {
+            "node": "¿Este bot despacha tareas?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extraer patron",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Este bot despacha tareas?": {
+      "main": [
+        [
+          {
+            "node": "¿Requiere aprobación?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Requiere aprobación?1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear asignaciones": {
+      "main": [
+        [
+          {
+            "node": "Enrutar tipo de asignacion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear tareas hijas": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Requiere aprobación?": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contar tareas de operacion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [
+          {
+            "node": "Bloquear tarea original",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Requiere aprobación?1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Necesita aclaración?": {
+      "main": [
+        [
+          {
+            "node": "Obtener bot que asignó",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Guardar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener bot que asignó": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene padre?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene padre?": {
+      "main": [
+        [
+          {
+            "node": "Crear tarea de aclaración",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear tarea de aclaración": {
+      "main": [
+        [
+          {
+            "node": "Bloquear tarea original",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bloquear tarea original": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener contexto de tarea padre": {
+      "main": [
+        [
+          {
+            "node": "Cargar contexto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cargar contexto": {
+      "main": [
+        [
+          {
+            "node": "Obtener nivel fijo del bot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer patron": {
+      "main": [
+        [
+          {
+            "node": "Guardar patron",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar patron": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar como fallida": {
+      "main": [
+        [
+          {
+            "node": "¿Bot que falló no es trouble_shooter?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Bot que falló no es trouble_shooter?": {
+      "main": [
+        [
+          {
+            "node": "Despachar a trouble_shooter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "¿Falló la llamada a omniroute?": {
+      "main": [
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Necesita aclaración?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar fallo": {
+      "main": [
+        [
+          {
+            "node": "Marcar como fallida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bot encontrado": {
+      "main": [
+        [
+          {
+            "node": "Obtener contexto de tarea padre",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar error bot no encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar error bot no encontrado": {
+      "main": [
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener nivel fijo del bot": {
+      "main": [
+        [
+          {
+            "node": "Llamar a omniroute",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contar tareas de operacion": {
+      "main": [
+        [
+          {
+            "node": "Obtener bots que requieren aprobacion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener bots que requieren aprobacion": {
+      "main": [
+        [
+          {
+            "node": "Parsear asignaciones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrutar tipo de asignacion": {
+      "main": [
+        [
+          {
+            "node": "Crear tareas hijas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar operacion bloqueada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar operacion bloqueada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alerta fan-out truncado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar operacion bloqueada": {
+      "main": [
+        [
+          {
+            "node": "Alerta de aprobacion pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerta de aprobacion pendiente": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerta fan-out truncado": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "69c05e93-208e-4430-a850-e0f3da80ee3a",
+  "activeVersionId": null,
+  "versionCounter": 291,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-08-11T23:09:01.171Z",
+      "createdAt": "2026-08-11T23:09:01.171Z",
+      "role": "workflow:owner",
+      "workflowId": "aVORciBJl52lTxTU",
+      "projectId": "mr3ONFLuLoDFG9LP",
+      "project": {
+        "updatedAt": "2026-08-11T16:44:47.998Z",
+        "createdAt": "2026-08-11T16:41:49.033Z",
+        "id": "mr3ONFLuLoDFG9LP",
+        "name": "Mateo Varela <mvarela@bintix.mx>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "a271e2bc-ff73-41ca-9dfd-a55cb54ad81f"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
 }
