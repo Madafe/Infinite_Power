@@ -824,6 +824,41 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    (línea 87) y no tiene ni un solo `operation_id`. Sin esto, nada de lo
    que dice este documento es verificable desde el repo. Ver actualización
    del 19 de agosto en `plan_de_accion_completo.md`.
+9. **Pendiente 34 (aprobación Tipo A) + pendiente 37 (topes de fan-out) —
+   armado y validado, sin aplicar en vivo (20/ago).** El Tipo B (duda de
+   coordinación, escalamiento al padre inmediato) ya existía desde antes —
+   ver la cadena "¿Necesita aclaración?" → "Obtener bot que asignó" →
+   "¿Tiene padre?" en el mapa de arriba, no hizo falta construirlo. Lo
+   nuevo es el Tipo A (aprobación obligatoria por regla de dominio o
+   `bots.requires_approval`) más los topes de fan-out por despacho y por
+   operación (5/50, 10/100, 15/150, 20/200 según `nivel_importancia`) — 7
+   nodos nuevos ("Contar tareas de operacion", "Obtener bots que requieren
+   aprobacion", "Enrutar tipo de asignacion", "Marcar operacion bloqueada",
+   "Alerta de aprobacion pendiente", "Alerta fan-out truncado", "Obtener
+   nivel fijo del bot") más la reescritura completa del Code node "Parsear
+   asignaciones" (el nivel efectivo de cada tarea hija ahora usa
+   `max(operations.nivel_importancia, nivel por reglas de esa tarea)` —
+   nunca el nivel de la tarea padre, para evitar cascada; ver detalle del
+   bug corregido en `plan_de_accion_completo.md`, actualización del 20 de
+   agosto). El cuerpo completo (36 nodos, 34 claves de conexión) está
+   armado, fusionado y validado sin referencias colgantes, guardado en
+   `tmp_wf_body.json` en la raíz del repo — listo para `PUT` a
+   `http://localhost:5678/api/v1/workflows/aVORciBJl52lTxTU`. **El workflow
+   vivo en n8n sigue en 29 nodos** — nada de esto está aplicado, probado en
+   vivo, ni reexportado a `n8n-workflows/ejecutor_generico.json` todavía.
+   El mapa de "26 nodos" de arriba en este documento sigue describiendo el
+   estado ANTERIOR a esta construcción (en realidad ya son 29, ver punto 1
+   de esta lista) — se actualiza a 36 recién cuando se aplique el `PUT`.
+   Pasos exactos para retomar en `plan_de_accion_completo.md`, actualización
+   del 20 de agosto, sección "Para retomar exactamente donde quedó".
+10. **Limitación conocida en el Tipo B, no corregida (20/ago).** "Crear
+    tarea de aclaración" pone `parent_task_id` = el id de la tarea
+    ORIGINAL, no el de su propio padre. Si esa tarea de aclaración necesita
+    escalar otra vez, "Obtener bot que asignó" resolvería de vuelta al
+    mismo bot de la tarea original en vez de subir al abuelo — posible
+    ping-pong en jerarquías de 3+ niveles. Hoy la jerarquía real es plana
+    (`coder` → `tecnico_jefe`), así que no se manifiesta — pendiente de
+    corregir cuando Efadam y los centers agreguen niveles de despacho.
 
 ## Cómo probarlo hoy
 
