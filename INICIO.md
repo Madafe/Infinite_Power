@@ -16,20 +16,20 @@ reportar hacia arriba.
 
 ## Propuesta de valor
 
-Infinite Power funciona como una empresa digital adaptable para el proyecto
-que se le asigne. En vez de limitarse a responder una petición puntual,
+Infinite Power pone a disposición del proyecto una red de especialistas que
+puede trabajar 24/7. En vez de limitarse a responder una petición puntual,
 evalúa el proyecto de forma continua, identifica oportunidades, propone
-mejoras, coordina trabajo especializado y aprende de los resultados para
-mejorar su desempeño y su costo.
+mejoras, coordina el trabajo especializado y, cuando hace falta, incorpora
+nuevos especialistas para que el proyecto tenga las capacidades que necesita.
 
 El usuario conserva el control: define el proyecto, los límites de autonomía,
 las aprobaciones y el presupuesto. Puede operar con herramientas gratuitas o
 escalar la inversión cuando el proyecto lo justifique, sin tener que formar,
-capacitar ni coordinar un equipo humano para cada especialidad.
+capacitar ni coordinar por su cuenta un equipo para cada especialidad.
 
 ChatGPT puede ayudar a resolver algo cuando se le pide; Infinite Power busca
-observar, sugerir, construir, corregir y evolucionar de forma constante a
-favor de los proyectos asignados.
+tener una red de especialistas lista para observar, sugerir, construir,
+corregir y mejorar de forma constante los proyectos asignados.
 
 ## Estado actual
 
@@ -54,6 +54,7 @@ favor de los proyectos asignados.
 - [[ejecutor_generico]] — el workflow real, 19 nodos, con hallazgos pendientes de corregir
 - [[reglas_generales]] — las 5 reglas dentro de cada `system_prompt`
 - [[autonomia_progresiva]] — criterio de graduación (aprobación → autonomía)
+- [[gobernanza_auto_expansion_bots]] — ficha de bot nuevo + ciclo de aprobación (Fase 8, diseño listo, sin construir)
 
 ## Canónico para bots
 

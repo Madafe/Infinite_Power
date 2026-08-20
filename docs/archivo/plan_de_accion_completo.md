@@ -3052,6 +3052,19 @@ en vez de rotarla — vive fuera de sistemas digitales cuando no está en uso.
 4. Si se aprueba: llamada HTTP a la API de n8n (`POST /workflows`) para crear el workflow nuevo en modo desactivado
 5. Ustedes lo revisan manualmente y lo activan a mano la primera vez
 
+### Paso 6.3 — Ficha de propuesta y ciclo de gobernanza completo (diseñado 20/ago/2026)
+
+El Paso 6.2 de arriba cubre solo 3 de los 8 pasos de un ciclo completo de
+gobernanza (propuesta → ensamblado → aprobación). A partir de una propuesta
+de Mateo (conversación con ChatGPT), se formalizó el ciclo completo, con
+ficha de propuesta obligatoria, validación por el center del departamento
+destino, prueba aislada con volumen mínimo de tareas (mismo criterio que
+`autonomia_progresiva.md`) y condición de salida explícita por bot. Detalle
+completo, plantilla de ficha y la corrección sobre quién propone (Council,
+no Efadam) en `gobernanza_auto_expansion_bots.md`. **Sigue siendo diseño, no
+construcción** — el Paso 6.2 de arriba sigue siendo el resumen operativo
+vigente hasta que se construya.
+
 **✅ Fin de Fase 6 cuando:**
 - El sistema puede proponer un departamento nuevo con su prompt ya escrito
 - Nunca se activa solo sin que alguno de los dos lo revise primero
@@ -3125,3 +3138,4 @@ para el razonamiento completo.
 39. ~~`Obtener config del bot` no distingue "bot no existe" de "bot existe"~~ — **hecho (19/ago).** No bastaba con un IF: confirmado en vivo que el Postgres node con 0 filas emite 0 items en ambas salidas (ni siquiera pasa por la rama de error) — cualquier IF después nunca se evalúa. Fix real: `alwaysOutputData: true` en el nodo + un IF nuevo ("Bot encontrado") + un Code node nuevo que arma el mensaje de error, todo enrutado a "Preparar fallo" igual que cualquier otro fallo. Probado en vivo dos veces (bot inexistente → `failed` + trouble_shooter correcto; bot válido → sin regresión). 28 nodos ahora. Reexportado a `n8n-workflows/ejecutor_generico.json`. Ver `ejecutor_generico.md`, "Lo que falta", punto 3, para el detalle técnico completo.
 40. **Nuevo (20/ago, encontrado al probar 34/37 en vivo).** La detección de "¿Necesita aclaración?" (Tipo B) probablemente no dispara cuando el modelo envuelve la marca en Markdown (`**NECESITA_ACLARACION:**` en vez de `NECESITA_ACLARACION:` a secas) — en la prueba de esta ronda, `coder` respondió así y la tarea quedó `done` en vez de `blocked`, sin generar tarea de escalamiento hacia `tecnico_jefe`. Sin confirmar todavía si el nodo usa `startsWith` exacto o algo más flexible — revisar el nodo real antes de tocar nada. No es una regresión de 34/37 (el mecanismo Tipo B no se tocó esta ronda) — es un hallazgo preexistente que solo salió a la luz al probar en vivo.
 41. **Nuevo (20/ago).** Falta probar en vivo el truncado de fan-out por despacho y el tope por operación (parte del pendiente 37) — la prueba de esta ronda solo generó 1 tarea hija, muy por debajo de cualquier tope. Hace falta una tarea que genere >5 asignaciones (nivel bajo) o una operación con >50 tareas para confirmar el camino de bloqueo/alerta en vivo.
+42. **Nuevo (20/ago).** Ficha de propuesta de bot nuevo + ciclo completo de gobernanza de auto-expansión (Fase 8) diseñados — ver Paso 6.3 arriba y `gobernanza_auto_expansion_bots.md`. Sigue sin construirse: falta el workflow de n8n, el schema de estados de bot (`bots.estado` o tabla de ciclo de vida dedicada), y que Council/Planner/Nuevos departamentos existan como bots reales con prompt. No es bloqueante hoy — va después de Efadam + los 3 centers + autonomía progresiva, sin cambio al orden vigente.

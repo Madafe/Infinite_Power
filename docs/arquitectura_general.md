@@ -6,16 +6,18 @@
 
 ## Propuesta de valor
 
-Infinite Power busca comportarse como una empresa digital adaptable para el
-proyecto que se le asigne: observar su estado, sugerir oportunidades,
-coordinar especialidades, ejecutar mejoras y aprender de los resultados. El
-usuario conserva el control de la autonomía, las aprobaciones y el presupuesto;
-el sistema puede usar herramientas gratuitas o escalar el gasto solo cuando el
-proyecto lo justifique.
+Infinite Power busca poner a disposición de cada proyecto una red de
+especialistas que trabaja 24/7: observa su estado, sugiere oportunidades,
+coordina especialidades, ejecuta mejoras y aprende de los resultados. Cuando
+el proyecto requiere una capacidad nueva, el sistema puede sumar el
+especialista adecuado en lugar de obligar al usuario a armar el equipo desde
+cero. El usuario conserva el control de la autonomía, las aprobaciones y el
+presupuesto; el sistema puede usar herramientas gratuitas o escalar el gasto
+solo cuando el proyecto lo justifique.
 
 La diferencia no es responder una petición aislada, sino mantener un ciclo de
-mejora continua sin requerir que el usuario forme, capacite ni coordine un
-equipo humano para cada especialidad.
+mejora continua sin requerir que el usuario forme, capacite ni coordine por su
+cuenta un equipo para cada especialidad.
 
 ## La estructura real (corregida)
 
@@ -87,6 +89,14 @@ Escribir un prompt es barato; tener un bot activo cuesta tokens, latencia y
 superficie de fallo en cada corrida.
 
 Condición: todo cambio de este tipo se documenta (en el roster y en este archivo de arquitectura), explicando el porqué — no se aplica en silencio.
+
+**Distinto de la Fase 8 (Auto-expansión).** Este mandato es el que usan
+Claude y Mateo hoy, a mano, durante la construcción manual del sistema. El
+mecanismo por el que el sistema ya en operación se propondría bots a sí
+mismo — Council detecta, ficha, validación del center, Agent builder
+ensambla, aprobación de Mateo, prueba aislada, medición, mantener/fusionar/
+retirar — es un diseño distinto y más formal, documentado en
+`gobernanza_auto_expansion_bots.md` (20/ago/2026). Sigue sin construirse.
 
 
 ## Multiproyecto — rediseño (18/ago/2026)
