@@ -233,3 +233,70 @@ cuando NVIDIA NIM sí estaba conectado y probado. Ver tarea ClickUp
 puede diagnosticar más sin esa sesión. **Bloquea la confirmación final de
 Efadam y, en general, cualquier tarea real del sistema hasta que se
 resuelva.**
+
+## 21 de agosto de 2026 — Resuelto: NVIDIA reconectado, diagnóstico previo
+corregido, y Efadam confirmado end-to-end con el contrato JSON real
+
+**Diagnóstico corregido.** La "caída total de los 4 combos" reportada
+horas antes (ver entrada anterior) resultó ser, en su mayor parte, un
+artefacto del lado cliente, no una caída real de OmniRoute. Al revisar
+`docker logs infinite-power-omniroute-1` se vio que las mismas llamadas
+que `Invoke-RestMethod`/`Invoke-WebRequest` reportaban como fallidas o
+colgadas en realidad se habían completado del lado del servidor (`bajo` y
+`critico` en ~1s, `alto` en ~25s tras un ciclo de cola por rate-limit).
+Confirmado después con una prueba limpia usando `curl.exe` en vez de los
+cmdlets de PowerShell: los 4 combos responden con normalidad. **Lección
+de infraestructura, no de arquitectura:** en esta máquina, `Invoke-RestMethod`
+/ `Invoke-WebRequest` de PowerShell son poco confiables para llamadas HTTP
+locales — se cuelgan sin arrojar error incluso con `-TimeoutSec` explícito,
+tanto contra n8n (`localhost:5678`) como contra OmniRoute (`localhost:20128`).
+`curl.exe` (incluido en Windows) no tuvo ese problema en ninguna prueba de
+esta sesión. **Regla nueva para todo trabajo futuro vía Desktop Commander:
+usar `curl.exe` para llamadas HTTP, nunca `Invoke-RestMethod`/`Invoke-WebRequest`.**
+Ver también la nota de PowerShell en `stack_y_convenciones.md` si se agrega
+una sección de convenciones de shell — pendiente evaluarlo.
+
+Dicho esto, sí había un problema real y separado: la tarea 30 falló con
+`503 ALL_ACCOUNTS_INACTIVE`, un error genuino de que la cuenta NVIDIA
+conectada no estaba activa en ese momento — no relacionado con el
+artefacto de diagnóstico de arriba.
+
+**Resuelto con la llave nueva de Mateo.** Con la llave NVIDIA nueva que
+Mateo pegó en el chat (`nvapi-zeOt...FVA2YlVp8`, reemplaza la del
+18/ago): se hizo login al dashboard de OmniRoute vía API
+(`POST /api/auth/login`), se actualizó la conexión NVIDIA existente
+(`PUT /api/providers/{id}`, id `c6488003-...`) con la llave nueva, y se
+confirmó con `POST /api/providers/{id}/test` → `{"valid": true}`. La
+llave nueva también quedó guardada en `.env` (mismo tratamiento que la
+anterior, ver comentario ahí). Los 4 combos se volvieron a probar uno por
+uno con `curl.exe` y los 4 responden con normalidad.
+
+**Efadam confirmado end-to-end.** Con OmniRoute funcionando, se repitió
+la prueba de webhook temporal (tarea 32, mismo procedimiento que la
+sesión anterior). Resultado: la tarea se completó (`status = done`) con
+esta salida exacta de Efadam —
+
+```json
+{"respuesta_cliente": "El proyecto sigue avanzando, pero todavía hay
+algunos desafíos técnicos...", "esfuerzo": "alto",
+"asignaciones": [{"bot": "tech_center", "cluster": "tech-center",
+"esfuerzo": "alto", "requiere_aprobacion": true,
+"input": "Estas son recomendaciones, no órdenes directas del
+cliente..."}], "notas": "..."}
+```
+
+— es decir, el contrato JSON obligatorio (`respuesta_cliente` / `esfuerzo`
+/ `asignaciones` / `notas`) funciona en la práctica, no solo en el prompt.
+Además, como la asignación traía `requiere_aprobacion: true`, el flujo
+tomó correctamente la rama de aprobación (bloqueo de operación + alerta)
+en vez de crear una tarea hija automáticamente — el comportamiento
+diseñado. **La prueba de Efadam queda cerrada y confirmada.**
+
+**Nota aparte, no bloqueante:** la tarea 31 (`trouble_shooter`,
+auto-despachada por el fallo de la tarea 30 en la sesión anterior) fue
+reclamada primero por el motor (es más antigua que la 32) y falló con
+`400 - Missing model`, porque nunca se le asignó `esfuerzo` al crearla
+(la tarea 30 tampoco lo tenía). Quedó en `status = failed`, no se
+reintentará sola — no requiere acción, pero es una pista de que las
+tareas de prueba insertadas a mano deberían siempre traer `esfuerzo`
+explícito para no dejar huecos así en la cola.
