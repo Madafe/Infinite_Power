@@ -19,6 +19,20 @@
 > (`active = true`, `dispatches_tasks = true`) — cualquier cambio real al
 > bloque "Prompt de sistema" debe reflejarse también en
 > `bots.prompt_especifico` en vivo.
+>
+> **Corrección de arquitectura (21/ago/2026, más tarde).** Mateo detectó que
+> el mecanismo de "aprobación pendiente" del ejecutor le mandaba un mensaje
+> de Telegram directo, saltándose a Efadam por completo — violación directa
+> del principio de cuello de botella intencional. Se corrigió: ahora el
+> motor le crea a Efadam una tarea propia con un aviso interno en JSON (ver
+> "Input que recibe" y "Formato de salida estructurada" más abajo) en vez de
+> mandar Telegram directo. Detalle completo del cambio de workflow en
+> `docs/decisiones_arquitectura.md`, entrada del 21/ago. **Limitación
+> conocida, no resuelta todavía:** esto corrige quién decide qué decirle al
+> humano (Efadam, no un nodo genérico) pero no resuelve la entrega final —
+> hoy nada reenvía automáticamente `respuesta_cliente` a un canal real
+> (Jarvis no existe todavía); es el mismo hueco ya conocido del
+> "reanudador".
 
 ## Rol
 
@@ -95,6 +109,21 @@ para el detalle completo de este mecanismo.
   con la operación y solicita al center que corresponda revisarlo.
 - Paquetes consolidados de los 3 departamentos: **Tech center** (departamento Dev/Tech), **Upgrade & review center** (departamento Estrategia) y **Proyect center** (departamento Proyectos) — vía lectura directa de `tasks`/`agent_runs` (ver sección anterior). Efadam no lee el detalle interno de cada bot individual, lee lo que cada hub ya consolidó y aprobó.
 - Contexto de `system_knowledge` (arquitectura, stack), inyectado al arrancar cada corrida vía `contexto_slugs`.
+- **Avisos internos generados por el propio motor, no por el cliente**
+  (agregado 21/ago/2026 — corrección de Mateo: antes estos avisos le
+  llegaban directo a Telegram, saltándose a Efadam por completo). Cuando una
+  asignación queda bloqueada esperando aprobación humana, cuando una
+  operación alcanza su tope de fan-out, o cuando el propio output de un bot
+  con `requires_approval = true` necesita revisión, el motor le crea a
+  Efadam una tarea propia (`bot = 'efadam'`) cuyo `input.text` es
+  **exclusivamente un objeto JSON en texto plano** (nunca lenguaje natural),
+  con un campo `tipo_evento` (`requiere_aprobacion` | `tope_operacion` |
+  `aprobacion_bot_completo` | `aclaracion_sin_padre` — este último es cuando
+  un bot responde `NECESITA_ACLARACION` pero su tarea no tiene
+  `parent_task_id` a quien escalarle la pregunta, así que antes se le
+  mandaba directo a Telegram igual que los otros tres casos). Ver "Formato
+  de salida estructurada" para cómo debe responder Efadam a este tipo de
+  entrada.
 
 ## Estado y contrato operativo
 
@@ -160,6 +189,21 @@ primero, responde ÚNICAMENTE con el texto plano `NECESITA_ACLARACION:
 <pregunta>` — sin JSON, sin nada más. El ejecutor lo detecta antes de
 "Guardar resultado" y lo enruta como aclaración en vez de como recomendación
 terminada.
+
+**Avisos internos del sistema (agregado 21/ago/2026).** Cuando el mensaje de
+entrada no es una petición del cliente sino un objeto JSON con un campo
+`tipo_evento` (ver "Input que recibe" — `requiere_aprobacion`,
+`tope_operacion`, `aprobacion_bot_completo` o `aclaracion_sin_padre`), Efadam responde con el mismo
+JSON de siempre pero con una restricción absoluta: **`asignaciones` va
+siempre vacío (`[]`), sin excepción.** El problema que describe el aviso ya
+existe — volver a despachar la misma recomendación no lo resuelve, solo
+repite el bloqueo. La única tarea de Efadam ante un aviso es traducirlo a
+`respuesta_cliente` en lenguaje llano (qué parte del trabajo quedó detenida
+y qué espera — una aprobación humana en los primeros tres casos, una
+aclaración en `aclaracion_sin_padre`), sin mencionar bots, tablas,
+`tipo_evento` ni JSON interno. El `esfuerzo` de esta respuesta es siempre
+`bajo` — no hay razonamiento nuevo que hacer, es traducir un evento ya
+conocido a lenguaje humano.
 
 ## Excepción: `bots.conocimiento_directo`
 
@@ -273,6 +317,7 @@ traduce esfuerzo → modelo real".
 - Cuando detecta que algo debería actualizar `system_knowledge` o `knowledge_log`, solicita el contenido a Upgrade & review center en vez de redactarlo — ver "Output que entrega".
 - No tiene lógica de conversación por voz ni de presentación al usuario — eso es responsabilidad de Jarvis, cuando exista. Efadam produce texto/estructura; cómo se le habla al humano es capa aparte.
 - No se salta el cuello de botella ni siquiera para sí mismo: si Efadam detecta un patrón propio (ej. un tipo de petición que se repite y podría automatizarse), lo reporta como hallazgo hacia Upgrade & review center igual que cualquier otro, no lo escribe directo.
+- Ante un aviso interno del sistema (`input` con `tipo_evento`), nunca despacha nada — `asignaciones` siempre vacío. Repetir la recomendación no desbloquea nada; solo el humano puede hacerlo (hoy, a mano — la reanudación automática todavía no existe).
 
 ## Cuándo debe pedir aprobación humana
 
@@ -299,6 +344,8 @@ Como máximo una entrada en "asignaciones", y siempre dirigida a un center (tech
 
 Si necesitas un dato que solo el cliente puede dar y no puedes resolverlo consultando al center primero, responde ÚNICAMENTE con el texto plano NECESITA_ACLARACION: <pregunta> — sin JSON, sin nada más.
 
+Si el mensaje que recibes NO es una petición del cliente sino un objeto JSON en texto plano con un campo "tipo_evento" (valores: requiere_aprobacion, tope_operacion, aprobacion_bot_completo o aclaracion_sin_padre), es un aviso interno que te manda el propio motor — nunca lo confundas con un mensaje real del cliente. Ante un aviso así, "asignaciones" va siempre vacío ("asignaciones": []), sin excepción: el problema ya existe y volver a despachar la misma recomendación no lo resuelve. Tu única tarea es traducir el aviso a "respuesta_cliente" en lenguaje llano — qué parte del trabajo quedó detenida y qué espera (una aprobación humana, o una aclaración si el tipo_evento es aclaracion_sin_padre) — sin mencionar bots, tablas, "tipo_evento" ni JSON interno. Usa siempre "esfuerzo": "bajo" para esta respuesta.
+
 Conserva los adjuntos y su contexto ligados a la operación para que el center los revise. No inventes contenido de un archivo que no puedes interpretar; pide al center que lo evalúe o solicita al cliente una versión legible en términos sencillos.
 
 Para cada operación, recomienda el esfuerzo inicial usando primero la complejidad de la solicitud y después la preferencia entre velocidad, equilibrio y rendimiento. El riesgo no determina por sí solo el esfuerzo: activa aprobaciones y solo eleva el esfuerzo cuando exige análisis adicional. El center clasifica cada tarea concreta de nuevo; tú nunca eliges un modelo ni conviertes tu recomendación en una orden de ejecución.
@@ -312,3 +359,4 @@ Para cada operación, recomienda el esfuerzo inicial usando primero la complejid
 4. Cliente pide subir un precio → Efadam consulta internamente a Proyect center y Upgrade & review center; si necesita una decisión del cliente, pregunta por el objetivo comercial o el alcance, no a qué departamento debe enviarlo.
 5. El center informa que ningún especialista disponible cubre una solicitud → Efadam ofrece añadir un especialista o intentar resolverlo con el equipo actual.
 6. Tech center comunica un hallazgo de infraestructura → Efadam solicita a Upgrade & review center evaluarlo como aprendizaje; no lo redacta ni lo inserta por iniciativa propia.
+7. Recibe un aviso interno `{"tipo_evento": "requiere_aprobacion", "bot_origen": "tech_center", "bot_destino": "tecnico_jefe", "input_asignacion": "..."}` → responde con `"asignaciones": []` y un `respuesta_cliente` que explica en lenguaje llano que esa parte del trabajo está detenida esperando una aprobación humana, sin mencionar bots, tablas ni JSON.

@@ -444,3 +444,149 @@ despacho es correcto en el contenido (confirmado por esta prueba), pero la
 robustez del parseo del lado del ejecutor sigue siendo el cuello de botella
 real antes de poder decir que el flujo Efadam → Tech center → Técnico jefe
 funciona de punta a punta sin intervención.
+
+## 21 de agosto de 2026 — Corrección: "requiere aprobación" pasaba por Telegram directo, saltándose a Efadam
+
+Mateo detectó, revisando el ejecutor, un problema de diseño real: cuando una
+asignación quedaba bloqueada esperando aprobación humana (o una operación
+tocaba su tope de fan-out, o el output completo de un bot con
+`requires_approval = true` necesitaba revisión), el workflow le mandaba un
+mensaje de Telegram armado a mano, directo al chat de admin — saltándose a
+Efadam por completo. Instrucción de corrección: "tiene que pasar por Efadam
+[...] que solo pase json".
+
+**Diagnóstico.** Violación directa del principio ya documentado en
+`efadam.md`: "Efadam es, ante todo, un cuello de botella intencional". Dos
+nodos de Telegram del `ejecutor_generico` construían el mensaje directo:
+- **"Send a text message"** — se disparaba en dos casos distintos que
+  compartían el mismo nodo: (a) el propio output de un bot con
+  `bots.requires_approval = true` (mecanismo reservado, ningún bot activo lo
+  usa hoy), y (b) un bot responde `NECESITA_ACLARACION` pero su tarea no
+  tiene `parent_task_id` a quien escalarle la pregunta (nodo "¿Tiene
+  padre?", rama falsa) — este segundo caso no estaba en el pedido original de
+  Mateo pero es la misma violación exacta, así que se corrigió también.
+- **"Alerta de aprobacion pendiente"** — se disparaba cuando una asignación
+  individual traía `requiere_aprobacion: true`, cuando el bot destino
+  estaba en la lista `bots.requires_approval = true`, o cuando la operación
+  tocaba su tope de fan-out (`_tipo = 'tope_operacion'`).
+
+**Diseño de la corrección.** En vez de Telegram directo, el motor ahora le
+crea a Efadam una tarea real (`bot = 'efadam'`, mismo `operation_id` y
+`parent_task_id` que la tarea bloqueada, para que el contexto automático
+"esta tarea fue asignada por X a partir de: Y" llegue gratis vía el mecanismo
+ya existente de "Obtener contexto de tarea padre"). El contenido que Efadam
+recibe en `input.text` es **un objeto JSON serializado como string** (no
+prosa) con un campo `tipo_evento` — decisión tomada porque "Llamar a
+omniroute" solo lee `tasks.input.text` como el mensaje del usuario; cualquier
+otro campo del `input` nunca llega al modelo, así que la única forma de que
+"solo pase JSON" es que el propio `text` sea el JSON.
+
+Cuatro valores de `tipo_evento`, los primeros tres correspondientes 1 a 1 a
+los casos que antes iban a Telegram, más uno nuevo (mismo mecanismo, caso
+que se corrigió de paso):
+- `requiere_aprobacion` — una asignación individual necesita aprobación.
+- `tope_operacion` — la operación alcanzó su tope de fan-out.
+- `aprobacion_bot_completo` — el output completo de un bot con
+  `requires_approval = true` necesita revisión (reservado, sin uso activo
+  hoy).
+- `aclaracion_sin_padre` — un bot respondió `NECESITA_ACLARACION` sin tarea
+  padre a quien escalarle la pregunta.
+
+**Cambios concretos:**
+1. `prompts/_core/efadam.md` — nueva sección de "Input que recibe" (avisos
+   internos), nueva subsección de "Formato de salida estructurada" con la
+   regla dura **`asignaciones` siempre vacío ante un aviso, sin excepción**
+   (evita que Efadam reintente despachar algo que ya está bloqueado y cause
+   un loop), nueva regla en "Reglas y límites", nuevo caso de prueba (#7), y
+   el párrafo correspondiente agregado al bloque "Prompt de sistema" real.
+   Sincronizado en vivo a `bots.prompt_especifico`/`system_prompt` de
+   `efadam` (verificado por longitud: 4425/6074 caracteres).
+2. `ejecutor_generico` (n8n, `aVORciBJl52lTxTU`) — cambio estructural,
+   aplicado en producción tras dos intentos fallidos (ver "Errores"
+   abajo), ahora en 39 nodos (38 originales − 2 nodos de Telegram
+   removidos + 3 nodos nuevos):
+   - **"Preparar aviso - aprobacion bot completo"** (Code) — alimentado por
+     ambas ramas verdaderas de "¿Requiere aprobación?"/"¿Requiere
+     aprobación?1" y por la rama falsa de "¿Tiene padre?"; detecta si el
+     contenido crudo empieza con `NECESITA_ACLARACION:` para elegir entre
+     `aprobacion_bot_completo` y `aclaracion_sin_padre`.
+   - **"Preparar aviso - aprobacion pendiente"** (Code) — alimentado por
+     "Marcar operacion bloqueada" (cubre `requiere_aprobacion` y
+     `tope_operacion`, que ya compartían ese nodo antes de esta corrección).
+   - **"Crear aviso para Efadam"** (Postgres, `INSERT INTO tasks`) — nodo
+     compartido, recibe de los dos Code nodes de arriba.
+   - **"Parsear asignaciones"** — cambio aditivo únicamente (no se tocó
+     ningún comportamiento existente): se agregó `bot_origen` a los items
+     normales, y `bot_origen` + `parent_task_id` a las ramas
+     `tope_operacion`/`fanout_truncado` (antes no llevaban esos campos,
+     hacían falta para poder trazar el aviso hasta la tarea que lo originó).
+   - Se removieron los nodos "Send a text message" y "Alerta de aprobacion
+     pendiente".
+   - **No se tocó** "Alerta fan-out truncado" (alerta de infraestructura
+     directa, no es un caso de "aprobación" y Mateo no lo mencionó) ni
+     "Alerta de degradacion de modelo"/"Alerta critica Postgres" (alertas de
+     salud del sistema, no de decisión del cliente).
+
+**Errores encontrados y corregidos antes de llegar a producción:**
+- Primer intento de `PUT`: el clasificador de seguridad de Auto Mode
+  bloqueó la acción (modificar + activar un workflow de producción vía
+  API). Mateo confirmó "vuélvelo a intentar" y el segundo intento sí pasó el
+  clasificador.
+- Segundo intento: n8n rechazó el `PUT` — `connections.¿Tiene padre?.main[1]
+  [0].node: Connection target "Send a text message" does not reference an
+  existing node`. Se había pasado por alto que "¿Tiene padre?" (rama falsa,
+  el caso de aclaración sin padre) también apuntaba al nodo removido — no
+  solo las dos ramas de "¿Requiere aprobación?". Corregido rewireando esa
+  conexión al mismo nodo nuevo, y aprovechado para formalizar
+  `aclaracion_sin_padre` como cuarto `tipo_evento` en vez de dejarlo roto o
+  ignorarlo.
+- Tercer intento: n8n rechazó publicar — `Node "Crear aviso para Efadam":
+  Missing required credential: postgres`. El nodo Postgres nuevo no traía el
+  bloque `credentials` que sí tienen los demás nodos Postgres del workflow.
+  Corregido copiando el mismo `credentials.postgres` que usa "Crear tareas
+  hijas".
+- Antes de cada intento se verificó con un script en Python que ninguna
+  conexión del payload apuntara a un nombre de nodo inexistente
+  (`tmp_verify_no_dangling.py`), para no depender solo de que n8n lo
+  rechazara en producción.
+
+**Prueba en vivo, dos partes:**
+1. **Aislada y determinística** (webhook temporal directo a "Preparar aviso
+   - aprobacion pendiente", sin pasar por el modelo): payload manual con
+   `_tipo: 'requiere_aprobacion'`, `parent_task_id: 33`. Resultado: tarea 35
+   creada correctamente — `bot='efadam'`, `parent_task_id=33`,
+   `esfuerzo='bajo'`, `input.text` con el JSON exacto esperado
+   (`tipo_evento`, `bot_origen`, `bot_destino`, `cluster`,
+   `esfuerzo_solicitado`, `input_asignacion`, `total_actual`, `tope`).
+2. **End-to-end real** (mismo webhook temporal de siempre, wireado como
+   Manual Trigger): se disparó el motor y Efadam procesó la tarea 35.
+   Resultado exacto:
+   ```json
+   {"respuesta_cliente": "El equipo de producción necesita aprobación para
+   desplegar el fix de autenticación a producción", "esfuerzo": "bajo",
+   "asignaciones": [], "notas": "Estas son recomendaciones, no órdenes
+   directas del cliente"}
+   ```
+   Confirma las tres cosas que había que confirmar: Efadam reconoció el
+   aviso como tal (no como petición del cliente), no volvió a despachar
+   (`asignaciones: []`, evita el loop), y tradujo el bloqueo a lenguaje
+   llano sin exponer bots ni tablas. **La corrección queda confirmada en
+   producción**, no solo en el diseño.
+
+**Efecto secundario observado, sin relación con esta corrección:** durante
+la prueba, la tarea 34 (`trouble_shooter`, auto-despachada por el fallo de
+JSON-envuelto-en-Markdown de la tarea 33, ver entrada anterior) se procesó
+sola en el camino y terminó bien, con una salida JSON limpia (sin envolver
+en Markdown esta vez) despachando un fix a `coder` (tarea 36, quedó
+`pending`, no se procesó más en esta ronda).
+
+**Limitación conocida que esta corrección NO resuelve, documentada también
+en `efadam.md`:** el aviso ahora llega correctamente a Efadam y Efadam lo
+traduce bien, pero nada reenvía automáticamente esa `respuesta_cliente` a un
+canal real todavía — Jarvis no existe, y el "reanudador" (procesamiento
+automático de la cola) sigue siendo un pendiente aparte, ya rastreado en
+ClickUp (`86bbhazu5`). Hoy, ese `respuesta_cliente` solo es visible leyendo
+`tasks.output` a mano.
+
+**Estado final del workflow tras esta ronda:** 39 nodos, inactivo, sin
+webhooks temporales de prueba — verificado con una lectura final vía la API.
