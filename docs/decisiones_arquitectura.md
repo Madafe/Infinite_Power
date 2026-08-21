@@ -590,3 +590,115 @@ ClickUp (`86bbhazu5`). Hoy, ese `respuesta_cliente` solo es visible leyendo
 
 **Estado final del workflow tras esta ronda:** 39 nodos, inactivo, sin
 webhooks temporales de prueba — verificado con una lectura final vía la API.
+
+## 21 de agosto de 2026 — Endurecimiento del parseo de salida del modelo (ClickUp `86bbhbdry`)
+
+**Problema que resuelve.** La prueba end-to-end de `tech_center` (entrada
+anterior) destapó que el motor asumía que el modelo siempre devuelve JSON
+crudo, sin envoltorio. En la práctica el modelo a veces envuelve su
+respuesta en prosa y/o bloques Markdown (` ```json ... ``` `), y eso rompía
+dos lugares distintos del `ejecutor_generico` al mismo tiempo:
+- `"Parsear asignaciones"` — hacía `JSON.parse()` directo sobre
+  `choices[0].message.content`; cualquier texto antes/después del JSON (o
+  el JSON envuelto en \`\`\`json) tiraba la excepción cruda, sin distinguir
+  "el modelo se equivocó de verdad" de "el modelo acertó pero lo envolvió
+  raro".
+- `"¿Necesita aclaración?"` — comparaba con
+  `content.startsWith('NECESITA_ACLARACION:')`, un match exacto de string;
+  si el modelo lo escribía en negritas (`**NECESITA_ACLARACION:**`) o con
+  cualquier prefijo Markdown, la condición nunca se cumplía y la aclaración
+  se trataba como una asignación normal (y fallaba el parseo de asignaciones
+  también, en cascada).
+- `"Crear tarea de aclaración"` — construía el texto de la tarea hija
+  quitando el prefijo con `.replace('NECESITA_ACLARACION: ', '')`, el mismo
+  problema de match exacto, ahora en la extracción del contenido en vez de
+  en la detección.
+- `"Preparar aviso - aprobacion bot completo"` (agregado en la corrección
+  anterior) — tenía su propia copia del mismo `startsWith` frágil para
+  decidir entre `aprobacion_bot_completo` y `aclaracion_sin_padre`.
+
+Cuatro copias de la misma lógica frágil, en cuatro nodos distintos.
+
+**Diseño elegido.** En vez de parchear cada copia por separado, se
+centralizó la extracción tolerante en un único nodo nuevo,
+`"Normalizar salida del modelo"` (Code, `onError: continueErrorOutput`),
+insertado entre `"¿Falló la llamada a omniroute?"` (rama de éxito, antes
+iba directo a `"¿Necesita aclaración?"`) y el resto de la cadena. Calcula
+una sola vez:
+- `es_aclaracion` (booleano): ya no exige que el string empiece
+  exactamente con `NECESITA_ACLARACION:` — primero limpia caracteres
+  Markdown iniciales (`*_\`#>~-` y espacios) del arranque del texto y recién
+  ahí compara.
+- `aclaracion_pregunta` (string o `null`): el texto de la pregunta ya
+  limpio de marcado (negritas, backticks) al inicio y al final.
+- `json_extraido` (objeto o `null`) / `json_extraido_ok` (booleano): intenta
+  `JSON.parse()` directo primero; si falla, busca el **último** bloque
+  \`\`\`json ... \`\`\` (o \`\`\` a secas) del texto y lo parsea; si tampoco
+  hay bloques, cae a tomar desde la primera `{` hasta la última `}` del
+  texto completo y lo intenta parsear. Si las tres estrategias fallan,
+  `json_extraido_ok = false` en vez de tirar una excepción no controlada.
+
+Los cuatro nodos consumidores se actualizaron para leer estos campos ya
+calculados en vez de repetir la lógica:
+- `"¿Necesita aclaración?"` ahora compara `{{ $json.es_aclaracion }}` en vez
+  del `startsWith` crudo.
+- `"Crear tarea de aclaración"` arma el `input` de la tarea hija con
+  `$('Normalizar salida del modelo').first().json.aclaracion_pregunta` en
+  vez de la extracción manual con `.replace`.
+- `"Parsear asignaciones"` usa
+  `$('Normalizar salida del modelo').first().json.json_extraido` como
+  fuente; si `json_extraido_ok` es `false`, tira explícitamente
+  `new Error('No se pudo extraer un JSON válido...')` — un fallo claro y
+  diagnosticable en vez de la excepción críptica de `JSON.parse` sobre
+  texto arbitrario. Ese error sigue cayendo en el camino normal de fallos
+  del motor (`"Preparar fallo"` → `"Marcar como fallida"` →
+  auto-despacho a `trouble_shooter` si el bot que falló no era ya
+  `trouble_shooter`), así que el comportamiento de recuperación ya probado
+  en la ronda anterior se mantiene intacto.
+- `"Preparar aviso - aprobacion bot completo"` usa el mismo
+  `es_aclaracion` calculado en vez de su copia propia del `startsWith`.
+
+Ningún nodo existente cambió de comportamiento fuera de estos cuatro
+puntos; el resto del grafo (37 nodos previos) quedó intacto.
+
+**Verificación antes de desplegar.** Antes de cada intento de `PUT` se
+corrió un verificador en Python que recorre `connections` y confirma que
+todo nodo destino existe en `nodes` (mismo hábito adoptado en la corrección
+anterior) — sin problemas esta vez, el `PUT` se aceptó al primer intento.
+
+**Prueba en vivo, aislada y determinística.** Se agregó temporalmente un
+webhook → nodo adaptador (`return [{ json: $json.body }]`) → conectado
+**directamente** a `"Normalizar salida del modelo"` (sin pasar por el resto
+del motor), y se dispararon 4 casos manualmente:
+
+| Caso | Entrada | Resultado obtenido |
+|---|---|---|
+| JSON envuelto en \`\`\`json con prosa alrededor | `"Aqui esta el analisis:\n\n\`\`\`json\n{...}\n\`\`\`\n\nEspero que ayude."` | `es_aclaracion=false`, `json_extraido_ok=true`, extrajo el objeto correcto — **el caso exacto que rompía la tarea 33** |
+| `NECESITA_ACLARACION:` envuelto en negritas | `"**NECESITA_ACLARACION:** ¿Cual es el objetivo exacto del despliegue?"` | `es_aclaracion=true`, `aclaracion_pregunta="¿Cual es el objetivo exacto del despliegue?"` (limpio, sin `**`) |
+| JSON plano sin envoltorio (caso base, sin regresión) | `"{\"asignaciones\": []}"` | `es_aclaracion=false`, `json_extraido_ok=true`, `json_extraido={"asignaciones":[]}` |
+| Texto sin JSON extraíble de ningún tipo | `"Lo siento, no puedo continuar..."` | `es_aclaracion=false`, `json_extraido_ok=false`, `json_extraido=null` — el caso que ahora dispara el error explícito y controlado en `"Parsear asignaciones"` en vez de una excepción cruda |
+
+Los 4 resultados coincidieron exactamente con lo esperado por diseño. Nota
+metodológica: la respuesta HTTP del webhook de prueba no sirvió para leer
+el resultado (el grafo real sigue después de `"Normalizar..."` hacia nodos
+que dependen de `"Reclamar tarea pendiente"` / `"Obtener config del bot"`,
+que no corrieron en esta prueba aislada, así que el webhook devolvía
+`{"message":"Error in workflow"}` por el fallo aguas abajo) — la
+verificación real se hizo leyendo el `runData` del nodo
+`"Normalizar salida del modelo"` directamente vía
+`GET /api/v1/executions/{id}?includeData=true`, no la respuesta del
+webhook.
+
+No se repitió la prueba end-to-end real de `tech_center` en esta ronda —
+la prueba aislada ya reproduce exactamente el patrón de falla observado
+originalmente (JSON envuelto en \`\`\`json con prosa alrededor) contra el
+nodo real que lo consume, así que se considera evidencia suficiente. Queda
+como pendiente opcional repetir el flujo completo Efadam → Tech center →
+Técnico jefe si se quiere una confirmación end-to-end adicional.
+
+**Estado final del workflow:** 40 nodos (39 + 1 nuevo `"Normalizar salida
+del modelo"`), inactivo, sin webhooks temporales de prueba — verificado con
+una lectura final vía la API (sin conexiones colgantes, sin nodos
+duplicados).
+
+**ClickUp `86bbhbdry`:** se marca resuelto — ver actualización en la tarea.
