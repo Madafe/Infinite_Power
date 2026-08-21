@@ -347,3 +347,100 @@ sistema" de cada archivo reescrito (extraído por script y aplicado con
 `UPDATE ... $PROMPT$...$PROMPT$`, mismo mecanismo de dollar-quoting ya usado
 para Efadam el 21/ago). Verificado por longitud de `prompt_especifico`
 después del `UPDATE`, coincide con lo extraído de cada `.md`.
+
+## 21 de agosto de 2026 — tech_center insertado en `bots`; prueba end-to-end revela un hueco real en el parseo de JSON
+
+Mateo pidió insertar `tech_center` en producción y probarlo ("dale, inserta
+y prueba"). Se hizo lo primero sin problema; lo segundo destapó un bug real,
+no un simple "todo funciona".
+
+**Inserción.** `tech_center` insertado en `bots` con `active = true`,
+`dispatches_tasks = true`, `requires_approval = false`,
+`conocimiento_directo = false`, `contexto_slugs = {arquitectura,
+stack_y_convenciones}` (mismo contexto que `tecnico_jefe`/`efadam`).
+`prompt_especifico` tomado literal del bloque "Prompt de sistema" de
+`tech-center.md` (1661 caracteres); el trigger `trg_componer_system_prompt`
+compuso `system_prompt` automáticamente (3310 caracteres) — mismo mecanismo
+que ya usan los otros 4 bots activos, sin intervención manual.
+
+**Prueba en vivo (técnica de webhook temporal, tarea 33).** Se insertó una
+tarea sintética para `tech_center` simulando una recomendación de Efadam de
+bajo riesgo ("reforzar validación de inputs en el módulo de autenticación,
+sin incidentes reportados"). Se agregó un nodo webhook temporal al workflow
+`ejecutor_generico` (mismo procedimiento que las pruebas anteriores de
+Efadam/Técnico jefe: nodo `n8n-nodes-base.webhook` cableado igual que
+"When clicking 'Execute workflow'" → "Reclamar tarea pendiente", vía
+`PUT /api/v1/workflows/{id}` con payload construido en Python — no
+PowerShell, para evitar el bug conocido de aplanado de arrays anidados de
+`ConvertTo-Json`), se activó, se disparó con `curl.exe`, se observó el
+resultado en Postgres y en el historial de ejecuciones de n8n, y se
+revirtió el workflow a su estado original (38 nodos, inactivo) al terminar.
+Verificado con una segunda lectura del workflow que quedó idéntico al
+original.
+
+**Resultado: la tarea 33 terminó en `status = 'failed'`** con el error
+`Unexpected token '#', "## Conocim"... is not valid JSON`. El contenido
+crudo que devolvió el modelo no quedó accesible en `tasks.output` (se
+sobrescribió con el mensaje de error) — hubo que recuperarlo desde la API
+de ejecuciones de n8n (`GET /api/v1/executions/{id}?includeData=true`,
+nodo "Llamar a omniroute"). **Nota aparte para el futuro:** cuando una
+tarea falla, la única forma de ver la respuesta cruda del modelo es el
+historial de ejecuciones de n8n, no la tabla `tasks` — vale la pena
+evaluar si conviene guardar el crudo en algún lado antes de intentar el
+parseo, para no depender de eso.
+
+**Lo que el contenido crudo mostró:** el modelo sí tomó la decisión
+correcta — el JSON embebido al final era exactamente el esperado:
+`{"asignaciones": [{"bot": "tecnico_jefe", "cluster": "tech-center",
+"esfuerzo": "bajo", "requiere_aprobacion": false, "input": "reforzar
+validación de inputs en modulo de autenticación"}], "resumen_consolidado":
+null, "notas": "..."}`. El problema no es la decisión ni el contrato — es
+que el modelo lo envolvió en ~30 líneas de un ensayo en markdown
+("## Conocimiento del sistema", con secciones, viñetas, etc.) antes del
+bloque JSON, a pesar de la instrucción explícita "responde ÚNICAMENTE con
+un objeto JSON válido, sin texto antes ni después". El nodo "Parsear
+asignaciones" hace `JSON.parse` directo sobre el contenido completo, sin
+ningún intento de extraer el JSON embebido — cualquier prosa antes del
+bloque rompe el parseo aunque la decisión del modelo sea correcta.
+
+**El mecanismo de fallo sí funcionó como está diseñado:** la tarea 33 se
+marcó `failed` y se auto-despachó una tarea nueva a `trouble_shooter`
+(tarea 34) con el mensaje de error, sin loop ni intervención manual — ese
+circuito ya estaba probado con Efadam (18/ago) y esta prueba confirma que
+también cubre a `tech_center` sin cambios adicionales.
+
+**Esto no es un problema aislado de `tech_center` ni del esfuerzo `medio`
+específicamente — es un hueco estructural.** El parseo de JSON en "Parsear
+asignaciones" (y, por el mismo motivo de fondo, el
+`startsWith('NECESITA_ACLARACION:')` en "¿Necesita aclaración?") asume que
+el modelo obedece "solo JSON" al pie de la letra, sin ninguna capa de
+tolerancia. Ya había una nota de pendiente sobre esto limitada al caso de
+NECESITA_ACLARACION envuelto en markdown; esta prueba muestra que el
+alcance real es más amplio — afecta a cualquier bot con
+`dispatches_tasks = true` (hoy: `efadam`, `tecnico_jefe`, `trouble_shooter`,
+`tech_center`; a futuro: `ciber_seguridad`, `ciber_seguridad_scouter`,
+`hacker_etico`).
+
+**No se modificó el nodo "Parsear asignaciones" en esta pasada.** Es un
+cambio que toca el workflow compartido por todos los bots despachadores, así
+que se deja para decidir con Mateo el criterio de extracción antes de
+tocarlo en producción. Opciones a evaluar (no decidido):
+1. Extraer el último bloque `\`\`\`json ... \`\`\`` del string con regex
+   antes de parsear.
+2. Buscar el primer `{` y el último `}` del string completo y parsear solo
+   ese fragmento.
+3. Reforzar el prompt (repetir la instrucción, o pedir explícitamente que
+   el JSON sea la primera línea) y aceptar que puede seguir fallando
+   ocasionalmente con modelos más débiles.
+4. Combinar 1+2 como fallback tolerante, y solo si ambas fallan, tratarlo
+   como error real (el comportamiento actual).
+
+Pendiente elevado a prioridad alta en ClickUp — bloquea dar por
+"confirmado en producción" el despacho de cualquier bot, no solo de
+`tech_center`.
+
+**`tech_center` queda insertado y activo en `bots`.** El contrato de
+despacho es correcto en el contenido (confirmado por esta prueba), pero la
+robustez del parseo del lado del ejecutor sigue siendo el cuello de botella
+real antes de poder decir que el flujo Efadam → Tech center → Técnico jefe
+funciona de punta a punta sin intervención.

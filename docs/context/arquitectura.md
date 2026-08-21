@@ -85,8 +85,12 @@ al siguiente — ya no por fase horizontal ("escribir los 40 prompts primero"):
 1. **Efadam** — se construye primero, para que cuando las ramas empiecen a
    producir output ya exista a dónde mandarlo. Evita el problema de ramas
    terminadas sin un destino que las reciba.
-2. **Tech center** (departamento Dev/Tech completo) — ya tiene 10 de 12 bots con
-   prompt escrito; falta activarlo end-to-end contra un Efadam real.
+2. **Tech center** (departamento Dev/Tech completo) — `tech_center` insertado
+   y activo el 21/ago; prueba end-to-end (webhook temporal) confirmó que
+   decide correctamente pero destapó un bug real de parseo de JSON en el
+   ejecutor genérico (ver `decisiones_arquitectura.md`, 21/ago) — no se puede
+   dar por confirmado en producción hasta resolverlo. 12 de 12 bots del
+   roster con prompt escrito y conforme a plantilla.
 3. **Upgrade & review center** (departamento Estrategia completo).
 4. **Proyect center** (departamento Proyectos completo).
 5. **Jarvis** — al final. No tiene nada útil que enrutar ni con qué conversar
@@ -96,10 +100,13 @@ al siguiente — ya no por fase horizontal ("escribir los 40 prompts primero"):
 
 ## Bots activos hoy en la tabla `bots`
 
-**Corrección del 16 de agosto, tarde — verificado directo contra Postgres,
-esta sección tenía un bot de menos.** `tecnico_jefe` (despacha), `coder`,
-`trouble_shooter` (despacha, `conocimiento_directo = true` — ver
-`memoria_del_sistema.md`).
+**Corrección del 21 de agosto — verificado directo contra Postgres, esta
+sección estaba desactualizada desde el 16/ago (le faltaban `efadam` y
+`tech_center`).** Activos hoy: `efadam` (despacha, cluster `Efadam`),
+`tech_center` (despacha, cluster `tech-center`, insertado el 21/ago),
+`tecnico_jefe` (despacha), `coder` (no despacha), `trouble_shooter`
+(despacha, `conocimiento_directo = true` — ver `memoria_del_sistema.md`).
+Cinco bots activos en total.
 Todo lo demás del roster está escrito pero **no activo**. Un bot que no está
 en `bots` con `active = true` no existe para el sistema.
 
