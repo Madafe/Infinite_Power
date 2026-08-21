@@ -300,3 +300,50 @@ reclamada primero por el motor (es más antigua que la 32) y falló con
 reintentará sola — no requiere acción, pero es una pista de que las
 tareas de prueba insertadas a mano deberían siempre traer `esfuerzo`
 explícito para no dejar huecos así en la cola.
+
+## 21 de agosto de 2026 — Los 13 prompts existentes migrados a la plantilla nueva
+
+Mateo pidió reescribir los prompts que ya existen (`prompts/dev-tech/*.md` y
+`prompts/_core/efadam.md`, 13 archivos) con `docs/plantilla_prompt.md` — la
+plantilla ya tenía secciones que ningún archivo real seguía todavía
+("Estado y contrato operativo", "Formato de salida estructurada", "Archivos
+y entregables", "Criterio de terminado", "Delegación y escalamiento"), pese
+a que la nota al pie de la plantilla decía lo contrario. Se corrigió: los 13
+archivos quedaron reescritos con esas 5 secciones agregadas, sin perder
+ningún contrato ya probado (JSON de asignaciones de Técnico
+jefe/Trouble shooter, veredicto de Consultor de arquitectura, workflow
+separado de Trouble scouter, notas de corrección históricas de cada uno).
+
+**Decisiones de diseño tomadas al rellenar los huecos** (no estaban escritas
+en ningún lado antes de esta pasada):
+
+- **`ciber_seguridad_scouter` y `ciber_seguridad` pasan a `dispatches_tasks
+  = true`.** Sus prompts ya decían "dirigido al Hacker ético" / "dirigido a
+  Coder", pero no existía ningún mecanismo real para que ese hallazgo se
+  convirtiera en una tarea — se formalizaron con el mismo contrato JSON de
+  `asignaciones` que ya usan Técnico jefe/Trouble shooter. Mismo criterio
+  para `hacker_etico` (dirigido a `ciber_seguridad`).
+- **`tech_center` recibe su primer contrato JSON formal**, con un campo
+  nuevo (`resumen_consolidado`) para el paquete que Efadam lee directo de
+  Postgres — se documentó explícito que ese resumen NO es un despacho hacia
+  `efadam` (Efadam no tiene mecanismo de recepción de tareas, solo lee
+  `tasks`/`agent_runs` en vivo).
+- **La convención `NECESITA_ACLARACION: <pregunta>`** (ya existente en el
+  ejecutor, nodo "¿Necesita aclaración?", pero no explicada en ningún
+  prompt) se documentó en la sección "Formato de salida estructurada" de
+  los 13 archivos: es la única salida válida en texto plano incluso para
+  bots con `dispatches_tasks = true` — sustituye al JSON completo cuando
+  aplica, nunca convive con él.
+- **Trouble scouter** es el único de los 13 al que varias secciones de la
+  plantilla no le aplican de forma literal (no corre por `tasks` ni por el
+  ejecutor genérico, tiene su propio workflow) — se dejó explícito "no
+  aplica" en vez de forzar contenido que no describe la realidad.
+
+**No se tocó:** `tech_center` sigue sin insertarse en la tabla `bots` — este
+cambio fue solo de documentación/prompt, no de activación. `coder`,
+`tecnico_jefe`, `trouble_shooter` y `efadam` ya estaban `active = true`; su
+`bots.prompt_especifico` se sincronizó en vivo con el bloque "Prompt de
+sistema" de cada archivo reescrito (extraído por script y aplicado con
+`UPDATE ... $PROMPT$...$PROMPT$`, mismo mecanismo de dollar-quoting ya usado
+para Efadam el 21/ago). Verificado por longitud de `prompt_especifico`
+después del `UPDATE`, coincide con lo extraído de cada `.md`.
