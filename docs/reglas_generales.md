@@ -1,4 +1,4 @@
-# Reglas generales — aplican a todos los bots de Infinite Power
+# Reglas generales — aplican a todos los bots de Efadam
 
 > Seed inicial de `system_knowledge.slug = 'reglas_generales'`. Se usa una
 > sola vez, al arrancar el sistema, para poblar la tabla (ver

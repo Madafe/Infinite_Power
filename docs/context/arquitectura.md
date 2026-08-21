@@ -1,4 +1,4 @@
-# Arquitectura de Infinite Power (canónico)
+# Arquitectura de Efadam (canónico)
 
 > Seed inicial de `system_knowledge.slug = 'arquitectura'` — se usa una sola
 > vez para poblar la tabla al arrancar el sistema (ver
@@ -11,10 +11,12 @@
 
 ## Propósito operativo
 
-Infinite Power mejora continuamente los proyectos que se le asignan. Organiza
-trabajo especializado mediante departamentos, aprende de los resultados y
-opera dentro de los límites de autonomía, aprobación y presupuesto que define
-el usuario. No sustituye el control humano sobre decisiones importantes.
+Efadam mejora continuamente los proyectos que se le asignan. Organiza
+una red de trabajo especializado mediante departamentos, aprende de los
+resultados y opera dentro de los límites de autonomía, aprobación y
+presupuesto que define el usuario. Está diseñado para sumar especialistas
+cuando un proyecto necesita una capacidad nueva; no sustituye el control humano
+sobre decisiones importantes.
 
 ## Forma general
 
@@ -22,27 +24,28 @@ Jarvis (endpoint humano) → Efadam (cerebro de orquestación) en el centro + 3
 departamentos. Cada departamento tiene un bot "center" que consolida, audita
 y retiene lo que produce antes de reportar a Efadam.
 
-- **Jarvis** — endpoint de interacción humana, por texto y por voz. Es la
-  superficie de conversación (hoy Telegram cumple ese rol de forma provisional
-  mientras Jarvis no existe). Recibe el mensaje/voz del usuario y se lo pasa a
-  Efadam; regresa la respuesta de Efadam al usuario. No tiene lógica de
-  enrutamiento ni de negocio propia — es la capa de entrada/salida.
-- **Efadam** — cerebro de orquestación central. Enruta y resume. No ejecuta
-  trabajo de ninguna rama. No se salta las aprobaciones de la rama destino.
+- **Jarvis** — endpoint de interacción humana. Recibe del cliente mensajes,
+  fotos, archivos y documentos de oficina; los entrega a Efadam con sus
+  referencias y metadatos, y muestra su respuesta. No se configura una
+  entrada conversacional directa por Telegram.
+- **Efadam** — cerebro de orquestación central y capa de razonamiento entre el
+  cliente y el sistema. No ejecuta trabajo de ninguna rama ni despacha tareas
+  directamente a los bots. Envía recomendaciones contextualizadas a los
+  centers; cada recomendación declara: **"Estas son recomendaciones, no
+  órdenes directas del cliente"**. No se salta las aprobaciones de la rama
+  destino.
   Es el **cuello de botella intencional** único de entrada a `knowledge_log`
   (tipo `aprendizaje`) y a `system_knowledge`: todo conocimiento que cruza de
   una rama a otra pasa por él, incluso cuando eso implica fricción — es la
   razón por la que el sistema aprende de forma centralizada, y es uno de los
-  rasgos que distingue a Infinite Power de sistemas multi-agente parecidos.
+  rasgos que distingue a Efadam de sistemas multi-agente parecidos.
   Efadam no redacta ese contenido — se lo solicita a Upgrade & review center
   e inserta lo que este produce. La única excepción documentada es
   `bots.conocimiento_directo` (hoy, solo Trouble shooter — ver
-  `memoria_del_sistema.md`). Es también quien asigna el nivel de importancia
-  de cada tarea que despacha (ver "Quién decide el modelo" más abajo) — los
-  bots destino no deciden su propio nivel. Al abrir una operación, confirma
-  su registro y despacha la tarea concreta sin esperar la síntesis de
-  aprendizaje, que ocurre después de un cierre o hito y conserva el mismo
-  `operation_id`. Conoce el sistema por dos vías: `system_knowledge`
+  `memoria_del_sistema.md`). Al abrir una operación, confirma al cliente que
+  está trabajando en ello sin esperar la síntesis de aprendizaje, que ocurre
+  después de un cierre o hito y conserva el mismo `operation_id`. Conoce el
+  sistema por dos vías: `system_knowledge`
   inyectado vía `contexto_slugs` (qué es el sistema; no cambia mensaje a
   mensaje, pero sí evoluciona con el tiempo) y
   lectura directa de `tasks`/`agent_runs` de cualquier rama (qué está pasando
@@ -56,21 +59,23 @@ y retiene lo que produce antes de reportar a Efadam.
   su propia rama, le pregunta a Efadam en vez de leerla directo — Efadam
   sigue siendo el único con visibilidad de todo el sistema (confirmado por
   Mateo, 19/ago). La excepción sigue siendo solo de
-  **lectura**: la única escritura a `tasks`/`operations`/`system_knowledge`/
-  `knowledge_log` sigue siendo exclusiva de Efadam, sin cambio al cuello de
-  botella de escritura (decisión de Mateo, ver `plan_de_accion_completo.md`,
-  actualización del 19 de agosto, cuarta ronda).
-- **Tech center** — hub del departamento Dev/Tech. Gate de aprobación final
-  antes de producción en su departamento.
-- **Upgrade & review center** — hub del departamento Estrategia.
+  **lectura**: Efadam abre `operations` y controla la entrada a las tablas de
+  conocimiento; cada center despacha las tareas de su propio departamento.
+- **Tech center** — hub del departamento Dev/Tech. Recibe recomendaciones de
+  Efadam, decide el plan de trabajo y despacha las tareas internas; mantiene
+  el gate de aprobación final antes de producción.
+- **Upgrade & review center** — hub del departamento Estrategia. Recibe
+  recomendaciones de Efadam y despacha el trabajo de su departamento.
   Misión: Observar → Analizar → Mejorar. Libera hacia Planner / Establecer metas.
   Redacta y evalúa las actualizaciones de `system_knowledge` y `knowledge_log`
   que Efadam le solicita.
-- **Proyect center** — hub del departamento Proyectos.
+- **Proyect center** — hub del departamento Proyectos. Recibe recomendaciones
+  de Efadam y despacha el trabajo de su departamento.
 
-Los 3 centers son simétricos: su función principal es **retener** (auditoría
-activa de su rama), no solo enrutar. Efadam no re-audita el detalle de
-ejecución; solo verifica que lo entregado no se contradiga con la meta.
+Los 3 centers son simétricos: reciben recomendaciones, deciden cómo actuar,
+despachan el trabajo de su rama y retienen lo que requiere auditoría. Efadam
+no re-audita ni dirige el detalle de ejecución; coordina con el cliente como
+si contactara a un equipo de especialistas, sin exponer la arquitectura.
 
 ## Orden de construcción (vigente desde el 15 de agosto de 2026)
 
@@ -116,18 +121,20 @@ no necesita el schema de Postgres para un dictamen legal).
 Detalle completo de este mecanismo (incluyendo por qué Efadam es la única
 excepción con lectura directa de Postgres) en `memoria_del_sistema.md`.
 
-## Quién decide el modelo — niveles de importancia
+## Quién decide el modelo — esfuerzo
 
 Ningún bot, incluido Efadam, referencia un modelo específico en su prompt.
-**Efadam es quien asigna el nivel de importancia** (valores de sistema:
-`bajo`, `medio`, `alto`, `critico` — sin tilde, son identificadores, no
-texto para leer) a cada tarea que despacha — un bot individual no decide el
-suyo propio, porque solo ve su tarea aislada y no tiene la visión de
-negocio que sí tiene Efadam. El bot que ejecuta hereda el nivel ya
-asignado, guardado en `tasks.nivel_importancia`. OmniRoute (LiteLLM
-self-hosted) traduce ese nivel al modelo real vía alias de modelo
-configurados en su `config.yaml` — mecanismo concreto y ejemplo completo en
-`stack_y_convenciones.md`, sección "Niveles de importancia y BYOK".
+Efadam recomienda el **esfuerzo inicial** de una operación (valores de
+sistema: `bajo`, `medio`, `alto`, `critico`), usando complejidad y preferencia
+de servicio. Los centers calculan el esfuerzo de cada tarea concreta que
+descomponen; una operación no obliga el mismo valor a todas sus tareas.
+
+La interfaz muestra las operaciones activas con su estado, esfuerzo actual y
+recomendado, y permite ajustar el esfuerzo manualmente. El ajuste queda
+auditado, afecta el trabajo pendiente o futuro y no reescribe una tarea que ya
+está en ejecución. OmniRoute traduce `tasks.esfuerzo` al modelo configurado;
+riesgo y aprobaciones son controles separados. El mecanismo completo está en
+`stack_y_convenciones.md`, sección "Esfuerzo y BYOK".
 
 ## Departamento Dev/Tech (prompts escritos)
 

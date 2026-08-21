@@ -3,11 +3,11 @@
 
 ---
 
-# Contexto del proyecto — "Infinite Power"
+# Contexto del proyecto — "Efadam"
 
 ## Qué es
 
-Sistema de agentes de IA para gestionar y hacer crecer negocios de forma cada vez más autónoma, con la menor intervención humana posible, cubriendo la mayor cantidad de áreas del negocio. Nace de una pizarra/diagrama en ClickUp (whiteboard "Infinite power").
+Sistema de agentes de IA para gestionar y hacer crecer negocios de forma cada vez más autónoma, con la menor intervención humana posible, cubriendo la mayor cantidad de áreas del negocio. Nace de una pizarra/diagrama en ClickUp (whiteboard "Efadam").
 
 ## Quién lo construye
 

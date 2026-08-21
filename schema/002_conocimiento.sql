@@ -1,5 +1,5 @@
 -- =====================================================================
--- 002_conocimiento.sql — Memoria del sistema Infinite Power
+-- 002_conocimiento.sql — Memoria del sistema Efadam
 -- Corre DESPUÉS de init.sql (tablas tasks / approvals / agent_runs)
 -- y DESPUÉS de que exista la tabla `bots` (ver ejecutor_generico.md).
 --
@@ -91,7 +91,7 @@ alter table bots add column if not exists prompt_especifico text;
 
 -- Semilla obligatoria: las reglas generales, antes del trigger.
 insert into system_knowledge (slug, titulo, contenido, source_file) values
-('reglas_generales', 'Reglas generales de Infinite Power', $REGLAS$## Reglas generales — aplican a todos los bots de Infinite Power
+('reglas_generales', 'Reglas generales de Efadam', $REGLAS$## Reglas generales — aplican a todos los bots de Efadam
 
 ### 1. Piensa antes de actuar
 No asumas, no escondas confusión, expón los tradeoffs. Ante la duda, siempre pregunta — nunca declares un supuesto y sigas adelante en su lugar. No hay un humano viendo en tiempo real que corrija una suposición equivocada; para cuando alguien la revise, ya se ejecutó. Usa el mecanismo de aclaración (`NECESITA_ACLARACION:`) en cuanto identifiques algo que no sabes con certeza y que cambiaría el resultado. Si existen varias interpretaciones válidas, pregunta cuál aplica — no elijas una en silencio. Si hay una forma más simple, dilo.

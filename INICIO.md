@@ -1,11 +1,11 @@
-# INICIO — Infinite Power
+# INICIO — Efadam
 
 > Nota índice del vault. Todo el repo es el vault de Obsidian: cada `.md` de
 > aquí es una nota, versionada en git. Empieza por acá.
 
 ## Qué es esto
 
-Infinite power — la visión, la propuesta de valor y el Método (contenido
+Efadam — la visión, la propuesta de valor y el Método (contenido
 fusionado en `docs/archivo/plan_de_accion_completo.md`, 15/ago; la nota
 suelta que existía se eliminó).
 
@@ -16,7 +16,7 @@ reportar hacia arriba.
 
 ## Propuesta de valor
 
-Infinite Power pone a disposición del proyecto una red de especialistas que
+Efadam pone a disposición del proyecto una red de especialistas que
 puede trabajar 24/7. En vez de limitarse a responder una petición puntual,
 evalúa el proyecto de forma continua, identifica oportunidades, propone
 mejoras, coordina el trabajo especializado y, cuando hace falta, incorpora
@@ -27,19 +27,26 @@ las aprobaciones y el presupuesto. Puede operar con herramientas gratuitas o
 escalar la inversión cuando el proyecto lo justifique, sin tener que formar,
 capacitar ni coordinar por su cuenta un equipo para cada especialidad.
 
-ChatGPT puede ayudar a resolver algo cuando se le pide; Infinite Power busca
+ChatGPT puede ayudar a resolver algo cuando se le pide; Efadam busca
 tener una red de especialistas lista para observar, sugerir, construir,
 corregir y mejorar de forma constante los proyectos asignados.
 
 ## Estado actual
 
 - [[estado_del_proyecto]] — qué existe de verdad hoy (no lo planeado)
-- **Bots activos:** `tecnico_jefe`, `coder`, `trouble_shooter`. Nada más.
-  Un bot que no está en la tabla `bots` con `active = true` no existe.
+- **Bots activos:** `tecnico_jefe`, `coder`, `trouble_shooter`, `efadam`
+  (insertado 20/ago, séptima ronda — fijo en esfuerzo `bajo`, ver
+  `bot_niveles_fijos`). Nada más. Un bot que no está en la tabla `bots` con
+  `active = true` no existe. **`efadam` existe pero no está activo "de
+  verdad" todavía** — nada en vivo crea tareas para él (sin Telegram→tasks,
+  sin Schedule Trigger, sin Jarvis) y el workflow del Ejecutor genérico
+  sigue sin actualizar al modelo de esfuerzo/recomendación nuevo. Detalle
+  completo en `docs/archivo/plan_de_accion_completo.md`, entrada del 20/ago
+  séptima ronda.
 
 ## Arquitectura (visión)
 
-- Infinite power — método, cadencia, revert, multiproyecto (fusionado en
+- Efadam — método, cadencia, revert, multiproyecto (fusionado en
   `docs/archivo/plan_de_accion_completo.md`, 15/ago)
 - Efadam — bot cabeza, enrutamiento y memoria (fusionado en
   `prompts/_core/efadam.md` y [[memoria_del_sistema]], 15/ago)
@@ -78,7 +85,7 @@ integrantes y criterios de aprobación.
 `schema/*.sql`, en orden. Correr con `docker cp` + `psql -f`, **nunca** con
 `Get-Content | docker exec` (corrompe acentos en PowerShell).
 
-Antes de instalar Infinite Power fuera de local (VPS o instalación de un
+Antes de instalar Efadam fuera de local (VPS o instalación de un
 tercero), verificar la portabilidad del schema y documentar el procedimiento
 de despliegue, configuración, secretos, migraciones y respaldo.
 

@@ -42,6 +42,41 @@
     },
     {
       "parameters": {
+        "jsCode": "const RANK = { bajo: 0, medio: 1, alto: 2, critico: 3 };\n\n// Esta lista replica los cuatro modelos configurados hoy en los combos de\n// OmniRoute. Si un combo cambia, actualizar esta lista en el mismo cambio.\nconst ESFUERZO_POR_MODELO = {\n  'nvidia/meta/llama-3.1-8b-instruct': 'bajo',\n  'meta/llama-3.1-8b-instruct': 'bajo',\n  'nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5': 'medio',\n  'nvidia/llama-3.3-nemotron-super-49b-v1.5': 'medio',\n  'nvidia/nvidia/nemotron-3-super-120b-a12b': 'alto',\n  'nvidia/nemotron-3-super-120b-a12b': 'alto',\n  'nvidia/nvidia/nemotron-3-ultra-550b-a55b': 'critico',\n  'nvidia/nemotron-3-ultra-550b-a55b': 'critico'\n};\n\nconst tarea = $('Reclamar tarea pendiente').first().json;\nconst esfuerzoSolicitado = $('Obtener esfuerzo fijo del bot').first().json.esfuerzo_fijo || tarea.esfuerzo;\nconst modeloUsado = $('Llamar a omniroute').first().json.model;\nconst esfuerzoUsado = ESFUERZO_POR_MODELO[modeloUsado];\n\n// OmniRoute no expone en el body el paso del combo que ejecutó. Un modelo\n// desconocido no permite confirmar que respetó el nivel, así que se avisa sin\n// bloquear la tarea ni convertirla en fallo.\nif (!esfuerzoUsado) {\n  return [{ json: {\n    tipo: 'modelo_desconocido',\n    task_id: tarea.id,\n    bot: tarea.bot,\n    esfuerzo_solicitado: esfuerzoSolicitado,\n    modelo_usado: modeloUsado || '(sin modelo en respuesta)'\n  } }];\n}\n\nif (RANK[esfuerzoUsado] < RANK[esfuerzoSolicitado]) {\n  return [{ json: {\n    tipo: 'degradacion',\n    task_id: tarea.id,\n    bot: tarea.bot,\n    esfuerzo_solicitado: esfuerzoSolicitado,\n    esfuerzo_usado: esfuerzoUsado,\n    modelo_usado: modeloUsado\n  } }];\n}\n\nreturn [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        -96
+      ],
+      "id": "92859c69-858e-4a08-ae7b-e45f7e0a2a5c",
+      "name": "Detectar degradacion de modelo"
+    },
+    {
+      "parameters": {
+        "chatId": "-5436560130",
+        "text": "={{ $json.tipo === 'degradacion' ? ('ALERTA DE MODELO: la tarea ' + $json.task_id + ' (' + $json.bot + ') pidio esfuerzo ' + $json.esfuerzo_solicitado + ', pero OmniRoute respondio con esfuerzo ' + $json.esfuerzo_usado + '. Modelo usado: ' + $json.modelo_usado + '. La tarea continuo y su resultado ya fue guardado.') : ('ALERTA DE MODELO: no se pudo clasificar el modelo usado por la tarea ' + $json.task_id + ' (' + $json.bot + '). Esfuerzo solicitado: ' + $json.esfuerzo_solicitado + '. Modelo reportado: ' + $json.modelo_usado + '. La tarea continuo y su resultado ya fue guardado; revisar la configuracion de combos.') }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2144,
+        -96
+      ],
+      "id": "74b3fbd8-f2bf-49e8-b9c5-9092165e89fa",
+      "name": "Alerta de degradacion de modelo",
+      "webhookId": "2d029179-3381-4e56-b436-e4df9b3a713e",
+      "credentials": {
+        "telegramApi": {
+          "id": "tuB3ffpZd4YdDBtR",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -106,7 +141,7 @@
         "url": "http://omniroute:20128/v1/chat/completions",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  model: ($('Obtener nivel fijo del bot').first().json.nivel_fijo) || $('Reclamar tarea pendiente').first().json.nivel_importancia,\n  messages: [\n    { role: \"system\", content: $('Obtener config del bot').first().json.system_prompt },\n    { role: \"system\", content: $('Obtener contexto de tarea padre').first().json.parent_input ? `Contexto: esta tarea fue asignada por ${$('Obtener contexto de tarea padre').first().json.parent_bot} a partir de: ${$('Obtener contexto de tarea padre').first().json.parent_input}` : \"Esta tarea no tiene contexto previo; es la primera de su cadena.\" },\n    ...($('Cargar contexto').first().json.system_knowledge ? [{ role: \"system\", content: \"## Conocimiento del sistema\\n\\n\" + $('Cargar contexto').first().json.system_knowledge }] : []),\n    ...($('Cargar contexto').first().json.knowledge_log ? [{ role: \"system\", content: \"## Casos y patrones ya conocidos - usalos, no los re-investigues\\n\\n\" + $('Cargar contexto').first().json.knowledge_log }] : []),\n    { role: \"user\", content: $('Reclamar tarea pendiente').first().json.input.text }\n  ]\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  model: ($('Obtener esfuerzo fijo del bot').first().json.esfuerzo_fijo) || $('Reclamar tarea pendiente').first().json.esfuerzo,\n  messages: [\n    { role: \"system\", content: $('Obtener config del bot').first().json.system_prompt },\n    { role: \"system\", content: $('Obtener contexto de tarea padre').first().json.parent_input ? `Contexto: esta tarea fue asignada por ${$('Obtener contexto de tarea padre').first().json.parent_bot} a partir de: ${$('Obtener contexto de tarea padre').first().json.parent_input}` : \"Esta tarea no tiene contexto previo; es la primera de su cadena.\" },\n    ...($('Cargar contexto').first().json.system_knowledge ? [{ role: \"system\", content: \"## Conocimiento del sistema\\n\\n\" + $('Cargar contexto').first().json.system_knowledge }] : []),\n    ...($('Cargar contexto').first().json.knowledge_log ? [{ role: \"system\", content: \"## Casos y patrones ya conocidos - usalos, no los re-investigues\\n\\n\" + $('Cargar contexto').first().json.knowledge_log }] : []),\n    { role: \"user\", content: $('Reclamar tarea pendiente').first().json.input.text }\n  ]\n}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -192,7 +227,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const RANK = { bajo: 0, medio: 1, alto: 2, critico: 3 };\nconst CAP_POR_NIVEL = {\n  bajo:    { porDespacho: 5,  porOperacion: 50  },\n  medio:   { porDespacho: 10, porOperacion: 100 },\n  alto:    { porDespacho: 15, porOperacion: 150 },\n  critico: { porDespacho: 20, porOperacion: 200 }\n};\n\nconst salida = JSON.parse($('Llamar a omniroute').first().json.choices[0].message.content);\nconst parentId = $('Reclamar tarea pendiente').first().json.id;\nconst clusterPropio = $('Obtener config del bot').first().json.cluster;\nconst nivelPropio = $('Reclamar tarea pendiente').first().json.nivel_importancia;\nconst operationId = $('Reclamar tarea pendiente').first().json.operation_id;\nconst totalOperacion = $('Contar tareas de operacion').first().json.total;\n// nivelOperacion = nivel fijo de la operacion (nunca cambia). Base OBLIGATORIA\n// para calcular el nivel de las tareas hijas -- NUNCA usar nivelPropio (el\n// nivel de la tarea actual) como base, porque si esta tarea ya fue escalada\n// por su propia regla, todos sus hijos heredarian esa escalada en cascada,\n// aunque no tengan relacion con el motivo de la escalacion. Eso es justo lo\n// que Mateo prohibio: \"no puedes transformar toda la operacion en critica\n// basado en la decision de 1 solo agente\" -- aqui aplica igual a nivel\n// subarbol: la escalacion de 1 tarea no debe propagarse a sus hijos.\nconst nivelOperacion = $('Contar tareas de operacion').first().json.nivel_operacion || nivelPropio;\nconst botsRequierenAprobacion = $('Obtener bots que requieren aprobacion').first().json.slugs || [];\nconst botPropio = $('Reclamar tarea pendiente').first().json.bot;\n\nconst cap = CAP_POR_NIVEL[nivelPropio] || CAP_POR_NIVEL.bajo;\nconst asignaciones = salida.asignaciones || [];\n\nif (operationId && totalOperacion >= cap.porOperacion) {\n  return [{\n    json: {\n      _tipo: 'tope_operacion',\n      operation_id: operationId,\n      total_actual: totalOperacion,\n      tope: cap.porOperacion,\n      bot: botPropio\n    }\n  }];\n}\n\nconst truncadas = asignaciones.length > cap.porDespacho ? asignaciones.length - cap.porDespacho : 0;\nconst asignacionesLimitadas = asignaciones.slice(0, cap.porDespacho);\n\nfunction mayorNivel(a, b) {\n  const ra = RANK[a] !== undefined ? RANK[a] : RANK.bajo;\n  const rb = RANK[b] !== undefined ? RANK[b] : RANK.bajo;\n  return ra >= rb ? a : b;\n}\n\nconst items = asignacionesLimitadas.map(a => {\n  // max(nivel de la operacion [fijo], nivel por reglas de asignacion de ESTA\n  // tarea hija especifica). Se guarda solo en tasks.nivel_importancia de la\n  // hija -- jamas se reescribe operations.nivel_importancia.\n  const nivelEfectivo = mayorNivel(a.nivel_importancia || nivelOperacion, nivelOperacion);\n  const requiereAprobacion = nivelEfectivo === 'critico' || botsRequierenAprobacion.includes(a.bot);\n  return {\n    json: {\n      _tipo: requiereAprobacion ? 'requiere_aprobacion' : 'normal',\n      cluster: a.cluster || clusterPropio,\n      bot: a.bot,\n      status: 'pending',\n      input: { text: a.input, modo: a.modo },\n      parent_task_id: parentId,\n      nivel_importancia: nivelEfectivo,\n      operation_id: operationId\n    }\n  };\n});\n\nif (truncadas > 0) {\n  items.push({\n    json: {\n      _tipo: 'fanout_truncado',\n      operation_id: operationId,\n      truncadas: truncadas,\n      tope: cap.porDespacho,\n      bot: botPropio\n    }\n  });\n}\n\nreturn items;\n"
+        "jsCode": "const CAP_POR_ESFUERZO = {\n  bajo:    { porDespacho: 5,  porOperacion: 50  },\n  medio:   { porDespacho: 10, porOperacion: 100 },\n  alto:    { porDespacho: 15, porOperacion: 150 },\n  critico: { porDespacho: 20, porOperacion: 200 }\n};\n\nconst salida = JSON.parse($('Llamar a omniroute').first().json.choices[0].message.content);\nconst tareaPadre = $('Reclamar tarea pendiente').first().json;\nconst parentId = tareaPadre.id;\nconst clusterPropio = $('Obtener config del bot').first().json.cluster;\nconst operationId = tareaPadre.operation_id;\nconst totalOperacion = $('Contar tareas de operacion').first().json.total;\n// Este valor es la preferencia actual de la operacion y puede cambiarse desde la interfaz.\n// No es un minimo ni se hereda automaticamente: cada center asigna el esfuerzo de la tarea concreta.\nconst esfuerzoOperacion = $('Contar tareas de operacion').first().json.esfuerzo_operacion || tareaPadre.esfuerzo;\nconst botsRequierenAprobacion = $('Obtener bots que requieren aprobacion').first().json.slugs || [];\nconst botPropio = tareaPadre.bot;\nconst cap = CAP_POR_ESFUERZO[esfuerzoOperacion] || CAP_POR_ESFUERZO.bajo;\nconst asignaciones = salida.asignaciones || [];\n\nif (operationId && totalOperacion >= cap.porOperacion) {\n  return [{ json: { _tipo: 'tope_operacion', operation_id: operationId, total_actual: totalOperacion, tope: cap.porOperacion, bot: botPropio } }];\n}\n\nconst truncadas = Math.max(0, asignaciones.length - cap.porDespacho);\nconst items = asignaciones.slice(0, cap.porDespacho).map(a => {\n  const esfuerzo = a.esfuerzo || esfuerzoOperacion;\n  const requiereAprobacion = a.requiere_aprobacion === true || botsRequierenAprobacion.includes(a.bot);\n  return { json: {\n    _tipo: requiereAprobacion ? 'requiere_aprobacion' : 'normal',\n    cluster: a.cluster || clusterPropio,\n    bot: a.bot,\n    status: 'pending',\n    input: { text: a.input, modo: a.modo },\n    parent_task_id: parentId,\n    esfuerzo,\n    operation_id: operationId\n  } };\n});\n\nif (truncadas > 0) {\n  items.push({ json: { _tipo: 'fanout_truncado', operation_id: operationId, truncadas, tope: cap.porDespacho, bot: botPropio } });\n}\n\nreturn items;\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -207,9 +242,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id) VALUES ($1, $2, $3, $4, $5, $6, (SELECT operation_id FROM tasks WHERE id = $5));",
+        "query": "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, esfuerzo, operation_id) VALUES ($1, $2, $3, $4, $5, $6, (SELECT operation_id FROM tasks WHERE id = $5));",
         "options": {
-          "queryReplacement": "={{ [$json.cluster, $json.bot, $json.status, JSON.stringify($json.input), $json.parent_task_id, $json.nivel_importancia] }}"
+          "queryReplacement": "={{ [$json.cluster, $json.bot, $json.status, JSON.stringify($json.input), $json.parent_task_id, $json.esfuerzo] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -441,7 +476,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id) VALUES ($1, $2, 'pending', $3, $4, (SELECT nivel_importancia FROM tasks WHERE id = $4), (SELECT operation_id FROM tasks WHERE id = $4));",
+        "query": "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, esfuerzo, operation_id) VALUES ($1, $2, 'pending', $3, $4, (SELECT esfuerzo FROM tasks WHERE id = $4), (SELECT operation_id FROM tasks WHERE id = $4));",
         "options": {
           "queryReplacement": "={{ [$json.cluster_padre, $json.bot_padre, JSON.stringify({ text: $('Llamar a omniroute').first().json.choices[0].message.content.replace('NECESITA_ACLARACION: ', '') }), $('Reclamar tarea pendiente').first().json.id] }}"
         }
@@ -619,9 +654,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO tasks (cluster, bot, status, input, nivel_importancia, operation_id) VALUES ($1, 'trouble_shooter', 'pending', jsonb_build_object('text', $2), $3, $4);",
+        "query": "INSERT INTO tasks (cluster, bot, status, input, esfuerzo, operation_id) VALUES ($1, 'trouble_shooter', 'pending', jsonb_build_object('text', $2), $3, $4);",
         "options": {
-          "queryReplacement": "={{ [$json.cluster, $json.output, $json.nivel_importancia, $json.operation_id] }}"
+          "queryReplacement": "={{ [$json.cluster, $json.output, $json.esfuerzo, $json.operation_id] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -760,7 +795,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COUNT(*)::int AS total, (SELECT nivel_importancia FROM operations WHERE id = $1) AS nivel_operacion FROM tasks WHERE operation_id = $1;",
+        "query": "SELECT COUNT(*)::int AS total, (SELECT esfuerzo FROM operations WHERE id = $1) AS esfuerzo_operacion FROM tasks WHERE operation_id = $1;",
         "options": {
           "queryReplacement": "={{ [$('Reclamar tarea pendiente').first().json.operation_id] }}"
         }
@@ -946,7 +981,7 @@
     {
       "parameters": {
         "chatId": "-5436560130",
-        "text": "={{ $json._tipo === 'tope_operacion' ? (\"Tope de fan-out por operacion alcanzado. Operacion: \" + $json.operation_id + \". Total actual: \" + $json.total_actual + \"/\" + $json.tope + \". Bot que intentaba despachar: \" + $json.bot + \". La operacion quedo bloqueada, ningun despacho nuevo se creara hasta desbloquearla manualmente.\") : (\"Aprobacion requerida antes de crear esta tarea. Operacion: \" + $json.operation_id + \". Bot destino: \" + $json.bot + \". Cluster: \" + $json.cluster + \". Nivel: \" + $json.nivel_importancia + \". Input: \" + JSON.stringify($json.input) + \". Esta tarea NO se creo automaticamente -- la operacion quedo bloqueada. La reanudacion automatica via respuesta de Telegram todavia no existe, hay que desbloquearla a mano.\") }}",
+        "text": "={{ $json._tipo === 'tope_operacion' ? (\"Tope de fan-out por operacion alcanzado. Operacion: \" + $json.operation_id + \". Total actual: \" + $json.total_actual + \"/\" + $json.tope + \". Bot que intentaba despachar: \" + $json.bot + \". La operacion quedo bloqueada, ningun despacho nuevo se creara hasta desbloquearla manualmente.\") : (\"Aprobacion requerida antes de crear esta tarea. Operacion: \" + $json.operation_id + \". Bot destino: \" + $json.bot + \". Cluster: \" + $json.cluster + \". Esfuerzo: \" + $json.esfuerzo + \". Input: \" + JSON.stringify($json.input) + \". Esta tarea NO se creo automaticamente -- la operacion quedo bloqueada. La reanudacion automatica via respuesta de Telegram todavia no existe, hay que desbloquearla a mano.\") }}",
         "additionalFields": {}
       },
       "type": "n8n-nodes-base.telegram",
@@ -992,7 +1027,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT nivel_fijo FROM bot_niveles_fijos WHERE bot_slug = $1;",
+        "query": "SELECT esfuerzo_fijo FROM bot_esfuerzos_fijos WHERE bot_slug = $1;",
         "options": {
           "queryReplacement": "={{ [$('Reclamar tarea pendiente').first().json.bot] }}"
         }
@@ -1004,7 +1039,7 @@
         -320
       ],
       "id": "c1a1a007-0000-4000-8000-000000000007",
-      "name": "Obtener nivel fijo del bot",
+      "name": "Obtener esfuerzo fijo del bot",
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
@@ -1103,6 +1138,11 @@
             "node": "Extraer patron",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Detectar degradacion de modelo",
+            "type": "main",
+            "index": 0
           }
         ],
         [
@@ -1112,6 +1152,22 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Detectar degradacion de modelo": {
+      "main": [
+        [
+          {
+            "node": "Alerta de degradacion de modelo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerta de degradacion de modelo": {
+      "main": [
+        []
       ]
     },
     "¿Este bot despacha tareas?": {
@@ -1344,7 +1400,7 @@
       "main": [
         [
           {
-            "node": "Obtener nivel fijo del bot",
+            "node": "Obtener esfuerzo fijo del bot",
             "type": "main",
             "index": 0
           }
@@ -1469,7 +1525,7 @@
         ]
       ]
     },
-    "Obtener nivel fijo del bot": {
+    "Obtener esfuerzo fijo del bot": {
       "main": [
         [
           {

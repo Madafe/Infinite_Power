@@ -90,7 +90,7 @@ Precisión de diseño del 15 de agosto de 2026, hasta ahora no documentada en
 ningún archivo (corrige una imprecisión de `efadam.md` y de la tabla anterior
 de este mismo documento, que decían "lo escribe Efadam").
 
-**Esto es uno de los rasgos que diferencia a Infinite Power de sistemas
+**Esto es uno de los rasgos que diferencia a Efadam de sistemas
 multi-agente parecidos, así que vale la pena repetirlo con todas sus letras
 en cada documento donde aplique, no solo aquí:** todo conocimiento que cruza
 de una rama a otra tiene que pasar por Efadam, incluso cuando eso se sienta
@@ -121,13 +121,15 @@ Cuando un hallazgo de cualquier rama implica que algo en `system_knowledge` o
    revisa que no haya discrepancia con la meta de negocio establecida.
 
 La ejecución de una operación y el aprendizaje derivado de ella no comparten
-la ruta crítica. Efadam confirma y despacha la **tarea concreta** sin esperar
-la **síntesis de aprendizaje**. Al cerrar o alcanzar un hito, la síntesis se
-dispara como una tarea independiente con el mismo `operation_id`; reúne
-evidencia y produce una propuesta, pero no escribe `knowledge_log` ni
-`system_knowledge`. Upgrade & review center conserva el juicio de fondo y
-Efadam conserva la inserción aprobada. Así, el aprendizaje queda trazable sin
-convertirse en una fuente de latencia o bloqueo para el usuario.
+la ruta crítica. Efadam confirma al cliente y entrega una recomendación al
+center adecuado sin esperar la **síntesis de aprendizaje**. El center decide
+y despacha la tarea concreta de su departamento. Al cerrar o alcanzar un
+hito, la síntesis se dispara como una tarea independiente con el mismo
+`operation_id`; reúne evidencia y produce una propuesta, pero no escribe
+`knowledge_log` ni `system_knowledge`. Upgrade & review center conserva el
+juicio de fondo y Efadam conserva la inserción aprobada. Así, el aprendizaje
+queda trazable sin convertirse en una fuente de latencia o bloqueo para el
+cliente.
 
 Esto mantiene la simetría del diseño existente (los 3 centers retienen y
 auditan su rama; Efadam enruta y no re-audita el detalle) en vez de crear una

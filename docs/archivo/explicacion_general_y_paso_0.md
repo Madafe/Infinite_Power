@@ -6,7 +6,7 @@
 
 ---
 
-# Infinite Power — explicación general y qué levantar en el Paso 0
+# Efadam — explicación general y qué levantar en el Paso 0
 
 ## El plan en corto
 

@@ -1,4 +1,4 @@
-# Arquitectura general — "Infinite Power"
+# Arquitectura general — "Efadam"
 
 > Documento **narrativo**, para humanos. Explica el porqué de cada decisión.
 > No se inyecta a ningún bot. La versión corta y canónica que sí leen los bots
@@ -6,7 +6,7 @@
 
 ## Propuesta de valor
 
-Infinite Power busca poner a disposición de cada proyecto una red de
+Efadam busca poner a disposición de cada proyecto una red de
 especialistas que trabaja 24/7: observa su estado, sugiere oportunidades,
 coordina especialidades, ejecuta mejoras y aprende de los resultados. Cuando
 el proyecto requiere una capacidad nueva, el sistema puede sumar el
@@ -154,7 +154,7 @@ hardcodeado, o migrarlos") desaparece.
 explícitamente **congelar el trabajo de distribución a terceros hasta
 cerrar los Hallazgos críticos y altos** (contraseña de Postgres expuesta en
 el historial de git, inyección SQL en el ejecutor, pérdida de
-`nivel_importancia` en tareas hijas, aprobaciones humanas sin flujo de
+`esfuerzo` en tareas hijas, aprobaciones humanas sin flujo de
 respuesta, Reanudador de bloqueados con referencia rota). Esta sección deja
 registrada la decisión de diseño para no perderla, pero construirla en
 serio compite directamente con esa recomendación de orden. Confirmar con

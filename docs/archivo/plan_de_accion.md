@@ -5,7 +5,7 @@
 
 ---
 
-# Plan de acción — "Infinite power" (sistema de agentes autogestionado)
+# Plan de acción — "Efadam" (sistema de agentes autogestionado)
 
 Para: Mateo + amigo
 Fecha: 7 de agosto de 2026

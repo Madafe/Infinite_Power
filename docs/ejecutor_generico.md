@@ -5,7 +5,7 @@
 > probadas en vivo (no solo un pendiente en el papel — ver "Operaciones:
 > hilo de trabajo completo" más abajo). Se construyó el auto-dispatch a
 > Trouble shooter, se corrigió una inyección SQL real, se propagó
-> `nivel_importancia` a las tareas hijas, y se cerró de fondo el manejo de
+> `esfuerzo` a las tareas hijas, y se cerró de fondo el manejo de
 > errores de **todo** el workflow (no solo un nodo) — pero el diagnóstico
 > cambió de forma importante entre la tarde y la noche del mismo día. La
 > ronda de la tarde concluyó que 13 nodos más tenían el mismo bug que
@@ -18,7 +18,7 @@
 > misma noche (cuarta ronda) se agregó el concepto de "operación" — ver
 > sección dedicada más abajo, incluye un bug real encontrado y corregido de
 > paso (`trouble_shooter` se auto-despachaba siempre con
-> `nivel_importancia = null`, garantizando su propio fallo).
+> `esfuerzo = null`, garantizando su propio fallo).
 
 Un solo workflow ejecuta a cualquier bot leyendo su fila de la tabla `bots`.
 Un bot nuevo = un `INSERT`, no un workflow nuevo. Piloto probado de punta a
@@ -41,7 +41,7 @@ Postgres estaba apagado. Confirmado el 18/ago directo contra la base real:
 ### Ronda de la tarde: qué se creyó, y por qué solo una parte era cierta
 
 Probando en vivo (forzando un fallo real de "Llamar a omniroute": una tarea
-con `nivel_importancia = null`, que hace que OmniRoute responda `400 Missing
+con `esfuerzo = null`, que hace que OmniRoute responda `400 Missing
 model`), se confirmó que el item de error se quedaba en la salida
 normal/éxito (salida 0) de ese nodo en vez de ir a su segunda salida (la
 "salida de error", conectada a "Marcar como fallida"). Correcto — eso sí
@@ -157,11 +157,11 @@ una quinta forma no vista todavía.
    mensaje de error real de Postgres en `output`, y se disparó
    automáticamente una tarea nueva para `trouble_shooter` con el mismo
    `cluster`.
-2. **Ruta HTTP Request** (tarea real con `nivel_importancia = null`, mismo
+2. **Ruta HTTP Request** (tarea real con `esfuerzo = null`, mismo
    disparo desde el trigger real): mismo resultado — `failed` con el error
    real de OmniRoute, tarea nueva para `trouble_shooter` despachada.
 3. **Bonus, no buscado a propósito:** la tarea de `trouble_shooter`
-   despachada en la prueba 1 también falló (heredó `nivel_importancia =
+   despachada en la prueba 1 también falló (heredó `esfuerzo =
    null` de su tarea padre) — y la guarda `¿Bot que falló no es
    trouble_shooter?` funcionó exactamente como se diseñó: no se auto-
    despachó una tercera tarea. Confirma en vivo que el freno contra el loop
@@ -219,11 +219,11 @@ agosto, noche, tercera y cuarta ronda, para la discusión completa):
    todavía no existe como bot activo, así que hoy nada abre operaciones de
    verdad — la tabla y la propagación están listas para cuando exista
    (Bloque 3).
-2. **`nivel_importancia` no se movió de tabla, no se tocó su código** —
+2. **`esfuerzo` no se movió de tabla, no se tocó su código** —
    Mateo pidió explícitamente no "borrar uno y crear otro de cero".
-   `operations.nivel_importancia` es la fuente de verdad conceptual
+   `operations.esfuerzo` es la fuente de verdad conceptual
    (Efadam la fija una sola vez, al abrir la operación); la tarea raíz
-   copia ese mismo valor a `tasks.nivel_importancia` — y desde ahí la
+   copia ese mismo valor a `tasks.esfuerzo` — y desde ahí la
    cadena de herencia que ya existía en "Parsear asignaciones" (construida
    y probada la ronda anterior) sigue funcionando exactamente igual, sin
    ningún cambio de código. Es un cambio de dónde nace el valor, no de
@@ -259,7 +259,7 @@ create table operations (
     tipo               text        not null,  -- 'usuario' | 'investigacion' | 'autoexpansion' | ...
     titulo             text        not null,
     descripcion        text,
-    nivel_importancia  text        not null check (nivel_importancia in ('bajo','medio','alto','critico')),
+    esfuerzo  text        not null check (esfuerzo in ('bajo','medio','alto','critico')),
     status             text        not null default 'abierta',  -- abierta | en_progreso | completada | fallida | bloqueada
     created_at         timestamptz not null default now(),
     updated_at         timestamptz not null default now(),
@@ -275,7 +275,7 @@ tener una).
 
 ### Cómo se propaga (decisión de diseño: subquery SQL, no referencia cruzada de n8n)
 
-A diferencia de `nivel_importancia` (que viaja vía `$('Reclamar tarea
+A diferencia de `esfuerzo` (que viaja vía `$('Reclamar tarea
 pendiente').first()` dentro de un Code node — el mecanismo que causó el bug
 de `.first()` vs `.item()` de la ronda anterior), `operation_id` se propaga
 con un **subquery SQL dentro del mismo INSERT**, usando un parámetro que la
@@ -285,15 +285,15 @@ cruzadas nuevas de n8n, cero superficie nueva para ese tipo de bug:
 - **Crear tareas hijas** (nodo 14): `(SELECT operation_id FROM tasks WHERE id = $5)`.
 - **Crear tarea de aclaración** (nodo 10b): igual, sobre `$4`. De paso se
   encontró y corrigió un gap real que no tenía que ver con operaciones:
-  este INSERT nunca había puesto `nivel_importancia` a la tarea de
+  este INSERT nunca había puesto `esfuerzo` a la tarea de
   aclaración — si esa tarea llegaba a procesarse, iba a fallar en "Llamar
   a omniroute" con `400 Missing model`, el mismo bug ya visto dos veces
-  antes. Ahora también se copia por subquery: `(SELECT nivel_importancia
+  antes. Ahora también se copia por subquery: `(SELECT esfuerzo
   FROM tasks WHERE id = $4)`.
 - **Despachar a trouble_shooter** (nodo 20): no necesita subquery — ambos
   valores ya vienen locales en el `RETURNING *` de "Marcar como fallida"
-  (`$json.nivel_importancia`, `$json.operation_id`). **Bug real encontrado
-  y corregido aquí:** este INSERT tampoco ponía nunca `nivel_importancia` —
+  (`$json.esfuerzo`, `$json.operation_id`). **Bug real encontrado
+  y corregido aquí:** este INSERT tampoco ponía nunca `esfuerzo` —
   la "confirmación bonus" de la ronda anterior (la tarea de
   `trouble_shooter` auto-despachada también falló) no era solo una
   coincidencia útil para probar el guard anti-loop, era la evidencia de
@@ -303,15 +303,15 @@ cruzadas nuevas de n8n, cero superficie nueva para ese tipo de bug:
 
 ### Probado en vivo, dos veces, con datos reales (misma técnica de webhook temporal)
 
-1. Se creó una operación de prueba (`tipo: usuario`, `nivel_importancia:
+1. Se creó una operación de prueba (`tipo: usuario`, `esfuerzo:
    medio`) y una tarea raíz para `tecnico_jefe` con ese `operation_id`. Se
    disparó dos veces: la tarea hija que "Crear tareas hijas" generó para
-   `coder` salió con `operation_id` y `nivel_importancia` correctos — la
+   `coder` salió con `operation_id` y `esfuerzo` correctos — la
    propagación por subquery funciona.
 2. Se forzó un fallo real en "Obtener config del bot" (mismo query roto que
-   la ronda anterior) sobre una tarea con `nivel_importancia = medio` y
+   la ronda anterior) sobre una tarea con `esfuerzo = medio` y
    `operation_id` puesto. La tarea de `trouble_shooter` auto-despachada
-   salió con **`nivel_importancia = medio`** (antes habría salido `null`,
+   salió con **`esfuerzo = medio`** (antes habría salido `null`,
    condenada a fallar) y `operation_id` correcto — confirma en vivo los
    dos arreglos de la sección anterior, no solo en el papel.
 
@@ -463,7 +463,7 @@ necesitan saber cómo está armado el sistema.
 ```
 POST http://omniroute:20128/v1/chat/completions
 {
-  "model": <tasks.nivel_importancia de la tarea — bajo/medio/alto/critico>,
+  "model": <tasks.esfuerzo de la tarea — bajo/medio/alto/critico>,
   "messages": [
     { "role": "system", "content": <system_prompt del bot> },
     { "role": "system", "content": <contexto de linaje, o "primera de su cadena"> },
@@ -473,10 +473,10 @@ POST http://omniroute:20128/v1/chat/completions
   ]
 }
 ```
-Efadam asigna `nivel_importancia` al despachar la tarea; el bot que la
+Efadam asigna `esfuerzo` al despachar la tarea; el bot que la
 ejecuta lo hereda, nunca lo decide. OmniRoute resuelve ese valor al modelo
 real vía sus "combos" (ver `stack_y_convenciones.md`, sección "Niveles de
-importancia y BYOK"). Si `nivel_importancia` es `null` (tareas viejas, de
+importancia y BYOK"). Si `esfuerzo` es `null` (tareas viejas, de
 antes de que existiera la columna), OmniRoute responde `400 Missing model` —
 así se confirmó en vivo el hallazgo grande de arriba.
 
@@ -541,16 +541,16 @@ WHERE t.id = $1;
 
 - **SÍ tiene padre** → **Crear tarea de aclaración**:
   ```sql
-  INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id)
+  INSERT INTO tasks (cluster, bot, status, input, parent_task_id, esfuerzo, operation_id)
   VALUES ($1, $2, 'pending', $3, $4,
-    (SELECT nivel_importancia FROM tasks WHERE id = $4),
+    (SELECT esfuerzo FROM tasks WHERE id = $4),
     (SELECT operation_id FROM tasks WHERE id = $4));
   ```
   con `$3 = { text: <pregunta, sin el prefijo "NECESITA_ACLARACION: "> }` y
   `$4 = id de la tarea original` — reanudación bot-a-bot, sin humano en medio.
-  **Actualizado 18/ago, cuarta ronda:** se agregaron `nivel_importancia` y
+  **Actualizado 18/ago, cuarta ronda:** se agregaron `esfuerzo` y
   `operation_id`, ambos copiados por subquery de la tarea original (`$4`).
-  `nivel_importancia` era un gap real sin corregir hasta ahora — esta tarea
+  `esfuerzo` era un gap real sin corregir hasta ahora — esta tarea
   nunca lo había tenido, y si llegaba a procesarse habría fallado en
   "Llamar a omniroute" con `400 Missing model`. Ver "Operaciones" arriba.
 - **NO tiene padre** (tarea de primer nivel) → **Send a text message** (Telegram, ver abajo).
@@ -588,7 +588,7 @@ Desde aquí salen **dos** ramas en paralelo: `¿Este bot despacha tareas?` y
 const salida = JSON.parse($('Llamar a omniroute').first().json.choices[0].message.content);
 const parentId = $('Reclamar tarea pendiente').first().json.id;
 const clusterPropio = $('Obtener config del bot').first().json.cluster;
-const nivelPropio = $('Reclamar tarea pendiente').first().json.nivel_importancia;
+const nivelPropio = $('Reclamar tarea pendiente').first().json.esfuerzo;
 return salida.asignaciones.map(a => ({
   json: {
     cluster: a.cluster || clusterPropio,
@@ -596,18 +596,18 @@ return salida.asignaciones.map(a => ({
     status: "pending",
     input: { text: a.input, modo: a.modo },
     parent_task_id: parentId,
-    nivel_importancia: a.nivel_importancia || nivelPropio
+    esfuerzo: a.esfuerzo || nivelPropio
   }
 }));
 ```
-**Corregido 18/ago — propagación de `nivel_importancia` a tareas hijas.**
-Antes las tareas hijas se creaban sin `nivel_importancia`, así que quedaban
+**Corregido 18/ago — propagación de `esfuerzo` a tareas hijas.**
+Antes las tareas hijas se creaban sin `esfuerzo`, así que quedaban
 `null` y fallaban en "Llamar a omniroute" con `400 Missing model` (el mismo
 bug que dejó trabadas las tareas 4 y 7, ver "Hallazgo grande"). La regla,
 según `efadam.md`: solo Efadam decide el nivel de una tarea nueva por tabla
 de reglas de dominio/tema — ningún otro bot dispatcher (Técnico jefe,
 Trouble shooter) debería decidirlo por su cuenta. Por eso la lógica es:
-si el propio dispatcher lo trae en su JSON de salida (`a.nivel_importancia`
+si el propio dispatcher lo trae en su JSON de salida (`a.esfuerzo`
 — hoy solo lo haría Efadam, cuando exista), se usa ese; si no lo trae
 (el caso de todos los bots dispatcher de hoy, cuyo formato de salida no
 incluye ese campo), la tarea hija **hereda el nivel de la tarea que la está
@@ -615,11 +615,11 @@ despachando** (`nivelPropio`) — nunca queda sin nivel.
 
 ### 14. Crear tareas hijas
 ```sql
-INSERT INTO tasks (cluster, bot, status, input, parent_task_id, nivel_importancia, operation_id)
+INSERT INTO tasks (cluster, bot, status, input, parent_task_id, esfuerzo, operation_id)
 VALUES ($1, $2, $3, $4, $5, $6, (SELECT operation_id FROM tasks WHERE id = $5));
 ```
 `queryReplacement`: `[$json.cluster, $json.bot, $json.status,
-JSON.stringify($json.input), $json.parent_task_id, $json.nivel_importancia]`
+JSON.stringify($json.input), $json.parent_task_id, $json.esfuerzo]`
 (sin cambios — `operation_id` no necesita parámetro nuevo, sale del
 subquery sobre `$5`). Corre una vez por cada asignación (n8n itera
 automáticamente sobre los items). **Actualizado 18/ago, cuarta ronda:**
@@ -688,10 +688,10 @@ que es razonable: es el propio diagnosticador el que falló).
 
 ### 20. Despachar a trouble_shooter — nuevo, 18/ago
 ```sql
-INSERT INTO tasks (cluster, bot, status, input, nivel_importancia, operation_id)
+INSERT INTO tasks (cluster, bot, status, input, esfuerzo, operation_id)
 VALUES ($1, 'trouble_shooter', 'pending', jsonb_build_object('text', $2), $3, $4);
 ```
-`queryReplacement: [$json.cluster, $json.output, $json.nivel_importancia,
+`queryReplacement: [$json.cluster, $json.output, $json.esfuerzo,
 $json.operation_id]` — los 4 vienen del `RETURNING *` de "Marcar como
 fallida" (nodo local, sin referencia cruzada). Con esto, `trouble-shooter.md`
 deja de documentar un diseño pretendido: el disparo automático **ya existe
@@ -700,15 +700,15 @@ Missing model`) — confirmado que la tarea de Trouble shooter se creó con el
 cluster y el error correctos.
 
 **Bug real encontrado y corregido, 18/ago, cuarta ronda:** este INSERT
-nunca había puesto `nivel_importancia` — cada tarea de `trouble_shooter`
-auto-despachada nacía con `nivel_importancia = null` y estaba condenada a
+nunca había puesto `esfuerzo` — cada tarea de `trouble_shooter`
+auto-despachada nacía con `esfuerzo = null` y estaba condenada a
 fallar en "Llamar a omniroute" (`400 Missing model`), sin excepción. Lo que
 la ronda anterior documentó como "bonus, no buscado a propósito: la tarea
 de trouble_shooter despachada también falló" no era una coincidencia — era
 este bug, atrapado en el momento pero sin identificar la causa. Corregido
 junto con `operation_id`; probado en vivo (ver "Operaciones" arriba): la
 tarea de `trouble_shooter` auto-despachada ahora sale con el
-`nivel_importancia` real de la tarea que falló, no `null`.
+`esfuerzo` real de la tarea que falló, no `null`.
 
 ## Hallazgos de rondas anteriores — ya corregidos
 
@@ -726,7 +726,7 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    corregido 18/ago, nodos 19-20 de arriba.
 7. ~~Inyección SQL en "Obtener config del bot" (hallazgo C2)~~ → corregido
    18/ago, nodo 3 de arriba.
-8. ~~`nivel_importancia` no se propagaba a tareas hijas~~ → corregido 18/ago,
+8. ~~`esfuerzo` no se propagaba a tareas hijas~~ → corregido 18/ago,
    nodo 13 de arriba.
 9. ~~Hallazgo C5, tal como se planteó en la ronda de la tarde del 18/ago (13
    nodos con el mismo bug que "Llamar a omniroute")~~ → **desmentido y
@@ -735,7 +735,7 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    ya está corregido en las 18 rutas. Ver "Hallazgo grande" arriba para la
    historia completa, incluida la corrección sobre la corrección.
 10. ~~Tareas de `trouble_shooter` auto-despachadas y tareas de aclaración
-    nacían sin `nivel_importancia`~~ → corregido 18/ago, cuarta ronda, al
+    nacían sin `esfuerzo`~~ → corregido 18/ago, cuarta ronda, al
     construir la propagación de `operation_id` — ver "Operaciones: hilo de
     trabajo completo" y los nodos 10b y 20 arriba.
 
@@ -786,7 +786,7 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    leyendo `$('Reclamar tarea pendiente').item.json.bot`), que entra a
    "Preparar fallo" igual que cualquier otro error. Probado en vivo dos
    veces: (1) tarea con bot inexistente → `failed` con mensaje claro,
-   trouble_shooter auto-despachado correctamente con `nivel_importancia` y
+   trouble_shooter auto-despachado correctamente con `esfuerzo` y
    diagnosticó el problema real ("No se encontró el bot..."); (2) tarea con
    bot válido (`tecnico_jefe`) → sin regresión, terminó `done` normal. 28
    nodos ahora (eran 26). Reexportado a
@@ -830,8 +830,8 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    armado y validado, sin aplicar en vivo~~ — **aplicado en vivo y probado en
    el camino normal (20/ago, segunda ronda).** El workflow vivo ya tiene 36
    nodos. Prueba real: tarea de `tecnico_jefe` → hija de `coder` heredó
-   `nivel_importancia` correctamente, `bot_niveles_fijos` vacía cayó a
-   `tasks.nivel_importancia` sin romper nada, el gate nuevo no bloqueó nada
+   `esfuerzo` correctamente, `bot_esfuerzos_fijos` vacía cayó a
+   `tasks.esfuerzo` sin romper nada, el gate nuevo no bloqueó nada
    (correcto, ningún bot tiene `requires_approval = true` todavía). **Falta
    probar en vivo el truncado de fan-out y el tope por operación en sí**
    (esta prueba solo generó 1 tarea hija) — ver `plan_de_accion_completo.md`,
@@ -844,14 +844,14 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
    "¿Tiene padre?" en el mapa de arriba, no hizo falta construirlo. Lo
    nuevo es el Tipo A (aprobación obligatoria por regla de dominio o
    `bots.requires_approval`) más los topes de fan-out por despacho y por
-   operación (5/50, 10/100, 15/150, 20/200 según `nivel_importancia`) — 7
+   operación (5/50, 10/100, 15/150, 20/200 según `esfuerzo`) — 7
    nodos nuevos ("Contar tareas de operacion", "Obtener bots que requieren
    aprobacion", "Enrutar tipo de asignacion", "Marcar operacion bloqueada",
    "Alerta de aprobacion pendiente", "Alerta fan-out truncado", "Obtener
-   nivel fijo del bot") más la reescritura completa del Code node "Parsear
-   asignaciones" (el nivel efectivo de cada tarea hija ahora usa
-   `max(operations.nivel_importancia, nivel por reglas de esa tarea)` —
-   nunca el nivel de la tarea padre, para evitar cascada; ver detalle del
+   esfuerzo fijo del bot") más la reescritura completa del Code node "Parsear
+   asignaciones" (cada tarea hija recibe el esfuerzo que le asigna su center,
+   usando la preferencia vigente de la operación solo como referencia) —
+   nunca el esfuerzo de la tarea padre, para evitar cascada; ver detalle del
    bug corregido en `plan_de_accion_completo.md`, actualización del 20 de
    agosto). El cuerpo completo (36 nodos, 34 claves de conexión) está
    armado, fusionado y validado sin referencias colgantes, guardado en
@@ -878,10 +878,10 @@ tarea de `trouble_shooter` auto-despachada ahora sale con el
 **Con el Manual Trigger (como siempre):**
 1. Insertar una tarea de prueba:
    ```sql
-   INSERT INTO tasks (cluster, bot, status, input, nivel_importancia) VALUES
+   INSERT INTO tasks (cluster, bot, status, input, esfuerzo) VALUES
    ('tech-center', 'tecnico_jefe', 'pending', '{"text": "..."}', 'medio');
    ```
-   (no olvidar `nivel_importancia` — sin él, "Llamar a omniroute" falla con
+   (no olvidar `esfuerzo` — sin él, "Llamar a omniroute" falla con
    `400 Missing model`, ver "Hallazgo grande").
 2. Correr el Manual Trigger del "Ejecutor genérico" desde la UI de n8n.
    Revisar que la tarea de Técnico jefe quede `done` y que haya tareas hijas
@@ -903,7 +903,7 @@ necesitar acceso interactivo a n8n — así se probó todo lo de esta ronda.
    que la respuesta refleja contenido de `system_knowledge` (ej. que mencione
    la arquitectura real de 3 ramas).
 6. Para probar el auto-dispatch a Trouble shooter: insertar una tarea con
-   `nivel_importancia = null` para forzar el `400 Missing model` de
+   `esfuerzo = null` para forzar el `400 Missing model` de
    OmniRoute, correr el trigger, y confirmar que la tarea original queda
    `failed` y aparece una tarea nueva `pending` para `trouble_shooter` con el
    mismo cluster y el mismo mensaje de error en `input.text`.

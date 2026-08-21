@@ -2,7 +2,7 @@
 
 ## Qué es
 
-`system_knowledge` es el conocimiento operativo estable de Infinite Power:
+`system_knowledge` es el conocimiento operativo estable de Efadam:
 arquitectura, stack, convenciones y reglas que los bots necesitan para
 entender el sistema antes de trabajar.
 

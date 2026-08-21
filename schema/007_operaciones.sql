@@ -11,13 +11,10 @@
 -- que se centraliza es el ORIGEN del hilo (la operación), no cada tarea
 -- dentro de ella.
 --
--- nivel_importancia: NO se toca la columna tasks.nivel_importancia ni su
--- lógica de herencia (ya construida y probada dos veces el 18/ago) — se
--- agrega operations.nivel_importancia como la fuente conceptual de verdad
--- (Efadam la fija una sola vez, al abrir la operación, y la copia también
--- al campo nivel_importancia de la tarea raíz — desde ahí la cadena de
--- herencia ya existente hace el resto, sin cambios de código). Ver
--- ejecutor_generico.md y efadam.md para el detalle completo.
+-- operations.esfuerzo es la preferencia actual de la operación, recomendada
+-- inicialmente por Efadam y ajustable por el usuario desde la interfaz.
+-- Cada center calcula por separado el esfuerzo de sus tareas concretas;
+-- una operación no obliga el mismo esfuerzo a toda su cadena de trabajo.
 --
 -- Es idempotente: se puede correr varias veces sin romper nada.
 -- =====================================================================
@@ -30,7 +27,7 @@ create table if not exists operations (
     tipo               text        not null,  -- 'usuario' | 'investigacion' | 'autoexpansion' | ... (sin CHECK: se espera que la lista crezca, igual que tasks.cluster)
     titulo             text        not null,
     descripcion        text,
-    nivel_importancia  text        not null check (nivel_importancia in ('bajo','medio','alto','critico')),
+    esfuerzo  text        not null check (esfuerzo in ('bajo','medio','alto','critico')),
     status             text        not null default 'abierta',  -- abierta | en_progreso | completada | fallida | bloqueada
     created_at         timestamptz not null default now(),
     updated_at         timestamptz not null default now(),
@@ -40,8 +37,8 @@ create table if not exists operations (
 comment on table operations is
   'El hilo completo de trabajo ("cada cosa que el programa completo debe hacer" - Mateo, 18/ago). CENTRALIZADO: solo Efadam inserta filas nuevas aqui (a diferencia de tasks, que cualquier cluster puede despachar). Una operacion puede cruzar varios clusters/tasks en su vida.';
 
-comment on column operations.nivel_importancia is
-  'Fuente de verdad conceptual del nivel de importancia - Efadam lo fija una sola vez al abrir la operacion, nunca cambia despues. La tarea raiz de esta operacion copia este mismo valor a tasks.nivel_importancia; de ahi en adelante la cadena de herencia ya existente en el Ejecutor generico (nodo "Parsear asignaciones") lo propaga sin cambios de codigo.';
+comment on column operations.esfuerzo is
+  'Preferencia de esfuerzo vigente para la operacion. Efadam propone el valor inicial y el usuario puede ajustarlo desde la interfaz. Cada center calcula el esfuerzo de las tareas concretas sin obligarlas a heredar este valor.';
 
 -- ---------------------------------------------------------------------
 -- 2) tasks.operation_id — a qué operación pertenece esta tarea

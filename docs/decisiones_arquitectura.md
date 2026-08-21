@@ -27,12 +27,55 @@ aprobado.
 
 Flujo esperado:
 
-`solicitud → Efadam abre operación + despacha tarea concreta → confirmación al usuario`
+`solicitud → Efadam abre operación + recomienda al center → confirmación al cliente`
 
 `cierre o hito de tarea concreta → síntesis asíncrona → propuesta revisable → aprobación → memoria compartida`
 
 Esto mantiene baja latencia de respuesta y evita que el registro de
 aprendizajes se convierta en un punto bloqueante de la operación.
+
+## 20 de agosto de 2026 — Efadam como enlace cliente ↔ especialistas
+
+Efadam recibe exclusivamente por Jarvis mensajes, fotos, archivos y
+documentos de oficina. Razona sobre la intención del cliente y conserva el
+contexto de la operación, pero no entrega órdenes directas a los especialistas
+ni expone la arquitectura interna al cliente.
+
+Para cada solicitud, Efadam envía una recomendación al center adecuado con la
+leyenda obligatoria: **"Estas son recomendaciones, no órdenes directas del
+cliente"**. El center decide cómo proceder y despacha las tareas de su propio
+departamento.
+
+Las dudas se resuelven primero entre Efadam y los centers. Solo se consulta al
+cliente cuando puede aportar la respuesta; la pregunta se formula sobre su
+objetivo, prioridad o preferencia, nunca sobre el funcionamiento del sistema.
+Las respuestas de seguimiento se expresan como un asistente que consulta a su
+equipo de especialistas, sin mencionar bots, clusters, tareas, modelos ni
+tablas.
+
+## 20 de agosto de 2026 — Esfuerzo por complejidad y preferencia de servicio
+
+El esfuerzo ya no se determina principalmente por el riesgo o el
+departamento. Primero mide la complejidad de la tarea; después elige si el
+cliente necesita velocidad, equilibrio o máximo rendimiento. Riesgo, datos
+sensibles, gasto, publicación y contratos conservan sus gates de aprobación,
+pero no convierten por sí solos una tarea sencilla en `critico`.
+
+Cada tarea concreta recibe su propio esfuerzo. El esfuerzo de la operación es
+solo la recomendación inicial y no obliga a que todas sus tareas hijas usen el
+mismo modelo. Efadam devuelve al cliente el esfuerzo elegido junto con la
+confirmación de que está trabajando en la solicitud, sin exponer el modelo ni
+el mecanismo interno.
+
+## 20 de agosto de 2026 — Esfuerzo visible y ajustable por operación
+
+La interfaz debe listar las operaciones activas con título, estado, esfuerzo
+vigente, recomendación inicial y última actualización. El usuario puede cambiar
+el esfuerzo y, opcionalmente, explicar el motivo. El cambio se registra en un
+historial auditable; conserva el valor recomendado y solo orienta trabajo
+pendiente o nuevo. Nunca altera una tarea que ya se esté ejecutando.
+La interfaz lee `operaciones_activas` y aplica los cambios mediante
+`ajustar_esfuerzo_operacion`, para que la bitácora no dependa de la pantalla.
 
 ## 20 de agosto de 2026 — Gobernanza de auto-expansión de bots (ficha + ciclo)
 
@@ -68,3 +111,43 @@ Decisiones concretas:
 **Estado: diseño completo, construcción sin empezar.** Sigue el orden
 vigente — va después de Efadam, los 3 centers, y autonomía progresiva. Ver
 "Pendiente" en `gobernanza_auto_expansion_bots.md`.
+
+## 20 de agosto de 2026 — Cierre de detalles para insertar a Efadam
+
+Tres respuestas de Mateo sobre `prompts/_core/efadam.md`, ya aplicadas:
+
+1. **Aviso "Pendiente, 18/ago, cuarta ronda" sobre el prompt de sistema:**
+   confirmado que ya no existe en el archivo — Mateo lo borró al reescribir
+   el bloque él mismo. No hizo falta ninguna edición.
+2. **Cluster de Efadam:** propio, `Efadam` — no el genérico `core` que se
+   había propuesto. Nota de convención: el único valor de `cluster` que
+   existe hoy en la tabla `bots` es `tech-center` (minúsculas, guion); el
+   valor `Efadam` rompe esa convención de casing a propósito, porque Mateo
+   lo pidió así explícitamente y Efadam no es un bot de un departamento —
+   ya está documentado como cross-cluster.
+3. **Esfuerzo fijo de Efadam: `bajo`, permanente, sin la excepción de
+   `medio` para síntesis que tenía la versión anterior del documento.**
+   Razón de Mateo: el único trabajo de Efadam es enrutar; si en la práctica
+   `bajo` no alcanza para responder "¿cómo va todo?", la solución es
+   proponer un bot aparte para esa función, no romper el principio subiendo
+   el esfuerzo fijo de Efadam. Aplicado en `efadam.md`, sección "Modelo
+   sugerido".
+
+**Hallazgo al revisar antes de insertar — migración de esfuerzo lista pero
+sin aplicar.** `schema/009_renombrar_esfuerzo.sql` (escrito hoy por Mateo)
+renombra `tasks.nivel_importancia`→`esfuerzo`, `operations.nivel_importancia`
+→`esfuerzo`, y `bot_niveles_fijos`→`bot_esfuerzos_fijos`
+(`nivel_fijo`→`esfuerzo_fijo` + columna `razon`), además de añadir
+`esfuerzo_recomendado`/`operation_effort_adjustments`/
+`ajustar_esfuerzo_operacion()`/vista `operaciones_activas` para la interfaz
+de ajuste manual (ver entrada "Esfuerzo visible y ajustable por operación"
+arriba). Es idempotente y no toca datos existentes. **Se verificó en vivo
+que la base de datos todavía tiene los nombres viejos** (`\d bots`,
+`\d tasks`, `\d operations` — sin aplicar). El intento de correrla desde
+esta sesión vía Desktop Commander fue bloqueado por el clasificador de modo
+automático (cambios de esquema en la base de producción requieren
+confirmación explícita) — queda pendiente que Mateo la corra
+(`docker cp` + `psql -f`, misma convención de siempre) o autorice
+explícitamente cómo proceder. Como son puros `RENAME`, el orden entre
+correr la migración e insertar a Efadam no arriesga datos: una fila
+insertada hoy con los nombres viejos sobrevive intacta al renombrar.

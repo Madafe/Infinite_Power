@@ -1,11 +1,12 @@
 -- =====================================================================
--- 005_nivel_importancia.sql — Niveles de importancia por tarea
+-- 005_nivel_importancia.sql — Esfuerzo por tarea
+-- (Se conserva el nombre de archivo para no alterar el historial de migraciones.)
 --
--- Implementa lo decidido en stack_y_convenciones.md ("Niveles de
--- importancia y BYOK") y efadam.md ("Modelo sugerido"): Efadam asigna
--- el nivel al despachar cada tarea, aplicando reglas fijas por
--- dominio/tema — no lo decide el bot que ejecuta, y no es un valor fijo
--- por bot (por eso vive en `tasks`, no en `bots`).
+-- El esfuerzo se calcula para cada tarea concreta: primero por complejidad
+-- y después por la preferencia de servicio (velocidad, equilibrio o
+-- rendimiento). El riesgo se gestiona por aprobaciones y controles aparte.
+-- Efadam recomienda el enfoque de la operación; los centers asignan el
+-- esfuerzo de las tareas que descomponen y despachan.
 --
 -- Reemplaza el uso de `bots.default_model` como fuente del modelo a
 -- llamar. `default_model` queda en la tabla sin usarse por el momento
@@ -15,13 +16,13 @@
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- 1) tasks.nivel_importancia
+-- 1) tasks.esfuerzo
 -- ---------------------------------------------------------------------
-alter table tasks add column if not exists nivel_importancia text
-    check (nivel_importancia in ('bajo','medio','alto','critico'));
+alter table tasks add column if not exists esfuerzo text
+    check (esfuerzo in ('bajo','medio','alto','critico'));
 
-comment on column tasks.nivel_importancia is
-  'Asignado por Efadam al despachar la tarea, aplicando las reglas fijas de stack_y_convenciones.md. El bot que ejecuta la tarea lo hereda — nunca lo decide ni lo cambia. Se traduce a un modelo real en el nodo "Llamar a OmniRoute" del Ejecutor genérico: se manda tal cual en el campo `model` del request, y el proxy (OmniRoute) resuelve el alias al modelo real configurado para esa instalación.';
+comment on column tasks.esfuerzo is
+  'Esfuerzo de razonamiento de la tarea concreta. El center lo calcula con complejidad y preferencia de servicio; riesgo y aprobaciones se gestionan aparte. El Ejecutor genérico lo traduce a un modelo real mediante OmniRoute.';
 
 -- Nota de encoding: se usa 'critico' sin tilde (no 'crítico') porque es
 -- un valor interno de sistema (check constraint, alias del proxy), no

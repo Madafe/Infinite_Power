@@ -1,4 +1,4 @@
-# Stack y convenciones de Infinite Power (canónico)
+# Stack y convenciones de Efadam (canónico)
 
 > Seed inicial de `system_knowledge.slug = 'stack_y_convenciones'` — se usa
 > una sola vez para poblar la tabla al arrancar el sistema (ver
@@ -12,7 +12,7 @@
 - **Base de datos:** Postgres 16 self-hosted (Docker). Es la memoria y la cola.
 - **Router de modelos:** OmniRoute self-hosted, `localhost:20128`.
   Desde adentro de la red de Docker se llama `http://omniroute:20128`, nunca `localhost`.
-  Ver "Niveles de importancia y BYOK" abajo para cómo se configura y quién lo usa.
+  Ver "Esfuerzo y BYOK" abajo para cómo se configura y quién lo usa.
 - **Canal humano:** bot de Telegram (aprobaciones y alertas).
 - **Repo:** `https://github.com/Madafe/Infinite_Power` (privado).
 - **Ubicación local:** `C:\Users\2\Documents\infinite-power`.
@@ -21,55 +21,50 @@
 ## Tablas
 
 - `tasks` — cola compartida. `id, cluster, bot, status, input jsonb, output text,
-  parent_task_id, nivel_importancia, operation_id, created_at, updated_at`.
+  parent_task_id, esfuerzo, operation_id, created_at, updated_at`.
   Estados: `pending, running, done, failed, blocked, needs_approval`.
-  `output` es **text**, no jsonb. `nivel_importancia` (`bajo`/`medio`/`alto`/`critico`,
-  sin tilde) — **resuelto el 19 de agosto de 2026 (pendiente 35 de
-  `plan_de_accion_completo.md`):** el nivel de cada tarea es el más alto
-  entre el nivel fijo de la `operation` a la que pertenece y el que le
-  corresponda por su propio contenido según las "Reglas de asignación" de
-  abajo (`max(nivel de la operación, nivel por reglas de asignación de esa
-  tarea)`) — así una operación abierta en `bajo` (ej. investigación) no se
-  convierte en la forma de que una tarea hija que sí implica gasto de
-  dinero/legal/publicación termine corriendo sin aprobación. **Importante:**
-  esto se calcula y se guarda solo en `tasks.nivel_importancia` de esa tarea
-  específica — nunca se escribe de vuelta a `operations.nivel_importancia`.
-  Una tarea hija crítica no vuelve crítica a toda la operación ni a las
-  demás tareas hermanas; el nivel de la operación se queda fijo tal como se
-  abrió (decisión explícita de Mateo: "no puedes transformar toda la
-  operación en crítica basado en la decisión de 1 solo agente"). Ver
-  "Niveles de importancia y BYOK" y `operations` abajo.
+  `output` es **text**, no jsonb. `esfuerzo` (`bajo`/`medio`/`alto`/`critico`,
+  sin tilde) se calcula **por tarea concreta** con la fórmula de complejidad
+  y preferencia de servicio de abajo. El nivel de `operations` conserva la
+  recomendación inicial de Efadam, pero no es un piso: una operación puede
+  contener desde tareas mecánicas `bajo` hasta análisis `alto` o `critico`.
+  Los centers recalculan el nivel cuando despachan una tarea; el ejecutor no
+  debe limitarse a heredar ciegamente el nivel del padre. Riesgo, publicación,
+  gasto y datos sensibles activan sus gates de aprobación independientes del
+  nivel. **Estado:** esta es la regla de diseño vigente; el workflow actual
+  todavía hereda el nivel de la tarea padre y requiere actualización antes de
+  activar Efadam. Ver "Esfuerzo y BYOK" y `operations` abajo.
   `operation_id` (nullable) referencia a `operations` — se propaga de padre a
   hijo automáticamente al crear tareas nuevas. Las tareas de síntesis de
   aprendizaje se identifican en `input.tipo = "sintesis_aprendizaje"`; no
   ejecutan trabajo de negocio ni escriben conocimiento directamente.
 - `operations` — el hilo de trabajo completo detrás de una tarea o grupo de
   tareas relacionadas (una petición de usuario, una investigación, una ronda
-  de autoexpansión). `id, tipo, titulo, descripcion, nivel_importancia,
+  de autoexpansión). `id, tipo, titulo, descripcion, esfuerzo,
   status, created_at, updated_at, closed_at`. Estados: `abierta, en_progreso,
   completada, fallida, bloqueada`. **Solo Efadam inserta filas nuevas aquí**
   — a diferencia de `tasks`, que cualquier cluster puede seguir despachando
   directo a otro sin pasar por Efadam. Un cluster que necesita arrancar un
   hilo de trabajo nuevo le pregunta a Efadam primero.
-  `nivel_importancia` se fija una sola vez al abrir la operación y **nunca
-  se actualiza después** — ni siquiera si una tarea hija individual termina
-  en un nivel más alto (ver corrección de `tasks.nivel_importancia` arriba).
+  `esfuerzo` registra la recomendación inicial de servicio de la
+  operación; no obliga el nivel de las tareas hijas, que se clasifican por su
+  complejidad y preferencia específicas.
   Al completar o alcanzar un hito de una tarea concreta, la operación puede
   generar una tarea asíncrona de síntesis de aprendizaje con el mismo
   `operation_id`; no bloquea la respuesta ni el avance de la tarea concreta.
 - `bots` — configuración de cada bot: `slug, cluster, prompt_especifico,
   system_prompt (derivado), contexto_slugs, conocimiento_directo,
   requires_approval, dispatches_tasks, active`. `default_model` sigue en la
-  tabla pero sin uso activo desde que `nivel_importancia` pasó a `tasks`.
-- `bot_niveles_fijos` (nueva, 19/ago) — `bot_slug` (FK a `bots.slug`, único),
-  `nivel_fijo`, `razon`. Un bot con fila aquí corre **siempre** en ese nivel,
+  tabla pero sin uso activo desde que `esfuerzo` pasó a `tasks`.
+- `bot_esfuerzos_fijos` (nueva, 19/ago) — `bot_slug` (FK a `bots.slug`, único),
+  `esfuerzo_fijo`, `razon`. Un bot con fila aquí corre **siempre** en ese nivel,
   sin importar el dominio de la tarea que coordina — pensado para bots
   orquestadores (Efadam, Técnico jefe, Consultor de arquitectura, los 3
   centers), que no deben pagar un modelo caro solo por coordinar. Deliberadamente
   separada de `bots.dispatches_tasks` — son dos conceptos distintos que hoy
   coinciden pero no tienen por qué seguir coincidiendo (ver
   `reglas_generales.md`, punto 6). Solo afecta qué modelo ejecuta al bot,
-  nunca el `tasks.nivel_importancia` de la tarea que está coordinando — esos
+  nunca el `tasks.esfuerzo` de la tarea que está coordinando — esos
   dos ejes son independientes a propósito. `schema/008_bot_roles.sql`.
 - `approvals`, `agent_runs` — aprobaciones y logs (agent_runs se llena en Fase 4).
 
@@ -106,7 +101,7 @@ asignaciones en JSON estricto que el ejecutor convierte en tareas hijas.
   herramientas, reglas y límites, cuándo pedir aprobación humana, prompt de
   sistema final, casos de prueba.
 
-## Niveles de importancia y BYOK (rediseño del 15 de agosto de 2026, noche; mecanismo concreto añadido el 16 de agosto)
+## Esfuerzo y BYOK (rediseño del 15 de agosto de 2026, noche; mecanismo concreto añadido el 16 de agosto)
 
 **Reemplaza el modelo anterior de "Presupuesto"** (una sola instancia de
 OmniRoute cargada a mano con las llaves de Mateo, capas gratis por default,
@@ -117,54 +112,81 @@ sola instancia de OmniRoute compartida, lo cual no aplica a un producto
 distribuible — cada instalación necesita su propio OmniRoute, con sus
 propias llaves, no la de Mateo.
 
-**Principio central: los bots nunca declaran un modelo, y no deciden su
-propio nivel — Efadam lo asigna aplicando reglas fijas, no criterio libre.**
-Ningún prompt de ningún bot (ni Efadam) menciona el nombre de un modelo. Y,
-a diferencia de dos versiones anteriores de este documento, **el nivel no lo
-decide cada bot por sí mismo, ni lo juzga Efadam caso por caso**: Efadam
-corre en nivel `bajo` (modelo barato/rápido) para no agotar presupuesto en
-ruteo, y pedirle que además juzgue con criterio libre qué tan importante es
-cada tarea lo convertiría en el peor juez posible para esa decisión — mismo
-problema ya documentado para `patron_fallo` ("el peor juez posible de qué
-vale la pena recordar"), aquí con más consecuencia real (elegir modelo caro
-vs. gratis en algo potencialmente legal o financiero). Por eso el nivel se
-fija con **reglas explícitas por dominio/tema**, que Efadam solo aplica —
-clasificar, no juzgar.
+**Principio central: el esfuerzo expresa el razonamiento que conviene
+para una tarea, no su riesgo ni el departamento de origen.** Los bots no
+declaran nombres de modelo. Efadam recomienda un esfuerzo inicial y el center lo
+aplica o ajusta al crear una tarea concreta.
 
-### Reglas de asignación (por dominio/tema, no por cluster destino)
+La decisión se calcula en este orden:
 
-Efadam evalúa la tarea contra estas reglas, en orden — si una tarea coincide
-con varias, **gana la de nivel más alto**. Los 4 nombres en prosa
-(`bajo`/`medio`/`alto`/`crítico`) son para lectura humana; el **valor
-literal** que Efadam escribe en `tasks.nivel_importancia` y que
-`bots.default_model` deja de usar es, siempre, sin tilde y en minúsculas —
-`bajo` / `medio` / `alto` / `critico` — porque es un identificador de
-sistema (check constraint de Postgres + alias de modelo en OmniRoute), no
-texto que un humano lee. Ver "Cómo se traduce nivel → modelo real" abajo.
+1. **Complejidad real de la tarea** — el factor principal: cantidad de pasos,
+   fuentes, restricciones, ambigüedad y juicio especializado que exige.
+2. **Preferencia de servicio** — qué aporta más valor en ese caso: velocidad,
+   equilibrio o máximo rendimiento. Puede venir indicada por el cliente, por
+   el tipo de operación o por el default del espacio de trabajo.
+3. **Riesgo y efecto externo** — no elige el modelo por sí solo. Activa
+   aprobaciones, límites de datos y revisión humana. Solo aumenta un nivel si
+   el riesgo hace que el razonamiento necesario sea objetivamente más profundo
+   (por ejemplo, contrastar cláusulas contradictorias), no por el simple hecho
+   de tratar un contrato, contenido público o dinero.
 
-| si la tarea implica... | nivel mínimo | valor literal |
-|---|---|---|
-| gasto de dinero (cualquier monto), tema legal/contractual, publicación de contenido público, cambio de configuración de seguridad | crítico | `critico` |
-| decisión de precio, contratación/despido, dictamen que compromete al negocio frente a un tercero (cliente, proveedor, autoridad) | alto | `alto` |
-| trabajo especializado de un bot dentro de su dominio normal (código, investigación, redacción interna, análisis) sin las condiciones de arriba | medio | `medio` |
-| ruteo, resumen de estado, tareas mecánicas de alta frecuencia (el modo normal de Efadam mismo) | bajo | `bajo` |
+### Fórmula de asignación
 
-Estas reglas viven en `system_knowledge` (no hardcodeadas en el prompt de
-Efadam) para que Upgrade & review center pueda proponer ajustes con el
-mismo flujo de "cuello de botella" ya documentado (Efadam solicita, U&R
-center evalúa y redacta, Efadam inserta) — igual que cualquier otra pieza de
-`system_knowledge`, no una excepción nueva al mecanismo. Cualquier caso que
-no encaje claramente en ninguna fila **sube por default al nivel superior
-más cercano** (nunca se redondea hacia abajo en caso de duda) y, si la
-ambigüedad es real, Efadam pregunta al usuario en vez de asumir — mismo
-principio que ya aplica para enrutar a un cluster ambiguo.
+Primero se estima la complejidad:
 
-OmniRoute es el **único** traductor de nivel → modelo real. Esto mantiene los
+| complejidad | definición |
+|---|---|
+| simple | una instrucción clara, repetible y con resultado verificable; no requiere comparar fuentes ni tomar decisiones nuevas. |
+| normal | trabajo de un especialista en su dominio habitual, con contexto suficiente y una o pocas decisiones rutinarias. |
+| analítica | combina varias fuentes, restricciones o alternativas; requiere interpretación, redacción matizada o planeación. |
+| profunda | problema nuevo o ambiguo con varios pasos dependientes, consecuencias estratégicas o necesidad de contrastar evidencia compleja. |
+
+Después se cruza con la preferencia de servicio:
+
+| complejidad \ preferencia | velocidad | equilibrio | rendimiento |
+|---|---|---|---|
+| simple | `bajo` | `bajo` | `medio` |
+| normal | `bajo` | `medio` | `medio` |
+| analítica | `medio` | `alto` | `alto` |
+| profunda | `alto` | `alto` | `critico` |
+
+El esfuerzo solo se eleva un paso cuando la tarea requiere análisis adicional por
+información sensible, requisitos regulatorios, incertidumbre material o
+efecto difícil de revertir. No se eleva por la etiqueta del área. Una tarea
+simple sigue siendo `bajo` o `medio` aunque trate un asunto riesgoso; las
+aprobaciones y controles correspondientes siguen siendo obligatorios.
+`critico` queda reservado para tareas de complejidad profunda en las que el
+cliente prioriza rendimiento y el resultado necesita el máximo razonamiento.
+
+Ejemplos:
+
+- Preparar borradores o variaciones rutinarias de contenido ya aprobado:
+  `bajo` o `medio`, según velocidad o rendimiento deseados. Publicar sigue
+  requiriendo el gate de aprobación que aplique, sin volver el borrador
+  automáticamente `critico`.
+- Extraer datos o resumir un contrato de RH con plantilla aprobada y revisión
+  humana: `medio`. Comparar cláusulas, detectar contradicciones o proponer una
+  estrategia contractual: `alto` o `critico` según complejidad y preferencia.
+- Un pago o publicación sensible puede ser simple en razonamiento y quedar en
+  `bajo`/`medio`, pero nunca se ejecuta sin su aprobación humana. El control de
+autorización y el esfuerzo de razonamiento son ejes distintos.
+
+Los cuatro nombres en prosa (`bajo`/`medio`/`alto`/`crítico`) se muestran al
+cliente; el valor literal persistido en `tasks.esfuerzo` es siempre
+sin tilde y en minúsculas: `bajo` / `medio` / `alto` / `critico`.
+
+Estas reglas viven en `system_knowledge` para que Upgrade & review center
+pueda proponer ajustes con el flujo de gobierno habitual. Si no hay contexto
+suficiente para estimar complejidad o preferencia, Efadam consulta primero al
+center; solo pregunta al cliente por su prioridad entre rapidez y calidad si
+esa preferencia no puede inferirse.
+
+OmniRoute es el **único** traductor de esfuerzo → modelo real. Esto mantiene los
 prompts de los bots estables aunque el usuario cambie de proveedor: cambiar
 qué modelo resuelve `alto` es una configuración de OmniRoute, nunca una
 edición al prompt del bot ni a las reglas de asignación.
 
-### Cómo se traduce nivel → modelo real (mecanismo concreto)
+### Cómo se traduce esfuerzo → modelo real (mecanismo concreto)
 
 **Corrección del 16 de agosto de 2026, tarde — la versión anterior de esta
 sección estaba mal.** Decía "OmniRoute es LiteLLM self-hosted" y describía
@@ -217,28 +239,28 @@ de un nivel:** cada combo, además de sus modelos reales, incluye como
 inmediatamente inferior — `critico → alto → medio → bajo` — así que si
 todos los modelos reales de un nivel fallan, la tarea cae al nivel de
 abajo en vez de fallar sin servir nada. Decisión de Mateo, 17 de agosto
-("si no hay un modelo seleccionado... se iría al de abajo"). **Pendiente,
-no construido todavía:** un aviso visible para Mateo cuando una tarea de
-nivel `alto`/`crítico` termina sirviéndose por un modelo de nivel inferior
-vía este fallback — bajar de modelo en algo legal/financiero en silencio
-no es aceptable, aunque el sistema no se caiga. La columna
-`agent_runs.model_used` ya existe y es el lugar natural para detectar el
-desajuste (comparar contra `tasks.nivel_importancia`); falta la lógica en
-el Ejecutor genérico que la lea y dispare la alerta — bloqueado, por ahora,
-en tener acceso de escritura a los workflows de n8n. Ver
-`plan_de_accion_completo.md` para el detalle completo.
+("si no hay un modelo seleccionado... se iría al de abajo"). **Aviso de
+degradación implementado el 20 de agosto:** después de guardar el resultado,
+el Ejecutor genérico compara el modelo reportado por OmniRoute con el nivel
+solicitado y manda una alerta a Telegram si detecta que se usó un nivel
+inferior. La alerta es solo informativa: no detiene ni marca como fallida la
+tarea ya completada. El nodo mantiene una lista explícita de los modelos hoy
+configurados en los cuatro combos; cualquier cambio a esos combos debe
+actualizar esa lista en el mismo cambio. Si OmniRoute devuelve un modelo que
+no está en ella, también alerta para que el desajuste no pase silenciosamente.
 
 **Lo que no cambia con esta corrección (el principio de diseño sigue
 vigente, solo cambió la herramienta que lo implementa):**
 
 - El nodo "Llamar a OmniRoute" del Ejecutor genérico manda el valor de
-  `tasks.nivel_importancia` tal cual en el campo `model` del request (ej.
+  `tasks.esfuerzo` tal cual en el campo `model` del request (ej.
   `model: "alto"`) — eso no depende de si el receptor es LiteLLM o
   OmniRoute, cualquier proxy compatible con el formato OpenAI puede recibir
   ese campo igual.
-- `tasks.nivel_importancia` sigue reemplazando a `bots.default_model` como
-  fuente del modelo a usar. Ver `schema/005_nivel_importancia.sql`.
-- Cambiar qué modelo resuelve un nivel sigue siendo, en principio, una
+- `tasks.esfuerzo` sigue reemplazando a `bots.default_model` como
+  fuente del modelo a usar. Ver `schema/005_nivel_importancia.sql` y la
+  migración de compatibilidad `schema/009_renombrar_esfuerzo.sql`.
+- Cambiar qué modelo resuelve un esfuerzo sigue siendo, en principio, una
   edición del lado del router (ahora: reconfigurar el combo `alto` en
   OmniRoute), nunca un cambio a un prompt de bot ni al workflow de n8n —
   eso se mantiene una vez que se confirme el esquema real de combos.
@@ -275,20 +297,18 @@ momento después — no es un bloqueo para empezar a usar el sistema.
 
 **Es una característica por instalación, no compartida.** "Es un OmniRoute
 diferente para cada quien, no el mío" (Mateo, 15 de agosto de 2026): cada
-instalador de Infinite Power obtiene su propia instancia de OmniRoute, con
+instalador de Efadam obtiene su propia instancia de OmniRoute, con
 sus propias llaves, aislada de cualquier otra instalación — incluida la de
 Mateo. Esto es lo que hace posible que el producto se distribuya a terceros
 sin que cada quien dependa de las credenciales de otra persona.
 
-**Decidido (15 de agosto de 2026, noche): reglas explícitas, no criterio
-libre.** Quedaba abierto si la clasificación de nivel debía ser criterio
-libre de Efadam o reglas fijas — se resolvió a favor de reglas fijas por
-dominio/tema (ver tabla arriba), justo por el riesgo de que un modelo barato
-juzgue con criterio libre algo con consecuencia real. Esto no elimina el
-riesgo por completo (las reglas mismas podrían tener huecos, y el "sube por
-default" es la mitigación para ese caso), pero sí lo acota a algo auditable
-y corregible vía el mecanismo normal de `system_knowledge`, en vez de
-depender del juicio momento a momento de un modelo gratuito.
+**Actualizado 20 de agosto de 2026: matriz explícita, no regla por
+dominio.** La clasificación no queda al criterio libre de Efadam ni a una
+etiqueta como "legal" o "contenido". Usa la matriz auditable de complejidad y
+preferencia de servicio descrita arriba. El riesgo vive en los controles de
+aprobación y solo modifica el nivel cuando añade complejidad de razonamiento.
+Así se evita tanto que un modelo barato subestime una tarea difícil como que
+un trabajo repetible se vuelva caro solo por el área donde se realiza.
 
 ## Gotchas de n8n ya documentados (no repetirlos)
 

@@ -151,10 +151,10 @@ final una vez aprobada, como parte del historial de por qué existe ese bot.
   ("Reglas de aprobación humana"): dinero, contenido público, legal,
   seguridad, o cualquier acción fuera de su sandbox.
 
-## 6. Nivel de importancia máximo esperado
-- Usa la escala YA existente de `tasks.nivel_importancia`
+## 6. Esfuerzo máximo esperado
+- Usa la escala YA existente de `tasks.esfuerzo`
   (`bajo`/`medio`/`alto`/`critico`) — no es una escala nueva, sirve para
-  estimar costo y decidir si necesita fila en `bot_niveles_fijos` antes
+  estimar costo y decidir si necesita fila en `bot_esfuerzos_fijos` antes
   de aprobar.
 
 ## 7. Métrica de éxito
@@ -185,7 +185,7 @@ modo prueba aislada" no tiene dónde vivir en el schema. Dos caminos
 posibles, sin decidir todavía: (a) agregar una columna `bots.estado` tipo
 texto con CHECK, reemplazando el uso de `active` para este propósito; (b)
 una tabla dedicada de historial de ciclo de vida (coherente con el patrón ya
-usado en `bot_niveles_fijos`, separada a propósito de `bots` — ver
+usado en `bot_esfuerzos_fijos`, separada a propósito de `bots` — ver
 `schema/008_bot_roles.sql`). Se decide cuando se construya de verdad, no
 ahora — anotado aquí para no perderlo.
 

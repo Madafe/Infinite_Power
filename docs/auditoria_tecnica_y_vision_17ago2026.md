@@ -1,4 +1,4 @@
-# Auditoría técnica y de visión — Infinite Power
+# Auditoría técnica y de visión — Efadam
 
 > **Fecha:** 17 de agosto de 2026  
 > **Alcance:** repositorio, workflows exportados de n8n, esquema SQL, Docker Compose, documentación, prompts y roster.  
@@ -6,7 +6,7 @@
 
 ## Resumen ejecutivo
 
-Infinite Power tiene una visión diferenciada: convertir una petición del dueño en trabajo ejecutado, revisado, trazable y mejorable. El ejecutor genérico, la memoria compartida, los niveles de importancia y la autonomía gradual son una base razonable.
+Efadam tiene una visión diferenciada: convertir una petición del dueño en trabajo ejecutado, revisado, trazable y mejorable. El ejecutor genérico, la memoria compartida, los esfuerzo y la autonomía gradual son una base razonable.
 
 Hoy sigue siendo un **prototipo manual**, no un sistema autónomo listo para operar tareas reales de manera sostenida. El riesgo principal no es la falta de más agentes: son los huecos entre decisión, ejecución, aprobación, reanudación y aprendizaje.
 
@@ -50,13 +50,13 @@ El valor puede venir de una tarea hija generada por un modelo. Un valor con comi
 
 **Acción:** reemplazar por slug = $1 y enviar el valor mediante queryReplacement. Ningún dato de tarea o salida de modelo debe formar parte literal de SQL.
 
-### C3. Se pierde el nivel de importancia en las tareas hijas
+### C3. Se pierde el esfuerzo en las tareas hijas
 
-Efadam debe decidir bajo, medio, alto o critico al despachar. Sin embargo, Parsear asignaciones no conserva nivel_importancia y Crear tareas hijas no lo inserta. La siguiente llamada a OmniRoute recibe null como modelo.
+Efadam debe decidir bajo, medio, alto o critico al despachar. Sin embargo, Parsear asignaciones no conserva esfuerzo y Crear tareas hijas no lo inserta. La siguiente llamada a OmniRoute recibe null como modelo.
 
 **Impacto:** se rompe el control de coste/calidad y una tarea legal, pública o de seguridad puede no usar el nivel exigido.
 
-**Acción:** incluir, validar e insertar nivel_importancia en toda asignación. Agregar NOT NULL para tareas nuevas o un respaldo que nunca rebaje una tarea ambigua.
+**Acción:** incluir, validar e insertar esfuerzo en toda asignación. Agregar NOT NULL para tareas nuevas o un respaldo que nunca rebaje una tarea ambigua.
 
 ### C4. No se completa una aprobación ni una aclaración humana
 
@@ -122,11 +122,11 @@ Los cambios en JSON de n8n y SQL se detectan hasta la operación manual.
 
 La visión debe definirse por el resultado del dueño, no por la cantidad de bots:
 
-> **Infinite Power es un sistema operativo de trabajo para dueños de pequeños negocios. Convierte objetivos expresados en lenguaje natural en resultados ejecutados, revisados y trazables mediante equipos de agentes especializados. Aprende de cada tarea sin modificar sus reglas de forma silenciosa y aumenta su autonomía únicamente cuando demuestra que puede actuar dentro de límites claros, reversibles y medibles.**
+> **Efadam es un sistema operativo de trabajo para dueños de pequeños negocios. Convierte objetivos expresados en lenguaje natural en resultados ejecutados, revisados y trazables mediante equipos de agentes especializados. Aprende de cada tarea sin modificar sus reglas de forma silenciosa y aumenta su autonomía únicamente cuando demuestra que puede actuar dentro de límites claros, reversibles y medibles.**
 
 Promesa operativa:
 
-> **Tú defines el resultado. Infinite Power organiza el trabajo, lo ejecuta y te pide atención únicamente cuando tu decisión realmente importa.**
+> **Tú defines el resultado. Efadam organiza el trabajo, lo ejecuta y te pide atención únicamente cuando tu decisión realmente importa.**
 
 Para completar esa visión, hay que fijar:
 
@@ -171,7 +171,7 @@ El núcleo puede ampliarse cuando, durante dos semanas de uso real:
 
 - las tareas sensibles siempre se detienen en una aprobación funcional;
 - no hay tareas perdidas, duplicadas ni bloqueadas sin ruta de salida;
-- cada despacho conserva nivel de importancia, padre e historial;
+- cada despacho conserva esfuerzo, padre e historial;
 - cada fallo deja diagnóstico o ruta de corrección verificable;
 - el resultado aceptado sin retrabajo mejora frente a la línea base manual;
 - coste y latencia quedan dentro de un límite acordado.
@@ -186,7 +186,7 @@ El núcleo puede ampliarse cuando, durante dos semanas de uso real:
 
 ### Bloque 1 — Corregir el flujo crítico
 
-1. Propagar y validar nivel_importancia.
+1. Propagar y validar esfuerzo.
 2. Implementar decisión humana bidireccional y reanudación de tareas.
 3. Corregir el reanudador y cubrir aclaraciones repetidas.
 4. Separar instrucciones de sistema de contenido no confiable.

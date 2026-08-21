@@ -1,17 +1,87 @@
-# Plan de acción completo — "Infinite power"
+# Plan de acción completo — "Efadam"
 ### Sistema de agentes autogestionado para el negocio
 
 Para: Mateo · 7 de agosto de 2026 (proyecto individual — ver nota del 17 de agosto, noche, sobre la baja del cofundador)
 
 ---
 
-## Actualización — 20 de agosto de 2026, segunda ronda (pendientes 34 y 37 aplicados en vivo y probados) — VIGENTE, léase primero
+## Actualización — 20 de agosto de 2026, séptima ronda (Efadam insertado en `bots` — el bot existe, todavía no está activo de verdad) — VIGENTE, léase primero
+
+**Efadam ya es una fila real en la base de datos**, no solo un prompt escrito:
+
+```
+slug='efadam'  cluster='Efadam'  active=true  dispatches_tasks=false
+requires_approval=false  conocimiento_directo=false
+contexto_slugs='{arquitectura,stack_y_convenciones}'
+bot_niveles_fijos: bot_slug='efadam'  nivel_fijo='bajo'
+```
+
+Decisiones de Mateo que cerraron el prompt antes de insertarlo:
+1. El aviso "Pendiente, 18/ago" que quedaba en `efadam.md` ya no existía —
+   Mateo lo había borrado él mismo al reescribir el bloque de prompt.
+2. `cluster='Efadam'` (propio, no el genérico `core` que se había
+   propuesto) — único valor existente hasta hoy en `bots.cluster` era
+   `tech-center`; la excepción de casing es intencional, Efadam no
+   pertenece a un departamento.
+3. Esfuerzo fijo de Efadam en `bajo`, **permanente, sin la excepción de
+   `medio` para síntesis** que tenía la versión anterior del prompt — su
+   único trabajo es enrutar; si algún caso real exige más razonamiento se
+   propone un bot aparte, no se le sube el esfuerzo fijo. Corregido en
+   `efadam.md` y `decisiones_arquitectura.md`.
+
+`dispatches_tasks=false` fue una decisión mía (Claude), no preguntada
+directo a Mateo, basada en evidencia textual: la sección "Herramientas que
+puede usar" de `efadam.md` lista escritura en `operations`,
+`knowledge_log`/`system_knowledge` y lectura de `tasks`/`agent_runs`, pero
+**no** lista escritura en `tasks` — a diferencia del modelo viejo donde
+Efadam sí despachaba. Bajo el modelo nuevo, Efadam abre la operación y
+entrega la recomendación al center; el center es quien despacha. Si esto
+no es lo que Mateo tenía en mente, es un `UPDATE bots SET dispatches_tasks
+= true WHERE slug = 'efadam';` de un renglón — señalarlo si aplica.
+
+**Por qué "existe" no es lo mismo que "está activo de verdad" —
+hallazgo hecho antes de insertar, no resuelto todavía:**
+
+- `schema/009_renombrar_esfuerzo.sql` (escrito hoy por Mateo, idempotente)
+  renombra `nivel_importancia`→`esfuerzo` en `tasks`/`operations` y
+  `bot_niveles_fijos`→`bot_esfuerzos_fijos` (`nivel_fijo`→`esfuerzo_fijo`),
+  además de añadir el mecanismo de ajuste manual de esfuerzo por operación
+  (`esfuerzo_recomendado`, `ajustar_esfuerzo_operacion()`,
+  `operation_effort_adjustments`, vista `operaciones_activas`). **Sigue sin
+  aplicarse a la base de datos viva** — verificado con `\d` en vivo. El
+  intento de correrla desde esta sesión de Cowork fue bloqueado por el
+  clasificador de modo automático de Claude Code (cambios de esquema en
+  producción piden confirmación explícita); el `INSERT` de Efadam sí pasó
+  el clasificador (es dato, no DDL). Como la migración es puro `RENAME`,
+  el `INSERT` de hoy sobrevive intacto cuando se corra — no hay urgencia
+  de orden, solo falta que Mateo la corra (`docker cp` + `psql -f`) o
+  decida otra cosa.
+- El workflow `ejecutor_generico` en n8n **no implementa todavía** el
+  recálculo de esfuerzo por center ni deja de heredar ciegamente el nivel
+  del padre — ya anotado por el propio Mateo en `stack_y_convenciones.md`:
+  "el workflow actual todavía hereda el nivel de la tarea padre y requiere
+  actualización antes de activar Efadam."
+- **Jarvis no existe todavía** como canal de entrada, y el prompt nuevo de
+  Efadam asume que es su única vía ("no se configura una entrada directa
+  por Telegram"). Sin Jarvis, la única forma de probar a Efadam en vivo
+  sigue siendo la técnica de webhook temporal ya usada para 34/37.
+
+**No se tocó el workflow de n8n en esta ronda** — insertar la fila de
+`bots` no dispara nada por sí solo; el Ejecutor genérico solo la usa
+cuando algo crea una tarea con `bot='efadam'`, y hoy nada la crea todavía
+(ni Telegram→tasks, ni Schedule Trigger, ni Jarvis existen). Insertar a
+Efadam ahora fue seguro exactamente por eso: no hay ningún camino en vivo
+que lo dispare todavía por accidente.
+
+---
+
+## Actualización — 20 de agosto de 2026, segunda ronda (pendientes 34 y 37 aplicados en vivo y probados)
 
 Siguiendo los 8 pasos de "Para retomar exactamente donde quedó" de la actualización anterior (justo abajo), con autorización explícita de Mateo:
 
 1. Se confirmó que nada había cambiado en el workflow vivo desde que se generó `tmp_wf_body.json` (seguía en 29 nodos, `updatedAt` del 19/ago) — no hacía falta regenerar, pero se volvió a correr `python tmp_apply_workflow.py` de todos modos para partir de un estado fresco. Mismo resultado: 36 nodos, 34 conexiones, sin referencias colgantes.
 2. **`PUT` mandado a `http://localhost:5678/api/v1/workflows/aVORciBJl52lTxTU` — aplicado con éxito.** El workflow vivo pasó de 29 a 36 nodos.
-3. **Probado en vivo** con la técnica ya documentada de webhook temporal (agregar un nodo Webhook conectado al mismo punto que "Reclamar tarea pendiente", activar el workflow, disparar por HTTP, luego quitar el nodo y desactivar de nuevo): se insertó una tarea de prueba real (`tecnico_jefe`, `nivel_importancia = medio`, sin operación). Resultado: tarea 28 (`tecnico_jefe`) terminó `done`, generó correctamente una tarea hija (29, `coder`, `nivel_importancia = medio` heredado, `parent_task_id = 28`) — creación normal de tareas hijas confirmada sin regresión. La tarea hija se disparó también y terminó `done`. `bot_niveles_fijos` (vacía) no rompió nada — "Llamar a omniroute" cayó a `tasks.nivel_importancia` como se esperaba. El gate nuevo (Tipo A / fan-out) no bloqueó nada, correcto, porque ningún bot tiene `requires_approval = true` todavía y solo se generó 1 tarea hija (muy por debajo de los topes de fan-out).
+3. **Probado en vivo** con la técnica ya documentada de webhook temporal (agregar un nodo Webhook conectado al mismo punto que "Reclamar tarea pendiente", activar el workflow, disparar por HTTP, luego quitar el nodo y desactivar de nuevo): se insertó una tarea de prueba real (`tecnico_jefe`, `esfuerzo = medio`, sin operación). Resultado: tarea 28 (`tecnico_jefe`) terminó `done`, generó correctamente una tarea hija (29, `coder`, `esfuerzo = medio` heredado, `parent_task_id = 28`) — creación normal de tareas hijas confirmada sin regresión. La tarea hija se disparó también y terminó `done`. `bot_esfuerzos_fijos` (vacía) no rompió nada — "Llamar a omniroute" cayó a `tasks.esfuerzo` como se esperaba. El gate nuevo (Tipo A / fan-out) no bloqueó nada, correcto, porque ningún bot tiene `requires_approval = true` todavía y solo se generó 1 tarea hija (muy por debajo de los topes de fan-out).
 4. **Hallazgo nuevo, no relacionado con 34/37, encontrado durante la prueba:** la tarea hija de `coder` respondió con `**NECESITA_ACLARACION:**` (envuelto en negritas Markdown) pidiendo más contexto sobre la tarea de prueba — un comportamiento correcto del bot dado que el input era deliberadamente vago. Pero la tarea quedó `done`, no `blocked`, y no se generó ninguna tarea de escalamiento hacia `tecnico_jefe` — es decir, **el mecanismo de detección de "¿Necesita aclaración?" (Tipo B) no disparó**. Sospecha, sin confirmar todavía: el nodo que detecta la marca probablemente espera el string exacto `NECESITA_ACLARACION:` al inicio del output, y el envoltorio en negritas Markdown (`**...**`) que agregó el modelo rompe ese match. **Queda como pendiente nuevo, no bloqueante, sin numerar todavía** — ver sección de pendientes activos.
 5. **No se probó específicamente el truncado de fan-out ni el tope por operación** (harían falta varias asignaciones reales o una operación con >50 tareas para disparar esos caminos) — queda como prueba pendiente, de menor urgencia porque la lógica ya fue validada estáticamente (sin referencias colgantes) y el camino "normal" (la mayoría de los casos reales hoy) ya se confirmó en vivo.
 6. Reexportado a `n8n-workflows/ejecutor_generico.json` vía GET fresco con Python (evita el bug de encoding de PowerShell) — confirmado con `grep`: `operation_id` aparece 10 veces, cero caracteres de reemplazo (corrupción de encoding).
@@ -26,7 +96,7 @@ Con esto, el pendiente 34 y el pendiente 37 (topes de fan-out) quedan **aplicado
 
 **Respuestas de Mateo a las 2 preguntas de la sexta ronda:**
 
-1. **Los topes sí varían por `nivel_importancia`, y Mateo delegó los números concretos:** "deben variar, establécelos tú y luego hacemos pruebas." Elegidos (criterio: escalar proporcional al nivel, sin exagerar — se ajustan con pruebas reales, no son definitivos):
+1. **Los topes sí varían por `esfuerzo`, y Mateo delegó los números concretos:** "deben variar, establécelos tú y luego hacemos pruebas." Elegidos (criterio: escalar proporcional al nivel, sin exagerar — se ajustan con pruebas reales, no son definitivos):
 
    | nivel | tope por despacho | tope por operación |
    |---|---|---|
@@ -45,15 +115,15 @@ Investigación previa antes de tocar nada (para no duplicar lo que ya existe): r
 
 Diseño construido (7 nodos nuevos + reescritura del Code node "Parsear asignaciones" + recableado):
 
-- **"Contar tareas de operacion"** (Postgres) — cuenta tareas de la operación actual y, en la misma query, trae `operations.nivel_importancia` (ver bug corregido más abajo — se agregó este segundo campo a media construcción, no estaba en el diseño original).
+- **"Contar tareas de operacion"** (Postgres) — cuenta tareas de la operación actual y, en la misma query, trae `operations.esfuerzo` (ver bug corregido más abajo — se agregó este segundo campo a media construcción, no estaba en el diseño original).
 - **"Obtener bots que requieren aprobacion"** (Postgres) — `SELECT COALESCE(array_agg(slug), ARRAY[]::text[]) ...` para evitar el bug ya conocido de n8n (0 filas = 0 items en ambas salidas de un Postgres node).
 - **"Enrutar tipo de asignacion"** (Switch) — 4 rutas según `_tipo`: `normal`, `requiere_aprobacion`, `tope_operacion`, `fanout_truncado`.
 - **"Marcar operacion bloqueada"** (Postgres) — `UPDATE operations SET status = 'bloqueada'` para el Tipo A.
 - **"Alerta de aprobacion pendiente"** (Telegram) — mensaje con plantilla de campos obligatorios (no modelo caro, tal como se decidió en la cuarta ronda), distingue tope de operación de aprobación por regla de dominio.
 - **"Alerta fan-out truncado"** (Telegram) — avisa cuántas tareas se descartaron y de qué operación, nunca en silencio.
-- **"Obtener nivel fijo del bot"** (Postgres, `alwaysOutputData: true`, porque `bot_niveles_fijos` sigue vacía) — insertado entre "Cargar contexto" y "Llamar a omniroute"; el `model` de "Llamar a omniroute" ahora prefiere `nivel_fijo` de esta tabla y cae a `tasks.nivel_importancia` si el bot no tiene fila ahí.
+- **"Obtener nivel fijo del bot"** (Postgres, `alwaysOutputData: true`, porque `bot_esfuerzos_fijos` sigue vacía) — insertado entre "Cargar contexto" y "Llamar a omniroute"; el `model` de "Llamar a omniroute" ahora prefiere `esfuerzo_fijo` de esta tabla y cae a `tasks.esfuerzo` si el bot no tiene fila ahí.
 
-**Bug real encontrado y corregido en el propio diseño, antes de aplicarlo en vivo — importante.** El primer borrador del Code node "Parsear asignaciones" calculaba el nivel de cada tarea hija como max(nivel de la tarea PADRE, nivel por reglas de esa tarea hija) — usando `tasks.nivel_importancia` de la tarea que está despachando (que ya pudo haber sido elevada por su propia regla) en vez de `operations.nivel_importancia` (el valor fijo de la operación). Eso habría producido justo la cascada que Mateo prohibió en la quinta ronda ("no puedes transformar toda la operación en crítica basado en la decisión de 1 solo agente"): si una tarea se elevaba a `critico` por su propia regla, todos sus descendientes habrían heredado `critico` sin relación con el motivo real. Corregido antes de tocar nada en vivo: la base del max() ahora es `operations.nivel_importancia`, traída en la misma query de "Contar tareas de operacion" (sin nodo nuevo). Documentado aquí porque es el tipo de error que, si no se hubiera revisado con calma antes de aplicar, habría quedado corriendo en producción sin que nadie lo notara hasta ver un caso real de cascada.
+**Bug real encontrado y corregido en el propio diseño, antes de aplicarlo en vivo — importante.** El primer borrador del Code node "Parsear asignaciones" calculaba el nivel de cada tarea hija como max(nivel de la tarea PADRE, nivel por reglas de esa tarea hija) — usando `tasks.esfuerzo` de la tarea que está despachando (que ya pudo haber sido elevada por su propia regla) en vez de `operations.esfuerzo` (el valor fijo de la operación). Eso habría producido justo la cascada que Mateo prohibió en la quinta ronda ("no puedes transformar toda la operación en crítica basado en la decisión de 1 solo agente"): si una tarea se elevaba a `critico` por su propia regla, todos sus descendientes habrían heredado `critico` sin relación con el motivo real. Corregido antes de tocar nada en vivo: la base del max() ahora es `operations.esfuerzo`, traída en la misma query de "Contar tareas de operacion" (sin nodo nuevo). Documentado aquí porque es el tipo de error que, si no se hubiera revisado con calma antes de aplicar, habría quedado corriendo en producción sin que nadie lo notara hasta ver un caso real de cascada.
 
 **Estado exacto ahora mismo:**
 
@@ -69,7 +139,7 @@ Diseño construido (7 nodos nuevos + reescritura del Code node "Parsear asignaci
 1. Revisar `tmp_wf_body.json` (raíz del repo local) — es el PUT completo, ya armado y validado.
 2. Si algo cambió desde que se generó, volver a correr `py tmp_apply_workflow.py` (lee el estado vivo de n8n fresco, no depende de nada en memoria) y revisar de nuevo `tmp_wf_body.json`.
 3. Mandar el PUT con ese cuerpo a `http://localhost:5678/api/v1/workflows/aVORciBJl52lTxTU` (header `X-N8N-API-KEY`, la key temporal vive en `.env` como `N8N_API_KEY_TEMP`).
-4. Probar en vivo: creación normal de tareas hijas (sin cambio de comportamiento), truncado de fan-out, tope por operación, que "Llamar a omniroute" consulte `bot_niveles_fijos` sin romper nada (la tabla sigue vacía, así que debe caer siempre a `tasks.nivel_importancia` como antes).
+4. Probar en vivo: creación normal de tareas hijas (sin cambio de comportamiento), truncado de fan-out, tope por operación, que "Llamar a omniroute" consulte `bot_esfuerzos_fijos` sin romper nada (la tabla sigue vacía, así que debe caer siempre a `tasks.esfuerzo` como antes).
 5. Reexportar a `n8n-workflows/ejecutor_generico.json` vía GET fresco (nunca a mano).
 6. Actualizar el mapa de nodos y "Lo que falta" en `ejecutor_generico.md`, y marcar el pendiente 34 como hecho en el checklist de abajo.
 7. Borrar los archivos tmp_* de la raíz del repo (son todos desechables, ninguno se commitea).
@@ -86,7 +156,7 @@ Propuesta de diseño, usando lo que ya existe en el schema (nada nuevo que crear
 
 **Preguntas para Mateo antes de fijar esto:**
 
-1. ¿Los topes (10 por despacho, 200 por operación) deberían ser fijos para todo el sistema, o variar según el `nivel_importancia` de la operación (una operación `crítico` justifica más tareas/gasto que una `bajo`)? No quise inventar los números yo solo sin que los veas primero.
+1. ¿Los topes (10 por despacho, 200 por operación) deberían ser fijos para todo el sistema, o variar según el `esfuerzo` de la operación (una operación `crítico` justifica más tareas/gasto que una `bajo`)? No quise inventar los números yo solo sin que los veas primero.
 2. ¿Construyo el Paso 6 (Monitoreo/costos) ahora, adelantado de su lugar en el orden de construcción, específicamente para destrabar el tope de costo — o se deja pendiente hasta que le toque su turno normal?
 
 ---
@@ -95,11 +165,11 @@ Propuesta de diseño, usando lo que ya existe en el schema (nada nuevo que crear
 
 **1. Centers leen Postgres solo de su rama — confirmado, con el fallback correcto.** Mateo: "si y si necesitan mas info que regresen a efadam." Confirma la acotación por rama, y agrega el cierre natural: si un center necesita algo fuera de su propia rama, le pregunta a Efadam en vez de leerlo directo — Efadam sigue siendo el único con visibilidad de todo el sistema. Documentado en `arquitectura.md`.
 
-**2. Tabla `bot_niveles_fijos` — confirmada y ya corrida contra Postgres real.** Mateo: "sí, está bien." `schema/008_bot_roles.sql` aplicado en vivo (`docker cp` + `psql -f`, mismo patrón de siempre), confirmado con `\d bot_niveles_fijos` — PK, FK a `bots.slug`, check constraint de los 4 niveles. Documentada en `stack_y_convenciones.md`. **Sigue pendiente, no bloqueante:** todavía no hay filas insertadas (nadie decidió qué bots van ahí todavía — se hace cuando se construya el pendiente 34), y el nodo "Llamar a omniroute" del Ejecutor genérico todavía no consulta esta tabla antes de mandar `model`.
+**2. Tabla `bot_esfuerzos_fijos` — confirmada y ya corrida contra Postgres real.** Mateo: "sí, está bien." `schema/008_bot_roles.sql` aplicado en vivo (`docker cp` + `psql -f`, mismo patrón de siempre), confirmado con `\d bot_esfuerzos_fijos` — PK, FK a `bots.slug`, check constraint de los 4 niveles. Documentada en `stack_y_convenciones.md`. **Sigue pendiente, no bloqueante:** todavía no hay filas insertadas (nadie decidió qué bots van ahí todavía — se hace cuando se construya el pendiente 34), y el nodo "Llamar a omniroute" del Ejecutor genérico todavía no consulta esta tabla antes de mandar `model`.
 
-**3. Pendiente 35 — decidido, con una corrección importante de Mateo.** Confirmó el `max()`, pero con un límite que mi redacción anterior no dejaba lo bastante explícito: "sí pero que sea solo para esa tarea hija, no puedes transformar toda la operación en crítica basado en la decisión de 1 solo agente." Esto es correcto y es la lectura que ya tenía en mente, pero valía la pena que lo dijera clarísimo, porque es fácil implementarlo mal: el `max()` se calcula y se guarda **solo en `tasks.nivel_importancia` de esa tarea específica** — nunca se escribe de vuelta a `operations.nivel_importancia`. Una tarea hija que resulta crítica no vuelve crítica a toda la operación ni a las tareas hermanas; el nivel de la operación se queda fijo tal como se abrió. Si se implementara al revés (promoviendo la operación completa), una sola tarea de gasto de dinero en medio de una investigación barata dejaría cara para siempre a toda esa operación, incluyendo tareas futuras que no tienen nada que ver — desproporcionado y contrario al espíritu de por qué `nivel_importancia` de operación existe. Documentado en `stack_y_convenciones.md`, con la cita textual de Mateo para que quede clarísimo el límite si alguien más lo implementa después.
+**3. Pendiente 35 — decidido, con una corrección importante de Mateo.** Confirmó el `max()`, pero con un límite que mi redacción anterior no dejaba lo bastante explícito: "sí pero que sea solo para esa tarea hija, no puedes transformar toda la operación en crítica basado en la decisión de 1 solo agente." Esto es correcto y es la lectura que ya tenía en mente, pero valía la pena que lo dijera clarísimo, porque es fácil implementarlo mal: el `max()` se calcula y se guarda **solo en `tasks.esfuerzo` de esa tarea específica** — nunca se escribe de vuelta a `operations.esfuerzo`. Una tarea hija que resulta crítica no vuelve crítica a toda la operación ni a las tareas hermanas; el nivel de la operación se queda fijo tal como se abrió. Si se implementara al revés (promoviendo la operación completa), una sola tarea de gasto de dinero en medio de una investigación barata dejaría cara para siempre a toda esa operación, incluyendo tareas futuras que no tienen nada que ver — desproporcionado y contrario al espíritu de por qué `esfuerzo` de operación existe. Documentado en `stack_y_convenciones.md`, con la cita textual de Mateo para que quede clarísimo el límite si alguien más lo implementa después.
 
-Con esto, los pendientes 34 y 35 quedan **diseñados y decididos** — falta construir el workflow de aprobación en n8n (34) y poblar `bot_niveles_fijos` con los primeros bots orquestadores cuando se active Efadam.
+Con esto, los pendientes 34 y 35 quedan **diseñados y decididos** — falta construir el workflow de aprobación en n8n (34) y poblar `bot_esfuerzos_fijos` con los primeros bots orquestadores cuando se active Efadam.
 
 ---
 
@@ -115,16 +185,16 @@ Con esto, los pendientes 34 y 35 quedan **diseñados y decididos** — falta con
 
   ```sql
   -- 008_bot_roles.sql (propuesta, no aplicada)
-  CREATE TABLE bot_niveles_fijos (
+  CREATE TABLE bot_esfuerzos_fijos (
       id serial PRIMARY KEY,
       bot_slug text NOT NULL UNIQUE REFERENCES bots(slug),
-      nivel_fijo text NOT NULL CHECK (nivel_fijo IN ('bajo','medio','alto','critico')),
+      esfuerzo_fijo text NOT NULL CHECK (esfuerzo_fijo IN ('bajo','medio','alto','critico')),
       razon text,
       created_at timestamptz DEFAULT now()
   );
   ```
 
-  Un bot con fila aquí (ej. Efadam, Técnico jefe, Consultor de arquitectura, los 3 centers) corre siempre en `nivel_fijo`, **sin importar el dominio de la tarea que está coordinando** — pero esto solo cambia qué modelo ejecuta a ese bot, no el `tasks.nivel_importancia` de la tarea en sí, que se sigue fijando por las reglas de asignación normales y sigue siendo lo que determina si hace falta aprobación. Son dos ejes independientes a propósito: modelo de quien coordina ≠ nivel de riesgo de lo que se coordina. Requiere un cambio al nodo "Llamar a omniroute" del Ejecutor genérico (antes de mandar `model`, revisar si el bot tiene fila en `bot_niveles_fijos`; si sí, usar ese valor en vez de `tasks.nivel_importancia`) — no construido todavía, sigue en discusión hasta que Mateo confirme la forma de la tabla.
+  Un bot con fila aquí (ej. Efadam, Técnico jefe, Consultor de arquitectura, los 3 centers) corre siempre en `esfuerzo_fijo`, **sin importar el dominio de la tarea que está coordinando** — pero esto solo cambia qué modelo ejecuta a ese bot, no el `tasks.esfuerzo` de la tarea en sí, que se sigue fijando por las reglas de asignación normales y sigue siendo lo que determina si hace falta aprobación. Son dos ejes independientes a propósito: modelo de quien coordina ≠ nivel de riesgo de lo que se coordina. Requiere un cambio al nodo "Llamar a omniroute" del Ejecutor genérico (antes de mandar `model`, revisar si el bot tiene fila en `bot_esfuerzos_fijos`; si sí, usar ese valor en vez de `tasks.esfuerzo`) — no construido todavía, sigue en discusión hasta que Mateo confirme la forma de la tabla.
 
 - **Pregunta 2 (excepción de nivel `medio` para "explicar bien la solicitud"):** Mateo prefirió una solución distinta y más barata: "yo creo que solo hay que añadir instrucciones específicas sobre cómo asegurarse de incluir los puntos importantes dentro de la respuesta." Se descarta la excepción de nivel `medio` que se había propuesto — en vez de subir de modelo para lograr una explicación clara, la solución es un prompt con una plantilla obligatoria (qué campos tiene que incluir sí o sí: motivo, contexto, qué se le pide al usuario, qué necesita saber para decidir) — esto es consistente con la regla 1 de `reglas_generales.md` ("expón los tradeoffs... si hay varias interpretaciones válidas, pregunta cuál aplica") y evita romper el principio de "orquestadores siempre en modelo barato, sin excepción". Coincide además con el objeto estructurado (motivo/contexto/opciones/riesgo) ya propuesto en la pregunta 3 — la plantilla de instrucciones y el objeto estructurado son la misma solución vista desde dos lados: la estructura es lo que garantiza que no falte nada, no la calidad del modelo.
 
@@ -242,7 +312,7 @@ depende de construir Jarvis primero; el día que Jarvis exista, el mismo
 mecanismo se conecta ahí en vez de a Telegram directo, sin cambiar el diseño
 de fondo.
 
-**Relación con el punto 35 (nivel_importancia de operación vs. reglas de
+**Relación con el punto 35 (esfuerzo de operación vs. reglas de
 asignación por tarea):** esto no lo resuelve, son dos ejes distintos. El
 punto 35 es sobre qué nivel de riesgo/modelo le corresponde a una tarea de
 ejecución específica dentro de una operación. Lo de hoy es sobre si el bot
@@ -339,7 +409,7 @@ veces con la técnica ya establecida (webhook temporal + activar +
 disparar + revisar ejecución + limpiar): (1) tarea con
 `bot = 'bot_que_no_existe'` → terminó `failed` con el mensaje correcto,
 disparó correctamente una tarea de Trouble shooter con
-`nivel_importancia` heredado, que a su vez diagnosticó el problema real
+`esfuerzo` heredado, que a su vez diagnosticó el problema real
 sin ayuda ("No se encontró el bot 'bot_que_no_existe' en el sistema...");
 (2) tarea con un bot válido (`tecnico_jefe`) → terminó `done` sin ninguna
 regresión. 28 nodos en el workflow ahora (eran 26). Todos los datos y
@@ -395,16 +465,16 @@ cualquier clon/fork previo sigue teniendo el secreto expuesto de todos
 modos) o aceptar el riesgo residual explícitamente y documentarlo como tal
 — es una decisión de Mateo, no algo que se resuelva solo.
 
-**2 y 3. C2 (inyección SQL) y C3 (`nivel_importancia` perdido en tareas
+**2 y 3. C2 (inyección SQL) y C3 (`esfuerzo` perdido en tareas
 hijas) — corregidos en n8n vivo, no reflejados en Git.** Confirmado
 leyendo `n8n-workflows/ejecutor_generico.json` línea por línea ahora
 mismo: la línea 87 todavía dice
 `"query": "SELECT * FROM bots WHERE slug = '{{ $json.bot }}' AND active = true LIMIT 1;"`
 — exactamente la inyección que describía C2, sin parametrizar. Un
-`grep -n "operation_id|nivel_importancia"` sobre el archivo completo
-encuentra un solo resultado (`nivel_importancia` dentro del `jsonBody` de
+`grep -n "operation_id|esfuerzo"` sobre el archivo completo
+encuentra un solo resultado (`esfuerzo` dentro del `jsonBody` de
 "Llamar a omniroute") — "Crear tareas hijas" en el export no inserta
-`nivel_importancia`, tal como describía el C3 original, y `operation_id`
+`esfuerzo`, tal como describía el C3 original, y `operation_id`
 no aparece ni una sola vez: el concepto completo construido ayer no existe
 en el archivo versionado. Estado correcto: **corregidos en la instancia de
 n8n, pendientes de exportación/versionado** — no "cerrados".
@@ -413,7 +483,7 @@ n8n, pendientes de exportación/versionado** — no "cerrados".
 hallazgo nuevo, ya estaba cubierto por el pendiente #8" — eso fue un
 error. El texto original de la auditoría (`auditoria_tecnica_y_vision_17ago2026.md`,
 línea 53) es explícito: *"Parsear asignaciones no conserva
-nivel_importancia y Crear tareas hijas no lo inserta"* — era un hallazgo
+esfuerzo y Crear tareas hijas no lo inserta"* — era un hallazgo
 real sobre el estado que se auditó. Que la corrección ya estuviera
 planeada o parcialmente construida antes de esa auditoría no cambia que el
 export auditado tenía el bug. Lo correcto: **resuelto en vivo, pendiente
@@ -472,7 +542,7 @@ pendientes nuevos, sin fecha de resolución todavía.
 
 ### Inconsistencia nueva, encontrada al verificar esto (no buscada a propósito)
 
-`operations.nivel_importancia` se diseñó ayer (18/ago, cuarta ronda) para
+`operations.esfuerzo` se diseñó ayer (18/ago, cuarta ronda) para
 fijarse **una sola vez, al abrir la operación, y no cambiar después** —
 pero las "Reglas de asignación" de `stack_y_convenciones.md` (15 de
 agosto) clasifican **por tarea**, por dominio/tema ("gasto de dinero",
@@ -528,7 +598,7 @@ sin tocar.
 ## Actualización — 18 de agosto de 2026, noche, cuarta ronda ("operaciones" construido y probado en vivo, con 2 bugs reales de paso corregidos) — vigente
 
 Mateo respondió las dos preguntas abiertas de la ronda anterior en el mismo
-mensaje: (1) sí, mezclar `nivel_importancia` con `operations`, pero sin
+mensaje: (1) sí, mezclar `esfuerzo` con `operations`, pero sin
 borrar y reconstruir lo que ya funcionaba; (2) las operaciones tienen que
 estar **centralizadas** en Efadam — "si no se elimina el cuello de
 botella". Con las dos respuestas, el diseño quedó cerrado y se construyó de
@@ -539,15 +609,15 @@ documentado.
 
 Las dos respuestas de Mateo terminaron encajando mejor de lo que parecía en
 la ronda anterior: al ser Efadam el único que abre una operación, la
-pregunta que había quedado abierta sobre nivel_importancia ("¿quién le
+pregunta que había quedado abierta sobre esfuerzo ("¿quién le
 asigna nivel a una operación autoiniciada que nunca pasa por Efadam?") deja
 de existir — toda operación pasa por Efadam, así que Efadam siempre puede
 fijar el nivel al abrirla. Y sobre "no borrar uno y crear otro de cero": se
-interpretó como que el código de herencia de `nivel_importancia` ya
+interpretó como que el código de herencia de `esfuerzo` ya
 construido y probado (`Parsear asignaciones`, con `.first()` sobre
 `Reclamar tarea pendiente`, que no tiene el problema de `.item()` porque
 corre en la rama de éxito, no en una de error rescatado) **no se toca**.
-Se agregó `operations.nivel_importancia` como la fuente conceptual del
+Se agregó `operations.esfuerzo` como la fuente conceptual del
 valor — Efadam la fija una vez al abrir la operación, la copia también a
 la tarea raíz, y de ahí la cadena de herencia que ya existía hace el resto
 sin ningún cambio de código.
@@ -555,7 +625,7 @@ sin ningún cambio de código.
 ### 1. Schema construido y corrido contra Postgres real
 
 `schema/007_operaciones.sql` — tabla `operations` (`id, tipo, titulo,
-descripcion, nivel_importancia, status, created_at, updated_at,
+descripcion, esfuerzo, status, created_at, updated_at,
 closed_at`) y `tasks.operation_id` (nullable, FK a `operations`). Corrido
 vía `docker cp` + `psql -f` dentro del contenedor (no pipe de PowerShell —
 regla adoptada el 16 de agosto tras el mojibake de esa ronda, seguida esta
@@ -564,7 +634,7 @@ los comentarios.
 
 ### 2. Decisión de diseño: `operation_id` se propaga por subquery SQL, no por referencia cruzada de n8n
 
-A diferencia de `nivel_importancia` (que depende de `$('Nombre del
+A diferencia de `esfuerzo` (que depende de `$('Nombre del
 nodo').first()` dentro de un Code node — el mecanismo exacto que causó el
 bug de `.first()` vs `.item()` de la ronda anterior), `operation_id` se
 propaga con un subquery dentro del mismo `INSERT` SQL
@@ -577,15 +647,15 @@ que fallara.
 ### 3. Dos bugs reales encontrados y corregidos de paso, no buscados a propósito
 
 Al tocar las 3 queries que crean tareas (para agregarles `operation_id`),
-salieron dos gaps reales de `nivel_importancia` que nunca se habían
+salieron dos gaps reales de `esfuerzo` que nunca se habían
 corregido:
 
-- **"Crear tarea de aclaración"** nunca había puesto `nivel_importancia` a
+- **"Crear tarea de aclaración"** nunca había puesto `esfuerzo` a
   la tarea que crea — si esa tarea llegaba a procesarse, iba a fallar en
   "Llamar a omniroute" con `400 Missing model` (el mismo bug ya visto dos
   veces antes en otros puntos). Corregido con el mismo patrón de subquery.
 - **"Despachar a trouble_shooter"** tampoco lo hacía — **cada tarea de
-  Trouble shooter auto-despachada nacía con `nivel_importancia = null` y
+  Trouble shooter auto-despachada nacía con `esfuerzo = null` y
   estaba condenada a fallar**, sin excepción. Lo que la ronda anterior
   documentó como "bonus, no buscado a propósito: la tarea de
   trouble_shooter despachada también falló" no era una coincidencia útil
@@ -595,14 +665,14 @@ corregido:
 
 ### 4. Probado en vivo, dos veces, misma técnica de webhook temporal
 
-1. Operación de prueba (`nivel_importancia: medio`) + tarea raíz para
+1. Operación de prueba (`esfuerzo: medio`) + tarea raíz para
    `tecnico_jefe` con ese `operation_id` → la tarea hija que "Crear tareas
    hijas" generó para `coder` salió con `operation_id` y
-   `nivel_importancia` correctos.
+   `esfuerzo` correctos.
 2. Fallo forzado en "Obtener config del bot" (mismo query roto que la
-   ronda anterior) sobre una tarea con `nivel_importancia = medio` y
+   ronda anterior) sobre una tarea con `esfuerzo = medio` y
    `operation_id` puesto → la tarea de `trouble_shooter` auto-despachada
-   salió con **`nivel_importancia = medio`** (antes habría salido `null`)
+   salió con **`esfuerzo = medio`** (antes habría salido `null`)
    y `operation_id` correcto — confirma en vivo los dos arreglos del punto
    3, no solo en el papel.
 
@@ -692,18 +762,18 @@ alter table tasks add column if not exists operation_id int references operation
 ```
 
 `operation_id` se propaga de padre a hijo exactamente con el mismo patrón
-que ya existe para `nivel_importancia` (heredado en "Crear tareas hijas" /
+que ya existe para `esfuerzo` (heredado en "Crear tareas hijas" /
 "Parsear asignaciones"), y también en "Crear tarea de aclaración" y en el
 disparo automático a Trouble shooter (la tarea de troubleshooting pertenece
 a la MISMA operación que la tarea que falló — no abre una nueva). Una tarea
 de primer nivel (sin padre) es la que crea la fila nueva en `operations`.
 
 **Lo que decidí no meter en esta propuesta, a propósito, para no
-sobrecargarla:** mover `nivel_importancia` de `tasks` a `operations`
+sobrecargarla:** mover `esfuerzo` de `tasks` a `operations`
 (asignado una sola vez por operación en vez de heredado tarea por tarea)
 sería una simplificación real — de hecho el bug de esta misma noche
 (herencia rota por `.first()` vs `.item()`) fue justo en la cadena de
-herencia de `nivel_importancia`. Pero tocar esa regla ahora mismo — que hoy
+herencia de `esfuerzo`. Pero tocar esa regla ahora mismo — que hoy
 vive en `efadam.md` como "Efadam es la única fuente de ese valor" — es un
 cambio aparte con su propia complicación (¿quién le asigna nivel a una
 operación de investigación autoiniciada que nunca pasa por Efadam?). Lo
@@ -919,7 +989,7 @@ autorizó.
 
 ---
 
-## Actualización — 18 de agosto de 2026, tarde-noche (Mateo pasó la API key de n8n; se construyó y probó en vivo el disparo automático a Trouble shooter; se encontró y corrigió un bug grande de manejo de errores que llevaba desde el inicio; SQL injection cerrada; nivel_importancia ya se propaga a tareas hijas; 2 tareas reales del backlog se repararon; rotar password de Postgres resultó más riesgoso de lo asumido y se pospuso a propósito) — vigente
+## Actualización — 18 de agosto de 2026, tarde-noche (Mateo pasó la API key de n8n; se construyó y probó en vivo el disparo automático a Trouble shooter; se encontró y corrigió un bug grande de manejo de errores que llevaba desde el inicio; SQL injection cerrada; esfuerzo ya se propaga a tareas hijas; 2 tareas reales del backlog se repararon; rotar password de Postgres resultó más riesgoso de lo asumido y se pospuso a propósito) — vigente
 
 Mateo mandó la API key de n8n directo en el chat, con tres instrucciones
 explícitas: anotarla en algún lado, dejarla anotada también como pendiente
@@ -931,7 +1001,7 @@ guardó la key, (2) se construyó y probó en vivo el disparo automático, (3)
 en el camino se encontró un bug de fondo en el manejo de errores de todo
 el workflow que hacía que la corrección del punto 2 no pudiera funcionar
 sin arreglarlo primero, (4) se cerraron dos hallazgos de la auditoría
-técnica (SQL injection, propagación de `nivel_importancia`), (5) se
+técnica (SQL injection, propagación de `esfuerzo`), (5) se
 repararon 2 tareas reales atoradas en el backlog como parte de las
 pruebas, y (6) se investigó rotar la contraseña de Postgres y se decidió
 posponerlo por un riesgo nuevo que no estaba contemplado.
@@ -1019,7 +1089,7 @@ nueva para `trouble_shooter` con el mismo `cluster` de la tarea que falló
 y el mensaje de error como `input.text`).
 
 **Probado en vivo de punta a punta:** se forzó un error real (tarea con
-`nivel_importancia` nula, que OmniRoute rechaza con `400 Missing model`).
+`esfuerzo` nula, que OmniRoute rechaza con `400 Missing model`).
 La tarea terminó `status='failed'` con el error real guardado en `output`,
 y automáticamente se creó una tarea nueva para `trouble_shooter` con el
 `cluster` y el error correctos. Datos de prueba limpiados después.
@@ -1031,21 +1101,21 @@ y automáticamente se creó una tarea nueva para `trouble_shooter` con el
   un valor que puede venir del JSON de salida de un LLM (el array
   "asignaciones" de un bot despachador) — vector real, no teórico. Query
   parametrizada con `$1` y `queryReplacement`.
-- **Propagación de `nivel_importancia` a tareas hijas:** según el diseño
+- **Propagación de `esfuerzo` a tareas hijas:** según el diseño
   de `efadam.md`, solo Efadam (todavía no construido) debe asignar
-  `nivel_importancia` explícitamente; el resto de bots despachadores
+  `esfuerzo` explícitamente; el resto de bots despachadores
   (Técnico jefe, Trouble shooter) deben heredarlo de la tarea que están
   ejecutando. El nodo `"Parsear asignaciones"` ahora hace
-  `nivel_importancia: a.nivel_importancia || nivelPropio`.
+  `esfuerzo: a.esfuerzo || nivelPropio`.
 
 ### 4. Bonus: 2 tareas reales del backlog, reparadas
 
 Al probar todo lo anterior se encontraron 2 tareas reales atoradas desde
 el 13-14 de agosto (ids 4 y 7, ambas `coder`, del piloto original
 `tecnico_jefe → coder`) — atoradas en `running` por el mismo bug del punto
-1: les faltaba `nivel_importancia`, OmniRoute las rechazaba, y el error
+1: les faltaba `esfuerzo`, OmniRoute las rechazaba, y el error
 nunca llegaba a `"Marcar como fallida"`. Se les asignó
-`nivel_importancia = 'medio'` y se volvieron a correr — ambas terminaron
+`esfuerzo = 'medio'` y se volvieron a correr — ambas terminaron
 `status='done'` con salida real de modelo.
 
 ### 5. Rotar la contraseña de Postgres (hallazgo C1) — investigado, pospuesto a propósito
@@ -1227,7 +1297,7 @@ aunque Mateo aclaró que no le importa que esté expuesta por ser gratuita.
 Esto cierra el bloqueante central de Bloque 2 ("ningún proveedor rutea
 tráfico real") — el punto 3 de "Qué falta ahora, en orden" de la
 actualización del 17 de agosto (abajo) queda resuelto vía NVIDIA en vez de
-Pollinations/Qwen. Lo que sigue en esa lista (propagar `nivel_importancia`
+Pollinations/Qwen. Lo que sigue en esa lista (propagar `esfuerzo`
 a tareas hijas, rotar password de Postgres, parametrizar SQL vulnerable,
 completar aprobación humana bidireccional, ingesta Telegram → `tasks`)
 sigue bloqueado por acceso a n8n, sin cambios esta ronda — la pregunta de
@@ -1361,7 +1431,7 @@ silencioso está bien para `bajo`/`medio`, pero que una tarea `crítico`
 (dinero, legal, seguridad) termine sirviéndose con el modelo barato de
 `bajo` sin que nadie se entere es un riesgo real, no solo un detalle
 técnico. El lugar natural para detectarlo ya existe en el schema
-(`agent_runs.model_used`, comparado contra `tasks.nivel_importancia`), pero
+(`agent_runs.model_used`, comparado contra `tasks.esfuerzo`), pero
 la lógica que lo lea y dispare una alerta a Mateo vive en el Ejecutor
 genérico de n8n — y ahí es exactamente donde se topa con el bloqueo del
 punto 4. Queda anotado como pendiente, no resuelto.
@@ -1430,7 +1500,7 @@ intentó sin preguntar primero.
 
 **Quedan bloqueados por esto**, no por falta de intento:
 
-- Propagar `nivel_importancia` a las tareas hijas (nodos "Parsear
+- Propagar `esfuerzo` a las tareas hijas (nodos "Parsear
   asignaciones"/"Crear tareas hijas").
 - Parametrizar el SQL del nodo "Obtener config del bot" (la inyección SQL,
   hallazgo C2).
@@ -1461,7 +1531,7 @@ backlog técnico no avanza esta sesión.
 
 Mateo preguntó si es posible que, en el arranque del sistema, la generación
 de la llave/contraseña de OmniRoute se haga desde la propia interfaz de
-Infinite Power sin que el usuario tenga que pasar por lo que se hizo a mano
+Efadam sin que el usuario tenga que pasar por lo que se hizo a mano
 hoy (llamadas directas a la API vía curl). Pidió explícitamente **no
 construirlo ahora** — solo verificar si es factible y dejarlo anotado para
 resolverse junto con el diseño de "startup"/onboarding más adelante.
@@ -1477,7 +1547,7 @@ fijarla, crear los 4 combos) fueron llamadas normales a la API HTTP de
 OmniRoute — nada de eso requirió abrir un navegador ni pasar por el
 asistente de onboarding de OmniRoute. Eso significa que un script de
 arranque (o un workflow de n8n, o un futuro microservicio propio de
-Infinite Power) puede hacer exactamente lo mismo de forma automática e
+Efadam) puede hacer exactamente lo mismo de forma automática e
 idempotente, sin que el usuario final tenga que tocar la API ni el
 dashboard de OmniRoute directamente.
 
@@ -1510,7 +1580,7 @@ a requerir que el usuario tenga o consiga su propia credencial de ese
 proveedor externo. Ningún script puede generar una API key válida de un
 tercero en nombre del usuario. Lo que sí se puede simplificar es *dónde*
 la pega: en vez de que el usuario tenga que aprender a usar el dashboard
-de OmniRoute, la interfaz propia de Infinite Power podría ofrecer un paso
+de OmniRoute, la interfaz propia de Efadam podría ofrecer un paso
 simple de "pega tu API key de [proveedor] aquí" que internamente llame a
 `POST /api/providers`. Sigue siendo fricción real (conseguir la key en el
 sitio del proveedor), pero se elimina la fricción de aprender una
@@ -1526,7 +1596,7 @@ a) Un script de inicialización de una sola vez, al estilo de un
 b) Un workflow de n8n disparado una sola vez al arranque — mantiene toda
    la lógica de "arranque del sistema" en un solo lugar, consistente con
    que n8n ya es el orquestador de todo lo demás.
-c) Un microservicio propio de Infinite Power, si en algún momento existe
+c) Un microservicio propio de Efadam, si en algún momento existe
    una interfaz propia más allá de Telegram + los dashboards crudos de
    n8n/OmniRoute — probablemente esto es lo que Mateo tiene en mente con
    "la misma interfaz de mi proyecto", pero esa interfaz todavía no
@@ -1534,7 +1604,7 @@ c) Un microservicio propio de Infinite Power, si en algún momento existe
 
 ### Advertencia de diseño a futuro (anotada, no urgente)
 
-Si Infinite Power alguna vez deja de ser una instalación de un solo
+Si Efadam alguna vez deja de ser una instalación de un solo
 usuario (self-hosted, como hoy) y pasa a ser multiusuario, este enfoque de
 generar secretos y guardarlos en un `.env` compartido deja de alcanzar —
 haría falta una bóveda de secretos por usuario/instalación. No es un
@@ -1649,7 +1719,7 @@ Sigue sin conectar.
    `POST /api/chat/completions` con `model: "bajo"` (o el nivel que sea)
    contra el contenedor real, para confirmar extremo a extremo que un
    combo sirve una respuesta real, no solo que existe.
-4. Propagar `nivel_importancia` a las tareas hijas en n8n (pendiente #8
+4. Propagar `esfuerzo` a las tareas hijas en n8n (pendiente #8
    de la lista de abajo) y construir la ingesta Telegram → `tasks`
    (pendiente #9).
 5. Rotar contraseña de Postgres (C1), parametrizar SQL de "Obtener config
@@ -1821,7 +1891,7 @@ Desktop Commander):
   una notificación saliente sin ruta de respuesta (C4) — se agregan a
   "Pendientes de Bloque 2, en secuencia" más abajo, antes del punto que
   inserta a Efadam: no tiene sentido activar el cerebro de orquestación
-  encima de esos tres huecos. `nivel_importancia` (C3) ya estaba cubierto
+  encima de esos tres huecos. `esfuerzo` (C3) ya estaba cubierto
   por el punto 8 existente.
 - Se descarta el gate de "validar 2 semanas" que proponía la auditoría
   antes de construir la siguiente rama. Decisión de Mateo: el tiempo
@@ -1977,7 +2047,7 @@ aquí primero, se ejecuta después de la confirmación.
 7. Confirmar empíricamente si el campo `model` del request puede referenciar
    el combo directo por nombre, o si hace falta además
    `/api/model-combo-mappings` — no asumir, probar con una llamada real.
-8. Propagar `nivel_importancia` a las tareas hijas en los nodos "Parsear
+8. Propagar `esfuerzo` a las tareas hijas en los nodos "Parsear
    asignaciones"/"Crear tareas hijas" del Ejecutor genérico en n8n.
 9. Construir el workflow de ingesta Telegram → `tasks`.
 10. Prueba end-to-end en vivo de todo el flujo de Bloque 2.
@@ -2008,14 +2078,14 @@ aquí primero, se ejecuta después de la confirmación.
 
 ---
 
-## Actualización — 16 de agosto de 2026 (mecanismo concreto nivel → modelo, `schema/005_nivel_importancia.sql`) — histórica, ver corrección y auditoría más arriba/abajo
+## Actualización — 16 de agosto de 2026 (mecanismo concreto nivel → modelo, `schema/005_esfuerzo.sql`) — histórica, ver corrección y auditoría más arriba/abajo
 
 Quedaba un hueco real señalado por Mateo: se documentaba "OmniRoute traduce
 nivel → modelo" como principio, sin especificar nunca el mecanismo. Resuelto:
 
-- **`nivel_importancia` vive en `tasks`, no en `bots`** — coherente con que
+- **`esfuerzo` vive en `tasks`, no en `bots`** — coherente con que
   Efadam asigna el nivel por tarea, no por bot fijo. Migración nueva:
-  `schema/005_nivel_importancia.sql` (columna + check constraint). Reemplaza
+  `schema/005_esfuerzo.sql` (columna + check constraint). Reemplaza
   a `bots.default_model` como fuente del modelo a llamar (esa columna queda
   sin uso activo, no se elimina por ahora).
 - ~~**OmniRoute es LiteLLM self-hosted.**~~ — **Falso, corregido el 16 de
@@ -2030,7 +2100,7 @@ nivel → modelo" como principio, sin especificar nunca el mecanismo. Resuelto:
   verificar via la UI del dashboard antes de configurarlo. Detalle completo
   en `stack_y_convenciones.md`.
 - **Corrección de encoding:** los 4 valores literales del sistema
-  (`tasks.nivel_importancia`, el nombre del combo de OmniRoute, lo que Efadam
+  (`tasks.esfuerzo`, el nombre del combo de OmniRoute, lo que Efadam
   escribe en el JSON de la tarea) son `bajo`/`medio`/`alto`/`critico` —
   **sin tilde en "critico"**, porque son identificadores de sistema, no
   texto para leer.
@@ -2040,17 +2110,17 @@ nivel → modelo" como principio, sin especificar nunca el mecanismo. Resuelto:
   documentos sigue usando tilde donde es solo lectura humana.
 
 **Ejecutado el mismo 16 de agosto:** la migración ya corrió contra Postgres
-(`ALTER TABLE`/`COMMENT` confirmados, `tasks.nivel_importancia` existe con
+(`ALTER TABLE`/`COMMENT` confirmados, `tasks.esfuerzo` existe con
 su check constraint) y el nodo "Llamar a omniroute" del Ejecutor genérico
 (workflow `aVORciBJl52lTxTU` en n8n) ya se editó vía la API de n8n: el
 campo `model` del request ahora lee
-`$('Reclamar tarea pendiente').first().json.nivel_importancia` en vez de
+`$('Reclamar tarea pendiente').first().json.esfuerzo` en vez de
 `$('Obtener config del bot').first().json.default_model` — verificado con
 un `GET` posterior al `PUT`. El pendiente #16 de abajo queda completo.
 
 **Todavía falta, no incluido en este cambio:** configurar los 4 combos de
 OmniRoute (uno por nivel) y sus `model-combo-mappings`, e insertar a Efadam
-en la tabla `bots` — el nodo ya está listo para recibir `nivel_importancia`,
+en la tabla `bots` — el nodo ya está listo para recibir `esfuerzo`,
 pero hoy ninguna tarea trae ese campo poblado porque nada lo está asignando
 todavía (Efadam no existe como bot activo). Sin esos dos pasos, cualquier
 tarea nueva llegaría a OmniRoute con `model: null`.
@@ -2109,7 +2179,7 @@ corriendo 001→006 en orden contra una base Postgres vacía de prueba
 (`test_repro`, borrada después) — sin errores, misma estructura que la base
 real. De paso se encontró y corrigió un bug real, no solo de documentación:
 dos `COMMENT ON COLUMN` (`bots.conocimiento_directo`,
-`tasks.nivel_importancia`) habían quedado con mojibake **dentro de la base
+`tasks.esfuerzo`) habían quedado con mojibake **dentro de la base
 de datos real** porque se aplicaron anteriormente vía `psql`/PowerShell sin
 forzar UTF-8 en el pipe — nueva migración `schema/006_fix_encoding_comments.sql`,
 ya corrida contra la base real y verificada byte por byte. Todo commiteado
@@ -2268,9 +2338,9 @@ hardcodeado — si lo tienen, hace falta migrarlos primero.
 ## Actualización — 15 de agosto de 2026, noche, tercera ronda (reglas explícitas de nivel — pendiente #15 resuelto) — VIGENTE, léase primero
 
 Se resolvió el pendiente de diseño de la actualización inmediata de abajo:
-Efadam **no** clasifica el nivel de importancia con criterio libre — aplica
+Efadam **no** clasifica el esfuerzo con criterio libre — aplica
 una tabla de reglas fijas por dominio/tema, ya escrita en
-`stack_y_convenciones.md` ("Niveles de importancia y BYOK" → "Reglas de
+`stack_y_convenciones.md` ("Esfuerzo y BYOK" → "Reglas de
 asignación"):
 
 - Gasto de dinero, tema legal/contractual, publicación pública, cambio de
@@ -2295,10 +2365,10 @@ prueba actualizados).
 ## Actualización — 15 de agosto de 2026, noche, segunda ronda (corrección: Efadam asigna el nivel, no cada bot) — histórica, ver corrección de arriba
 
 Corrige un error en la actualización inmediata de abajo: decía "cada bot
-declara su nivel de importancia", lo cual contradice el resto del diseño de
+declara su esfuerzo", lo cual contradice el resto del diseño de
 Efadam (un bot individual no tiene visión de negocio para juzgar su propia
 importancia; esa visión es justamente lo que hace Efadam). Corregido: es
-**Efadam** quien asigna el `nivel_importancia` de cada tarea al despacharla
+**Efadam** quien asigna el `esfuerzo` de cada tarea al despacharla
 — el bot destino lo hereda, no lo decide. Detalle en `efadam.md` y
 `stack_y_convenciones.md`.
 
@@ -2308,7 +2378,7 @@ arriba: reglas fijas.**
 
 ---
 
-## Actualización — 15 de agosto de 2026, noche (niveles de importancia + BYOK + empaquetado de OmniRoute/n8n) — VIGENTE, léase primero
+## Actualización — 15 de agosto de 2026, noche (esfuerzo + BYOK + empaquetado de OmniRoute/n8n) — VIGENTE, léase primero
 
 Se rediseña de fondo cómo el sistema decide qué modelo usa cada bot, y cómo
 se distribuye OmniRoute como parte del producto. Reemplaza el contenido del
@@ -2318,7 +2388,7 @@ Detalle completo del diseño en `stack_y_convenciones.md`, sección "Niveles de
 importancia y BYOK" — resumen aquí:
 
 - 4 niveles fijos del sistema (`bajo`, `medio`, `alto`, `crítico`). **Efadam**
-  asigna a cada tarea el nivel que le corresponde (columna `nivel_importancia`
+  asigna a cada tarea el nivel que le corresponde (columna `esfuerzo`
   en `tasks`, heredada por el bot que la ejecuta) — ningún bot decide el
   suyo propio, y nunca se declara un modelo específico. OmniRoute es el
   único que traduce nivel → modelo real. Ver corrección de la actualización
@@ -2714,7 +2784,7 @@ networks:
 
 > Verifica el nombre exacto de la imagen Docker de OmniRoute en su repo de GitHub antes de levantar el contenedor — puede cambiar. Si no publican imagen oficial, se clona el repo y se construye localmente con su propio Dockerfile.
 >
-> **Nota 15 de agosto de 2026 (histórica — ver actualización de niveles/BYOK arriba):** este `docker-compose.yml` sigue siendo la base técnica vigente (Postgres + n8n + OmniRoute + Caddy en un solo stack), pero el paso 0.5 de abajo (configurar OmniRoute a mano con llaves propias) queda superado: para un producto distribuible, el compose debe traer OmniRoute preconfigurado con defaults gratis por nivel de importancia desde el primer arranque, no como paso manual posterior.
+> **Nota 15 de agosto de 2026 (histórica — ver actualización de niveles/BYOK arriba):** este `docker-compose.yml` sigue siendo la base técnica vigente (Postgres + n8n + OmniRoute + Caddy en un solo stack), pero el paso 0.5 de abajo (configurar OmniRoute a mano con llaves propias) queda superado: para un producto distribuible, el compose debe traer OmniRoute preconfigurado con defaults gratis por esfuerzo desde el primer arranque, no como paso manual posterior.
 
 Crear `Caddyfile` (esto da HTTPS automático gratis):
 
@@ -2737,12 +2807,12 @@ docker compose ps
 
 Entrar a `https://n8n.sudominio.com` y confirmar que carga el login de n8n.
 
-### Paso 0.5 — Configurar OmniRoute (histórico — ver "Niveles de importancia y BYOK" arriba para el diseño vigente)
+### Paso 0.5 — Configurar OmniRoute (histórico — ver "Esfuerzo y BYOK" arriba para el diseño vigente)
 
 > **Superado por la actualización del 15 de agosto, noche (arriba).** Este
 > paso describía cargar las llaves de Mateo/su amigo a mano y definir un
 > orden de fallback fijo. El diseño vigente es: OmniRoute llega preconfigurado
-> con un modelo gratis por nivel de importancia (`bajo`/`medio`/`alto`/`crítico`)
+> con un modelo gratis por esfuerzo (`bajo`/`medio`/`alto`/`crítico`)
 > desde el arranque; añadir llaves propias por nivel es un paso posterior y
 > opcional del usuario, no un requisito de instalación. Se deja el contenido
 > original por trazabilidad de qué se intentó primero.
@@ -3101,12 +3171,12 @@ para el razonamiento completo.
 8. ~~Agregar al amigo/cofundador como colaborador del repo de GitHub~~ — **ya no aplica (17 de agosto, noche):** Mateo confirmó que el proyecto es individual, no hay cofundador que agregar.
 9. Activar más bots en la tabla `bots` conforme cada componente vertical lo requiera — hoy `tecnico_jefe`, `coder` y `trouble_shooter` están activos (confirmado el 18 de agosto — ver actualización de esa fecha, arriba, que corrige un error de diagnóstico del 17 de agosto sobre este mismo punto); Consultor de arquitectura y Trouble scouter siguen pospuestos con criterio explícito (ver actualización del 14 de agosto, tarde).
 10. Corregir `consultor-de-arquitectura.md` y `trouble-scouter.md`, que aún referencian `project_knowledge`/`trouble_shooter_knowledge` (nombres ya descartados) — corregir antes de activarlos.
-11. **Implementar el empaquetado de OmniRoute + n8n para distribución** (diseño ya definido, ver actualización del 15 de agosto, noche, arriba y `stack_y_convenciones.md`): agregar la columna `bots.nivel_importancia` al schema, definir los defaults gratis por nivel dentro de la config de OmniRoute, y diseñar la pantalla/paso de setup donde el usuario ve los 4 niveles y puede añadir sus llaves. No es bloqueante para construir Efadam — se puede implementar en paralelo o después, cuando el paquete se piense para distribuirse a un tercero.
+11. **Implementar el empaquetado de OmniRoute + n8n para distribución** (diseño ya definido, ver actualización del 15 de agosto, noche, arriba y `stack_y_convenciones.md`): agregar la columna `bots.esfuerzo` al schema, definir los defaults gratis por nivel dentro de la config de OmniRoute, y diseñar la pantalla/paso de setup donde el usuario ve los 4 niveles y puede añadir sus llaves. No es bloqueante para construir Efadam — se puede implementar en paralelo o después, cuando el paquete se piense para distribuirse a un tercero.
 12. ~~Eliminar o resolver la duplicación de la nota `docs/vision/Efadam/Efadam.md` en Obsidian~~ — **hecho (15 de agosto, noche):** su contenido ya estaba fusionado en `memoria_del_sistema.md` y `efadam.md`; el archivo original se eliminó del repo (revisado y aprobado por Mateo).
-13. ~~Localizar y leer "Infinite power.md > Método > Multiproyecto"~~ — **hecho (15 de agosto, noche, cuarta ronda):** localizada en `docs/vision/Infinite power.md`, fusionada a este documento (ver actualización correspondiente arriba) y la nota original eliminada.
+13. ~~Localizar y leer "Efadam.md > Método > Multiproyecto"~~ — **hecho (15 de agosto, noche, cuarta ronda):** localizada en `docs/vision/Efadam.md`, fusionada a este documento (ver actualización correspondiente arriba) y la nota original eliminada.
 14. ~~Decidir qué hacer con dos archivos sueltos sin commitear~~ — **hecho (15 de agosto, noche):** `schema/_tmp_diag_github.ps1` (apuntaba al workflow "Sync conocimiento del sistema" ya borrado) y `schema/_tmp_inspect_schedule.js` (exploración puntual de internals de `ScheduleTrigger`, ya resuelta) se revisaron — sin secretos en texto plano — y se borraron del disco. Nunca estuvieron trackeados en git, así que no generaron commit.
-15. ~~Decidir cómo Efadam clasifica el nivel de importancia con confiabilidad~~ — **hecho (15 de agosto, noche, tercera ronda):** reglas explícitas por dominio/tema, no criterio libre — ver `stack_y_convenciones.md`, "Reglas de asignación", y actualización correspondiente arriba.
-16. ~~Implementar en n8n la lógica real de aplicar la tabla de reglas de nivel~~ — **hecho (16 de agosto):** migración `schema/005_nivel_importancia.sql` corrida contra Postgres; nodo "Llamar a omniroute" del Ejecutor genérico editado vía API de n8n para leer `tasks.nivel_importancia` en vez de `bots.default_model`. Lo que queda (no cubierto por este punto): configurar los 4 combos de OmniRoute (uno por nivel) y activar Efadam para que empiece a poblar `nivel_importancia` de verdad — ver punto 1.
+15. ~~Decidir cómo Efadam clasifica el esfuerzo con confiabilidad~~ — **hecho (15 de agosto, noche, tercera ronda):** reglas explícitas por dominio/tema, no criterio libre — ver `stack_y_convenciones.md`, "Reglas de asignación", y actualización correspondiente arriba.
+16. ~~Implementar en n8n la lógica real de aplicar la tabla de reglas de nivel~~ — **hecho (16 de agosto):** migración `schema/005_esfuerzo.sql` corrida contra Postgres; nodo "Llamar a omniroute" del Ejecutor genérico editado vía API de n8n para leer `tasks.esfuerzo` en vez de `bots.default_model`. Lo que queda (no cubierto por este punto): configurar los 4 combos de OmniRoute (uno por nivel) y activar Efadam para que empiece a poblar `esfuerzo` de verdad — ver punto 1.
 20. ~~Completar Bloque 0 de la auditoría externa~~ — **hecho (16 de agosto, noche):** workflows de n8n exportados, script de backup probado, `.gitattributes`, password de Postgres y `N8N_ENCRYPTION_KEY` fuera de `docker-compose.yml` en texto plano (movidos a `.env`, misma key que ya existía — no se rotó), `GENERIC_TIMEZONE`. Todo en la rama `correcciones`, verificado (docker compose up -d recreó n8n sin perder workflows). Ver detalle en la actualización del 16 de agosto, tarde/noche, arriba.
 21. ~~Bloque 1 de la auditoría externa~~ — **hecho (16-17 de agosto):** 5 contradicciones de "fuente de verdad" corregidas, wikilinks rotos de `INICIO.md` desligados, `estado_del_proyecto.md` reescrito de cero — todo committeado y pusheado a `correcciones` (commits `e97b5fc`, `220d04b`, `b94af50`). **Sigue pendiente, no cubierto por este punto:** limpiar duplicados en el Claude Project.
 22. ~~Desktop_Commander desconectado~~ — **resuelto (17 de agosto):** volvió a conectar. Se usó para limpiar los `.lock`/`tmp_obj` que la VM aislada del bridge estándar había dejado sueltos en `.git/` y para pushear el commit de Bloque 1 que había quedado local. Bloque 2 (Postgres/n8n/OmniRoute) ya es viable con esta herramienta disponible.
@@ -3115,7 +3185,7 @@ para el razonamiento completo.
 19. **Nuevo:** escribir el prompt de Setup en Proyect center (entrevista de objetivo → meta + pasos + criterio de "listo") — se escribe en su turno, cuando toque construir Proyect center (paso 4 del orden vertical).
 23. ~~Insertar `trouble_shooter` en `bots`~~ — **ya no aplica (18 de agosto):** al intentar correr el `INSERT`, Postgres devolvió `duplicate key` — la fila ya existía. El diagnóstico del 17 de agosto que daba esto como pendiente estaba mal (ver actualización del 18 de agosto, arriba, sección 1, para la corrección completa). ~~Agregar el nodo Postgres de disparo automático en el Ejecutor genérico después de "Marcar como fallida"~~ — **hecho (18/ago, tarde-noche):** construido y probado en vivo, ver actualización del 18 de agosto, tarde-noche, arriba (sección 2).
 24. ~~Decidir si vale la pena seguir con Pollinations/Cloudflare/Qwen~~ — **cerrado por ahora (18/ago, noche, tercera ronda):** Mateo decidió no seguir con eso mientras dure la construcción — se retoma cuando el sistema ya esté operando.
-30. ~~Construir el concepto de "operación"~~ — **hecho (18/ago, noche, cuarta ronda):** Mateo confirmó las dos preguntas abiertas (mezclar `nivel_importancia` sin reconstruir; operaciones centralizadas en Efadam). Construido de verdad: `schema/007_operaciones.sql` corrido contra Postgres real, `operation_id` propagado en "Crear tarea de aclaración", "Crear tareas hijas" y "Despachar a trouble_shooter" (por subquery SQL, no referencia cruzada de n8n), probado en vivo dos veces. De paso se encontraron y corrigieron 2 bugs reales de `nivel_importancia` (aclaración y trouble_shooter nacían sin nivel, condenadas a fallar). Ver actualización del 18 de agosto, noche, cuarta ronda, arriba, y `ejecutor_generico.md` para el detalle completo. **Sigue pendiente, no cubierto por este punto:** nada abre una operación de verdad todavía — depende de que Efadam exista como bot activo (Bloque 3).
+30. ~~Construir el concepto de "operación"~~ — **hecho (18/ago, noche, cuarta ronda):** Mateo confirmó las dos preguntas abiertas (mezclar `esfuerzo` sin reconstruir; operaciones centralizadas en Efadam). Construido de verdad: `schema/007_operaciones.sql` corrido contra Postgres real, `operation_id` propagado en "Crear tarea de aclaración", "Crear tareas hijas" y "Despachar a trouble_shooter" (por subquery SQL, no referencia cruzada de n8n), probado en vivo dos veces. De paso se encontraron y corrigieron 2 bugs reales de `esfuerzo` (aclaración y trouble_shooter nacían sin nivel, condenadas a fallar). Ver actualización del 18 de agosto, noche, cuarta ronda, arriba, y `ejecutor_generico.md` para el detalle completo. **Sigue pendiente, no cubierto por este punto:** nada abre una operación de verdad todavía — depende de que Efadam exista como bot activo (Bloque 3).
 25. ~~Corregir el manejo de errores en los nodos del Ejecutor genérico~~ — **hecho (18/ago, noche, segunda ronda), con corrección importante:** este punto se venía llamando "hallazgo C5", pero la auditoría del 17/ago solo enumera C1-C4 (confirmado 19/ago) — nunca fue parte de ella, es un bug encontrado y nombrado después; se deja de usar el prefijo "C" para este punto de aquí en adelante. El diagnóstico original (13 nodos rotos por el mismo bug que `"Llamar a omniroute"`) **era incorrecto** — probado en vivo, nodo por nodo: Postgres, Code y Telegram enrutan sus errores correctamente sin ningún arreglo. El bug real era otro: (a) cada tipo de nodo entrega el error con una forma de JSON distinta y "Marcar como fallida" necesitaba una normalización que no existía, y (b) un bug de n8n nunca documentado antes — `$('Reclamar tarea pendiente').first()` truena con `TypeError` cuando el nodo que lo llama se alcanza por una ruta de error rescatada, mientras que `.item` sí funciona. Arreglo aplicado: se generalizó el Code node "Preparar fallo" (normaliza las 4 formas de error observadas, usa `.item` en vez de `.first()`) y se re-cablearon 17 conexiones para pasar por él — cero nodos nuevos. Probado en vivo de punta a punta dos veces (una vía Postgres, la original vía omniroute) más una confirmación extra del guard anti-loop de Trouble shooter. Ver actualización del 18 de agosto, noche, segunda ronda, arriba, y `ejecutor_generico.md` para el detalle completo y el código final.
 26. ~~Rotar la contraseña de Postgres (hallazgo C1)~~ — **hecho, pero corrige alcance (19/ago): esto es "mitigado", no "cerrado".** Los 4 pasos de rotación (`ALTER USER`, `.env`, credencial de n8n vía API, reinicio) sí se ejecutaron y probaron en vivo de punta a punta el 18/ago — pero el paso 4 original de C1 ("reescribir/limpiar el historial remoto") nunca se hizo, y la contraseña vieja sigue siendo alcanzable desde las 5 ramas remotas vía `git log -p`. Ver punto 33 de este mismo checklist y la actualización del 19 de agosto, arriba.
 27. **Nuevo (18/ago, tarde-noche):** eliminar la API key temporal de n8n (`N8N_API_KEY_TEMP` en `.env`) — revocarla en n8n y borrar la línea — una vez que el pendiente 25, la ingesta Telegram → `tasks` y la aprobación humana bidireccional estén resueltos. Instrucción explícita de Mateo, no automática.
@@ -3124,16 +3194,16 @@ para el razonamiento completo.
 31. ~~Hacer una pasada de verificación en vivo sobre los 5 hallazgos C~~ — **hecho (19/ago):** verificado contra evidencia primaria (git log, contenido real de archivos, texto original de la auditoría). Resultado, con corrección de 2 errores propios (C4 sí tiene tabla `approvals`; C5 nunca fue parte de la auditoría original) — ver actualización del 19 de agosto, arriba, para el detalle completo con evidencia de cada punto. Esto generó los puntos 32-38 de abajo, que sí quedan pendientes de resolver.
 32. ~~Reexportar el n8n vivo actual a `n8n-workflows/*.json`~~ — **hecho (19/ago).** Reexportado vía API (mismo mecanismo que las ediciones — GET, `ConvertTo-Json -Depth 100`, `Out-File`) para Ejecutor genérico y Reanudador de bloqueados. Confirmado con `grep`: la SQL de "Obtener config del bot" ya sale parametrizada (`slug = $1`) y `operation_id` aparece en el archivo. Commits `cb31874` y el de más abajo tras el fix del punto 8 (ver siguiente actualización). El Reanudador no tuvo cambios reales (el export ya estaba al día, confirmado el mismo día).
 33. ~~Decidir qué hacer con la exposición histórica de la contraseña vieja de Postgres (`infpower154`) en el historial de Git~~ — **decidido (19/ago): se acepta el riesgo residual, no se reescribe el historial.** Mateo confirmó que la contraseña nueva es distinta (no reutilizada) — con eso, el beneficio marginal de `git filter-repo` + force-push a 5 ramas es bajo (el repo es público, cualquier cosecha automática ya ocurrió y es irreversible de todos modos) frente al costo/riesgo de reescribir historial en 5 ramas de un repo activo. C1 queda formalmente como **mitigado, riesgo residual aceptado** — no como "cerrado" en el sentido de que el string ya no está en el historial (sigue estando), sino en el sentido de que ya no es un pendiente abierto de decisión.
-34. ~~Decidido, en construcción (20/ago)~~ — **aplicado y probado en vivo (20/ago, segunda ronda, ver actualización arriba).** Prueba del camino normal confirmada (creación de tareas hijas sin regresión); falta solo la prueba específica de fan-out/tope de operación. Detalle original de construcción: Workflow de aprobación humana bidireccional (C4), con dos rutas de escalamiento (Tipo A: aprobación obligatoria por regla de dominio, sube hasta el usuario vía `operations.bloqueada` + Efadam — **construido esta ronda, 7 nodos nuevos + reescritura de "Parsear asignaciones"**; Tipo B: duda de coordinación entre bots, sube un nivel a la vez vía `tasks.blocked` + "Reanudador de bloqueados" — **ya existía desde antes, confirmado en la investigación de esta ronda, no hizo falta construirlo**). Mensaje final a usuario compuesto con plantilla obligatoria de campos, no con modelo más caro. `bot_niveles_fijos` corrida contra Postgres pero sigue vacía — el nodo nuevo "Obtener nivel fijo del bot" ya la consulta, cae a `tasks.nivel_importancia` si el bot no tiene fila. Cuerpo completo (36 nodos, 34 conexiones) validado sin referencias colgantes y guardado en `tmp_wf_body.json`, listo para `PUT` — **el workflow vivo en n8n sigue en 29 nodos, nada de esto aplicado todavía.** Ver actualización del 20 de agosto, arriba, para el detalle completo y los pasos exactos para retomar.
-35. **Decidido (19/ago, quinta ronda).** Nivel efectivo de cada tarea = `max(nivel de la operación, nivel por reglas de asignación de esa tarea)`, calculado y guardado **solo en `tasks.nivel_importancia` de esa tarea específica** — nunca se escribe de vuelta a `operations.nivel_importancia`. Una tarea hija crítica no vuelve crítica a toda la operación ni a sus hermanas; el nivel de la operación queda fijo tal como se abrió (Mateo: "no puedes transformar toda la operación en crítica basado en la decisión de 1 solo agente"). Documentado en `stack_y_convenciones.md`. Ejemplo de referencia y razonamiento completo en la actualización del 19 de agosto, cuarta ronda (ejemplo) y quinta ronda (cierre), arriba. **Falta construir:** el cálculo real en el Ejecutor genérico, cuando se dispatchen tareas hijas.
+34. ~~Decidido, en construcción (20/ago)~~ — **aplicado y probado en vivo (20/ago, segunda ronda, ver actualización arriba).** Prueba del camino normal confirmada (creación de tareas hijas sin regresión); falta solo la prueba específica de fan-out/tope de operación. Detalle original de construcción: Workflow de aprobación humana bidireccional (C4), con dos rutas de escalamiento (Tipo A: aprobación obligatoria por regla de dominio, sube hasta el usuario vía `operations.bloqueada` + Efadam — **construido esta ronda, 7 nodos nuevos + reescritura de "Parsear asignaciones"**; Tipo B: duda de coordinación entre bots, sube un nivel a la vez vía `tasks.blocked` + "Reanudador de bloqueados" — **ya existía desde antes, confirmado en la investigación de esta ronda, no hizo falta construirlo**). Mensaje final a usuario compuesto con plantilla obligatoria de campos, no con modelo más caro. `bot_esfuerzos_fijos` corrida contra Postgres pero sigue vacía — el nodo nuevo "Obtener nivel fijo del bot" ya la consulta, cae a `tasks.esfuerzo` si el bot no tiene fila. Cuerpo completo (36 nodos, 34 conexiones) validado sin referencias colgantes y guardado en `tmp_wf_body.json`, listo para `PUT` — **el workflow vivo en n8n sigue en 29 nodos, nada de esto aplicado todavía.** Ver actualización del 20 de agosto, arriba, para el detalle completo y los pasos exactos para retomar.
+35. **Decidido (19/ago, quinta ronda).** Nivel efectivo de cada tarea = `max(nivel de la operación, nivel por reglas de asignación de esa tarea)`, calculado y guardado **solo en `tasks.esfuerzo` de esa tarea específica** — nunca se escribe de vuelta a `operations.esfuerzo`. Una tarea hija crítica no vuelve crítica a toda la operación ni a sus hermanas; el nivel de la operación queda fijo tal como se abrió (Mateo: "no puedes transformar toda la operación en crítica basado en la decisión de 1 solo agente"). Documentado en `stack_y_convenciones.md`. Ejemplo de referencia y razonamiento completo en la actualización del 19 de agosto, cuarta ronda (ejemplo) y quinta ronda (cierre), arriba. **Falta construir:** el cálculo real en el Ejecutor genérico, cuando se dispatchen tareas hijas.
 36. **Revisado (19/ago), sigue abierto — hallazgo real de análisis de código, no un exploit reproducido en vivo.** El vector es más amplio de lo que sugería la nota original. `input.text` de cualquier tarea (rol `user` hacia el LLM, `ejecutor_generico.json` línea 115) puede venir, sin ningún paso de sanitización entremedio, de: (a) un mensaje de Telegram de un usuario externo, o (b) el campo `a.input` que otro bot generó como salida de su propio LLM al crear tareas hijas (nodo "Parsear asignaciones", línea ~205) — es decir, el input de una tarea puede ser texto que un modelo anterior "decidió" escribir, no solo lo que un humano tecleó. El `parent_input` (misma línea 115, interpolado en el mensaje de sistema de contexto) es interpolación de string en JS, no ejecución de código — el riesgo ahí es de instrucción al LLM, no de RCE.
 
     Lo que agrava esto, revisando el flujo completo "Parsear asignaciones" → "Crear tareas hijas" (líneas ~205-232 y ~464): la salida JSON del LLM (`asignaciones`) no pasa por ninguna validación estructural antes de convertirse en filas reales de `tasks`. `a.bot` sí falla de forma segura ahora gracias al punto 39 (bot inexistente → tarea falla, trouble_shooter la diagnostica) — pero `a.cluster` no se valida contra ningún catálogo de clusters válidos (línea ~205: `cluster: a.cluster || clusterPropio`), y no hay tope al número de asignaciones que un LLM puede generar en una sola pasada (esto conecta con el punto 37, fan-out).
 
     Más importante todavía: el gate de aprobación (`requires_approval` en la config del bot, línea 136) es **posterior a la ejecución, no previo**. Se aplica al *resultado propio* de la tarea que se está corriendo (decide si esa tarea termina en `needs_approval` o `done` después de que el bot ya actuó), pero no se aplica a la creación ni ejecución de tareas hijas — esas se insertan directo como `pending` (línea 220 y 464) y "Reclamar tarea pendiente" las va a levantar y ejecutar sin pasar por ningún check de aprobación antes. Si una tarea comprometida (por injection) logra que el LLM proponga una tarea hija hacia un bot marcado `requires_approval` (ej. algo que gasta dinero o publica algo), esa tarea hija se ejecuta primero y se marca para aprobación después de que la acción ya ocurrió — la aprobación, tal como está el diseño hoy, no previene nada, solo lo etiqueta.
 
-    Esto conecta directo con el punto 34 (workflow de aprobación) y el 35 (nivel_importancia): cuando se construya la aprobación bidireccional, la recomendación es que el gate de `requires_approval` bloquee la creación/ejecución de la tarea hija *antes* de que corra (no solo marque su resultado después), y que la clasificación de riesgo (para decidir qué requiere aprobación) tome en cuenta el `max()` propuesto en el punto 35, no solo el nivel fijo de la operación — de lo contrario, subir el nivel de importancia de una tarea no la protege de nada en la práctica.
-37. ~~Decidido en sus topes de fan-out (20/ago)~~ — **aplicado en vivo junto con el 34 (20/ago, segunda ronda); no probado específicamente todavía (hace falta una operación con muchas tareas para disparar el truncado).** Tope de costo sigue bloqueado. Detalle original: Mateo confirmó que los topes varían por `nivel_importancia` y delegó los números: `bajo` 5/despacho, 50/operación; `medio` 10/100; `alto` 15/150; `critico` 20/200 (ajustables con pruebas reales, no definitivos). Usa el mismo mecanismo Tipo A de bloqueo/escalamiento del pendiente 34, sin tablas nuevas — construido junto con el 34 esta ronda (nodos "Enrutar tipo de asignacion", "Marcar operacion bloqueada", "Alerta de aprobacion pendiente", "Alerta fan-out truncado"), mismo estado: cuerpo armado y validado, sin aplicar en vivo todavía. El tope de costo sigue bloqueado: Mateo lo condicionó ("termínalo bien si lo vas a empezar") pero pidió priorizar el pendiente 34, así que el Paso 6 (Monitoreo/costos) no se empezó esta ronda — `agent_runs.cost_estimate` sigue sin llenarse.
+    Esto conecta directo con el punto 34 (workflow de aprobación) y el 35 (esfuerzo): cuando se construya la aprobación bidireccional, la recomendación es que el gate de `requires_approval` bloquee la creación/ejecución de la tarea hija *antes* de que corra (no solo marque su resultado después), y que la clasificación de riesgo (para decidir qué requiere aprobación) tome en cuenta el `max()` propuesto en el punto 35, no solo el nivel fijo de la operación — de lo contrario, subir el esfuerzo de una tarea no la protege de nada en la práctica.
+37. ~~Decidido en sus topes de fan-out (20/ago)~~ — **aplicado en vivo junto con el 34 (20/ago, segunda ronda); no probado específicamente todavía (hace falta una operación con muchas tareas para disparar el truncado).** Tope de costo sigue bloqueado. Detalle original: Mateo confirmó que los topes varían por `esfuerzo` y delegó los números: `bajo` 5/despacho, 50/operación; `medio` 10/100; `alto` 15/150; `critico` 20/200 (ajustables con pruebas reales, no definitivos). Usa el mismo mecanismo Tipo A de bloqueo/escalamiento del pendiente 34, sin tablas nuevas — construido junto con el 34 esta ronda (nodos "Enrutar tipo de asignacion", "Marcar operacion bloqueada", "Alerta de aprobacion pendiente", "Alerta fan-out truncado"), mismo estado: cuerpo armado y validado, sin aplicar en vivo todavía. El tope de costo sigue bloqueado: Mateo lo condicionó ("termínalo bien si lo vas a empezar") pero pidió priorizar el pendiente 34, así que el Paso 6 (Monitoreo/costos) no se empezó esta ronda — `agent_runs.cost_estimate` sigue sin llenarse.
 38. ~~`docker-compose.yml`: los 3 servicios publicaban puerto sin restringir a localhost~~ — **hecho (19/ago, cuarta ronda).** Mateo: "recuerda que el objetivo final es que sea algo descargable" — refuerza restringir por default en vez de exponer. Los 3 puertos (`5432`, `5678`, `20128`) ahora usan `"${BIND_HOST:-127.0.0.1}:puerto:puerto"` — quedan en `127.0.0.1` por default, configurable vía `.env` sin tocar el archivo para cuando alguien sí necesite acceso remoto/LAN. Aplicado con `docker compose up -d` y confirmado en vivo (`docker ps` muestra los 3 puertos bindeados a `127.0.0.1`, `GET localhost:5678/healthz` → `200`). Commit `f942e15`. Ver actualización del 19 de agosto, cuarta ronda, punto 5, para el detalle completo. **Sigue pendiente, sin urgencia:** pin de versión de `n8nio/n8n:latest`/`diegosouzapw/omniroute:latest`, y agregar la pregunta de acceso remoto al futuro setup del producto distribuible. CI/tests confirmado que no existe — pendiente de fondo, no bloqueante para un proyecto de una sola persona.
 39. ~~`Obtener config del bot` no distingue "bot no existe" de "bot existe"~~ — **hecho (19/ago).** No bastaba con un IF: confirmado en vivo que el Postgres node con 0 filas emite 0 items en ambas salidas (ni siquiera pasa por la rama de error) — cualquier IF después nunca se evalúa. Fix real: `alwaysOutputData: true` en el nodo + un IF nuevo ("Bot encontrado") + un Code node nuevo que arma el mensaje de error, todo enrutado a "Preparar fallo" igual que cualquier otro fallo. Probado en vivo dos veces (bot inexistente → `failed` + trouble_shooter correcto; bot válido → sin regresión). 28 nodos ahora. Reexportado a `n8n-workflows/ejecutor_generico.json`. Ver `ejecutor_generico.md`, "Lo que falta", punto 3, para el detalle técnico completo.
 40. **Nuevo (20/ago, encontrado al probar 34/37 en vivo).** La detección de "¿Necesita aclaración?" (Tipo B) probablemente no dispara cuando el modelo envuelve la marca en Markdown (`**NECESITA_ACLARACION:**` en vez de `NECESITA_ACLARACION:` a secas) — en la prueba de esta ronda, `coder` respondió así y la tarea quedó `done` en vez de `blocked`, sin generar tarea de escalamiento hacia `tecnico_jefe`. Sin confirmar todavía si el nodo usa `startsWith` exacto o algo más flexible — revisar el nodo real antes de tocar nada. No es una regresión de 34/37 (el mecanismo Tipo B no se tocó esta ronda) — es un hallazgo preexistente que solo salió a la luz al probar en vivo.
