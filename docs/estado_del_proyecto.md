@@ -139,19 +139,12 @@ Una auditoría externa (`auditoria_infinite_power_16ago2026.md`) encontró contr
 
 Ver `plan_de_accion_completo.md` para el estado completo y actualizado de cada bloque — esta sección es un resumen, no la fuente de detalle.
 
-## Deuda documentada
+## Pendientes y deuda técnica — en ClickUp (21/ago/2026)
 
-- ~~`roster_agentes_v4.xlsx` desactualizado y no commiteado~~ — **resuelto el 17 de agosto.** Se corrigió a la estructura real (Jarvis + Efadam separados, "Proyect center" sin typo, cada center reporta solo a Efadam, se agregaron Consultor de arquitectura y Trouble scouter, estado de activación real) y se commiteó por primera vez al repo (commit `49b89fd`).
-- **Licencia de n8n — riesgo real para el plan de distribución, sin resolver.** n8n corre bajo la Sustainable Use License (fair-code, no OSI): uso gratuito solo para "fines de negocio internos" propios, y solo se puede distribuir "de forma gratuita, para fines no comerciales". Si "Efadam" se llega a vender empaquetado con n8n embebido en el instalador, eso probablemente cruza la línea de "distribuir el software" en un contexto comercial. La forma más segura: que cada cliente descargue su propio n8n Community (gratis) para su propio uso interno, en vez de que el instalador lo redistribuya embebido. OmniRoute (MIT) no tiene este problema. No resuelto — requiere revisión legal antes de vender la primera instalación. Ver fuentes en la conversación del 17 de agosto.
-- **TalentIA / Bintix / negocios propios** sin confirmar si cuelgan de Proyect center o son su propia agrupación.
-- **Sistema de Revert** diseñado (git + `archived_at`/`archived_reason` + tabla `reverts`) pero **nada construido** en el schema.
-- **Multiproyecto:** pendiente confirmar que ningún workflow de n8n tiene el schema de Postgres hardcodeado.
-
-## Pendientes abiertos de diseño
-
-- Herramienta de pentesting concreta del Hacker ético.
-- Tamaño exacto del presupuesto propio de Out of the box thinker.
-- Cadencia exacta (Schedule Trigger) por rama.
-- ~~Confirmar esquema exacto de creación de combos en OmniRoute~~ — hecho el 17/ago. Falta configurar los 4 niveles, bloqueado por los hallazgos de infraestructura de Bloque 2 (ver arriba) y por 3 decisiones de Mateo (contraseña de onboarding de OmniRoute, cuenta de Cloudflare, riesgo de baneo de Qwen).
-- **Automatizar la generación de credenciales de OmniRoute en el startup, desde la interfaz propia de Efadam** — confirmado factible el 17/ago (ver `plan_de_accion_completo.md`, actualización de esa noche, tercera ronda): un script/workflow de arranque puede generar los 4 secretos y la contraseña del dashboard, y crear los 4 combos, sin fricción para el usuario. Lo que nunca se puede automatizar es que el usuario consiga su propia API key de un proveedor real (eso siempre depende del proveedor externo). No construido — a resolver junto con el diseño general de startup/onboarding, no ahora.
-- **Gobernanza de auto-expansión (Fase 8):** ficha de bot nuevo + ciclo de aprobación ya diseñados (ver [[gobernanza_auto_expansion_bots]], 20/ago) — sigue sin construirse: falta el workflow de n8n, el schema de estados de bot, y que Council/Planner/Nuevos departamentos existan como bots reales con prompt. No es bloqueante: va después de Efadam + los 3 centers + autonomía progresiva.
+Las listas de "Deuda documentada" y "Pendientes abiertos de diseño" que
+vivían aquí se movieron al board **Infinite Power** en ClickUp
+(`901411740278`, listas "Deuda técnica y legal" y "Diseño pendiente") —
+decisión de Mateo, 21/ago. Este documento sigue narrando el estado y el
+porqué de cada decisión; para saber qué falta hacer, ClickUp es la fuente
+de verdad. Ver `docs/decisiones_arquitectura.md` para el detalle de esta
+migración.

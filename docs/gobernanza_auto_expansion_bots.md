@@ -193,23 +193,17 @@ ahora — anotado aquí para no perderlo.
 
 Fase 8 (Auto-expansión) va después de Efadam, los 3 centers, y de que al
 menos un departamento pase por `autonomia_progresiva.md` — así está ordenado
-en el "Orden de construcción vigente y checklist" de
-`plan_de_accion_completo.md`, y sigue haciendo sentido: hoy solo 3 bots están
-activos (`tecnico_jefe`, `coder`, `trouble_shooter`), Efadam ni siquiera está
-insertado en la tabla `bots` todavía, y ninguno de los 3 centers existe en
-producción. Construir el workflow de auto-expansión antes de eso sería
+en el checklist maestro (hoy en ClickUp, ver abajo), y sigue haciendo
+sentido: hoy solo 3 bots están
+activos (`tecnico_jefe`, `coder`, `trouble_shooter`, `efadam` — insertado
+21/ago, todavía no activo de verdad: sin Jarvis, sin workflow de n8n
+actualizado), y ninguno de los 3 centers existe en producción. Construir el workflow de auto-expansión antes de eso sería
 automatizar la creación de bots sobre un sistema que todavía no tiene quién
 los valide (el paso de "validación por el center" del ciclo de arriba no
 tendría a quién delegarse). Este documento deja listo el diseño para cuando
 le toque su turno — no adelanta la construcción.
 
-## Pendiente
+## Pendiente — en ClickUp (21/ago/2026)
 
-- [ ] Construir el workflow de n8n "Nuevos departamentos" con los pasos del
-      ciclo de arriba (hoy solo existe el diseño en prosa del Paso 6.2).
-- [ ] Decidir e implementar el schema de estados de bot (ver sección de
-      arriba).
-- [ ] Escribir/activar Council, Planner y Nuevos departamentos como bots
-      reales (hoy son nombres en el roster, sin prompt).
-- [ ] Definir el número mínimo de tareas de prueba por defecto, o confirmar
-      que siempre se decide caso por caso, sin default.
+El checklist de construcción de esta fase vive en ClickUp, tarea `86bbhh48j`
+(board Infinite Power, lista "Diseño pendiente") — ya no se duplica aquí.

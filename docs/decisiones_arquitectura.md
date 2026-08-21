@@ -151,3 +151,42 @@ confirmación explícita) — queda pendiente que Mateo la corra
 explícitamente cómo proceder. Como son puros `RENAME`, el orden entre
 correr la migración e insertar a Efadam no arriesga datos: una fila
 insertada hoy con los nombres viejos sobrevive intacta al renombrar.
+
+**Aplicado (21/ago):** Mateo autorizó explícitamente correr la migración
+desde esta sesión — corrida contra producción, verificada en vivo
+(`tasks.esfuerzo`, `operations.esfuerzo`, `bot_esfuerzos_fijos.esfuerzo_fijo`,
+fila de Efadam intacta). Todo commiteado y pusheado a `correcciones`
+(commit `7926105`).
+
+**Corrección el mismo día: `dispatches_tasks` de Efadam.** Se había puesto
+`false` con el razonamiento de que "Herramientas que puede usar" en
+`efadam.md` no listaba escritura en `tasks`. Mateo corrigió: si Efadam no
+despacha ninguna tarea, los centers no tienen forma mecánica de enterarse
+de la recomendación (`ejecutor_generico` solo levanta trabajo desde
+`tasks`, vía "Reclamar tarea pendiente"). Se corrigió a `dispatches_tasks =
+true`, con una restricción explícita que no aplica a los demás bots que
+despachan: el único destino válido de la tarea que Efadam crea es el bot
+`center` del departamento (nunca un especialista) — esa tarea es la
+recomendación misma. Aplicado en `bots` y documentado en `efadam.md`,
+sección "Herramientas que puede usar".
+
+## 21 de agosto de 2026 — Pendientes y "qué sigue" se mueven de Obsidian a ClickUp
+
+Decisión de Mateo: Obsidian deja de ser un tracker de pendientes activos.
+Se eliminaron de este vault los checklists que funcionaban como lista viva
+de tareas — el checklist maestro numerado (45 puntos) y la tabla "Orden de
+construcción vigente" de `plan_de_accion_completo.md`, "Deuda documentada"
+y "Pendientes abiertos de diseño" de `estado_del_proyecto.md`, y el
+checklist de `gobernanza_auto_expansion_bots.md` — y se migró su contenido
+a tareas reales en ClickUp (board **Infinite Power**, `901411740278`),
+verificando primero que cada ítem abierto ya tuviera su tarea (la mayoría
+ya existían de rondas anteriores; se creó una nueva — "Definir herramienta
+de pentesting concreta del Hacker ético" — y se actualizaron descripciones
+y estados de varias existentes para reflejar el progreso real).
+
+**Lo que NO se tocó:** la bitácora histórica de decisiones y construcción
+(las actualizaciones fechadas de `plan_de_accion_completo.md`, y la
+narrativa de estado/arquitectura de `estado_del_proyecto.md`) — eso sigue
+siendo trazabilidad, no un tracker vivo, y se conserva completo. Regla de
+ahora en adelante: **ClickUp es la fuente de verdad de qué falta hacer;
+Obsidian narra qué se decidió y por qué, no qué sigue pendiente.**
