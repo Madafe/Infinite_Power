@@ -190,3 +190,46 @@ narrativa de estado/arquitectura de `estado_del_proyecto.md`) — eso sigue
 siendo trazabilidad, no un tracker vivo, y se conserva completo. Regla de
 ahora en adelante: **ClickUp es la fuente de verdad de qué falta hacer;
 Obsidian narra qué se decidió y por qué, no qué sigue pendiente.**
+
+## 21 de agosto de 2026 — Workflow vivo sincronizado + gap real de contrato JSON en Efadam, encontrados al preparar la primera prueba
+
+Antes de poder probar a Efadam en vivo se encontraron y corrigieron dos
+problemas reales, no solo documentación:
+
+1. **El workflow vivo de n8n estaba desincronizado del schema ya migrado.**
+   El nodo `"Obtener nivel fijo del bot"` seguía consultando
+   `bot_niveles_fijos`/`nivel_fijo` — tabla y columna que la migración 009
+   ya había renombrado. Habría fallado en cuanto corriera. Se aplicó el
+   `n8n-workflows/ejecutor_generico.json` ya commiteado (38 nodos: incluye
+   el rename a `esfuerzo`/`bot_esfuerzos_fijos` y los 2 nodos nuevos de
+   detección/alerta de degradación de modelo) vía `PUT` a la API de n8n —
+   confirmado sin referencias viejas colgantes.
+2. **`efadam.md` nunca especificaba el formato de salida obligatorio.**
+   `dispatches_tasks = true` hace que el ejecutor intente `JSON.parse()`
+   sobre la respuesta cruda del LLM (nodo `"Parsear asignaciones"`) — el
+   prompt de Efadam seguía escrito para responder en prosa libre. Se agregó
+   el contrato JSON obligatorio, mismo patrón que ya usan Técnico
+   jefe/Trouble shooter, con dos campos que ellos no necesitan porque
+   Efadam además le responde al cliente: `respuesta_cliente` y `esfuerzo`
+   a nivel raíz, más `asignaciones` (máximo 1 entrada, siempre dirigida a
+   un center — `tech_center`/`upgrade_review_center`/`proyect_center` — 
+   nunca a un especialista). Se definieron también los slugs de `cluster`
+   propuestos para los 2 centers que todavía no existen
+   (`upgrade-review-center`, `proyect-center`, kebab-case como
+   `tech-center`) — a confirmar cuando esos centers se inserten de verdad.
+   Aplicado en `bots.prompt_especifico`.
+
+**Prueba en vivo (técnica de webhook temporal, tarea 30):** confirmó que
+Efadam se dispara correctamente contra la config real y que el manejo de
+fallos sigue funcionando (tarea marcada `failed` con el error real,
+disparo automático a `trouble_shooter` sin loop). **No se pudo confirmar
+el JSON de salida en la práctica** porque la llamada al modelo real falló
+— OmniRoute devolvió `503 ALL_ACCOUNTS_INACTIVE` para `bajo`, y una prueba
+directa a los 4 combos mostró que ninguno sirve tráfico ahora mismo (3
+devuelven error, 1 se cuelga sin responder) — regresión respecto al 18/ago,
+cuando NVIDIA NIM sí estaba conectado y probado. Ver tarea ClickUp
+`86bbj0xgz`: necesita que Mateo entre al dashboard de OmniRoute
+(`localhost:20128/dashboard/providers`) a reconectar un proveedor — no se
+puede diagnosticar más sin esa sesión. **Bloquea la confirmación final de
+Efadam y, en general, cualquier tarea real del sistema hasta que se
+resuelva.**
