@@ -289,3 +289,21 @@ ClickUp como tarea, no como `.md`.
   criterio de aceptación (CAP-07). O se sincroniza, o falla visiblemente.
 - El doc del Project de Claude deja de ser un espejo narrativo y pasa a ser un
   índice de las specs.
+
+## 7. Decisiones tomadas (22/ago/2026)
+
+- **Los 31 prompts escritos quedan congelados, sin revisar y sin activar.**
+  Decisión de Mateo, 22/ago: *"el proyecto ha cambiado mucho y la mayoría ya no
+  se alinean con la visión actual"*. Se revisan más adelante, cuando exista la
+  spec de la capacidad a la que cada uno sirve — no antes.
+
+  Esto refuerza el hallazgo de la sección 5: los prompts se escribieron contra
+  un blanco móvil. No es un problema de calidad de los prompts, es que se
+  escribieron sin un contrato estable al cual conformarse. La consecuencia
+  práctica es que la relectura crítica pendiente de los 18 de Upgrade & Review
+  Center (`86bbhawuq`) **no debe hacerse todavía**: revisarlos contra una visión
+  que sigue moviéndose es trabajo que se vuelve a perder.
+
+- Pendiente de decisión (no cerrado en esta ronda): si se congela la
+  construcción de bots nuevos, cuál capacidad se cierra primero, y dónde viven
+  las specs.
