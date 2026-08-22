@@ -101,3 +101,11 @@ gana lo de arriba.
 ## Orden de construcción
 
 **Efadam → Dev/Tech → Estrategia → Proyectos.**
+
+## Auditoría vigente
+
+- [[auditoria_spec_driven_2026-08-22]] — auditoría medida contra Postgres, n8n en
+  vivo y ClickUp (22/ago/2026). Contiene el diagnóstico de por qué el proyecto
+  perdió dirección, los hallazgos estructurales (E1–E4), los técnicos (H1–H7) y
+  la propuesta de spec-driven development (`specs/`). **Léela antes de retomar
+  cualquier construcción.**
