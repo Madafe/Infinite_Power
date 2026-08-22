@@ -1,278 +1,99 @@
-﻿{
-    "updatedAt":  "2026-08-15T07:40:10.866Z",
-    "createdAt":  "2026-08-13T17:35:47.154Z",
-    "id":  "3fKEODc6f6jH9VCJ",
-    "name":  "Reanudador de bloqueados",
-    "description":  null,
-    "active":  true,
-    "isArchived":  false,
-    "nodes":  [
-                  {
-                      "parameters":  {
-                                         "rule":  {
-                                                      "interval":  [
-                                                                       {
-                                                                           "field":  "minutes",
-                                                                           "minutesInterval":  5
-                                                                       }
-                                                                   ]
-                                                  }
-                                     },
-                      "type":  "n8n-nodes-base.scheduleTrigger",
-                      "typeVersion":  1.2,
-                      "position":  [
-                                       0,
-                                       0
-                                   ],
-                      "id":  "a4d4eff0-7916-456b-8c0e-240ee622c20e",
-                      "name":  "Cada 5 minutos"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "UPDATE tasks SET status = \u0027failed\u0027, output = $1, updated_at = now() WHERE id = $2;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ [$json.error?.message ?? JSON.stringify($json), $(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       416,
-                                       192
-                                   ],
-                      "id":  "9d5d6eec-0108-492d-af22-fdfde276c5bc",
-                      "name":  "Marcar como fallido",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      }
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "UPDATE tasks AS parent\nSET status = \u0027pending\u0027,\n    input = jsonb_set(parent.input, \u0027{text}\u0027, to_jsonb((parent.input-\u003e\u003e\u0027text\u0027) || E\u0027\\n\\nAclaración recibida: \u0027 || child.output)),\n    updated_at = now()\nFROM tasks AS child\nWHERE child.parent_task_id = parent.id\n  AND parent.status = \u0027blocked\u0027\n  AND child.status = \u0027done\u0027\nRETURNING parent.id;",
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       224,
-                                       0
-                                   ],
-                      "id":  "6bb8ff0f-7236-4add-b0a4-c17c4b7a0df0",
-                      "name":  "Reanudador de bloqueados",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "ej8w00p6sjEzbq6J",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      },
-                      "onError":  "continueErrorOutput"
-                  }
-              ],
-    "connections":  {
-                        "Reanudador de bloqueados":  {
-                                                         "main":  [
-                                                                      [
-
-                                                                      ],
-                                                                      [
-                                                                          {
-                                                                              "node":  "Marcar como fallido",
-                                                                              "type":  "main",
-                                                                              "index":  0
-                                                                          }
-                                                                      ]
-                                                                  ]
-                                                     },
-                        "Cada 5 minutos":  {
-                                               "main":  [
-                                                            [
-                                                                {
-                                                                    "node":  "Reanudador de bloqueados",
-                                                                    "type":  "main",
-                                                                    "index":  0
-                                                                }
-                                                            ]
-                                                        ]
-                                           }
-                    },
-    "settings":  {
-                     "executionOrder":  "v1",
-                     "binaryMode":  "separate",
-                     "availableInMCP":  false
-                 },
-    "staticData":  {
-                       "node:Cada 5 minutos":  {
-                                                   "recurrenceRules":  [
-                                                                           null
-                                                                       ],
-                                                   "recurrenceRuleSignatures":  [
-                                                                                    null
-                                                                                ]
-                                               }
-                   },
-    "meta":  {
-                 "templateCredsSetupCompleted":  true
-             },
-    "nodeGroups":  [
-
-                   ],
-    "pinData":  {
-
-                },
-    "versionId":  "ffb2b9d1-6641-4a6d-a97d-cf1ee2be8e40",
-    "activeVersionId":  "ffb2b9d1-6641-4a6d-a97d-cf1ee2be8e40",
-    "versionCounter":  12,
-    "triggerCount":  1,
-    "sourceWorkflowId":  null,
-    "shared":  [
-                   {
-                       "updatedAt":  "2026-08-13T17:35:47.154Z",
-                       "createdAt":  "2026-08-13T17:35:47.154Z",
-                       "role":  "workflow:owner",
-                       "workflowId":  "3fKEODc6f6jH9VCJ",
-                       "projectId":  "mr3ONFLuLoDFG9LP",
-                       "project":  {
-                                       "updatedAt":  "2026-08-11T16:44:47.998Z",
-                                       "createdAt":  "2026-08-11T16:41:49.033Z",
-                                       "id":  "mr3ONFLuLoDFG9LP",
-                                       "name":  "Mateo Varela \u003cmvarela@bintix.mx\u003e",
-                                       "type":  "personal",
-                                       "icon":  null,
-                                       "description":  null,
-                                       "customTelemetryTags":  [
-
-                                                               ],
-                                       "creatorId":  "a271e2bc-ff73-41ca-9dfd-a55cb54ad81f"
-                                   }
-                   }
-               ],
-    "tags":  [
-
-             ],
-    "activeVersion":  {
-                          "updatedAt":  "2026-08-15T07:40:10.867Z",
-                          "createdAt":  "2026-08-15T07:40:10.867Z",
-                          "versionId":  "ffb2b9d1-6641-4a6d-a97d-cf1ee2be8e40",
-                          "workflowId":  "3fKEODc6f6jH9VCJ",
-                          "nodes":  [
-                                        {
-                                            "parameters":  {
-                                                               "rule":  {
-                                                                            "interval":  [
-                                                                                             {
-                                                                                                 "field":  "minutes",
-                                                                                                 "minutesInterval":  5
-                                                                                             }
-                                                                                         ]
-                                                                        }
-                                                           },
-                                            "type":  "n8n-nodes-base.scheduleTrigger",
-                                            "typeVersion":  1.2,
-                                            "position":  [
-                                                             0,
-                                                             0
-                                                         ],
-                                            "id":  "a4d4eff0-7916-456b-8c0e-240ee622c20e",
-                                            "name":  "Cada 5 minutos"
-                                        },
-                                        {
-                                            "parameters":  {
-                                                               "operation":  "executeQuery",
-                                                               "query":  "UPDATE tasks SET status = \u0027failed\u0027, output = $1, updated_at = now() WHERE id = $2;",
-                                                               "options":  {
-                                                                               "queryReplacement":  "={{ [$json.error?.message ?? JSON.stringify($json), $(\u0027Reclamar tarea pendiente\u0027).first().json.id] }}"
-                                                                           }
-                                                           },
-                                            "type":  "n8n-nodes-base.postgres",
-                                            "typeVersion":  2.7,
-                                            "position":  [
-                                                             416,
-                                                             192
-                                                         ],
-                                            "id":  "9d5d6eec-0108-492d-af22-fdfde276c5bc",
-                                            "name":  "Marcar como fallido",
-                                            "credentials":  {
-                                                                "postgres":  {
-                                                                                 "id":  "ej8w00p6sjEzbq6J",
-                                                                                 "name":  "Postgres account"
-                                                                             }
-                                                            }
-                                        },
-                                        {
-                                            "parameters":  {
-                                                               "operation":  "executeQuery",
-                                                               "query":  "UPDATE tasks AS parent\nSET status = \u0027pending\u0027,\n    input = jsonb_set(parent.input, \u0027{text}\u0027, to_jsonb((parent.input-\u003e\u003e\u0027text\u0027) || E\u0027\\n\\nAclaración recibida: \u0027 || child.output)),\n    updated_at = now()\nFROM tasks AS child\nWHERE child.parent_task_id = parent.id\n  AND parent.status = \u0027blocked\u0027\n  AND child.status = \u0027done\u0027\nRETURNING parent.id;",
-                                                               "options":  {
-
-                                                                           }
-                                                           },
-                                            "type":  "n8n-nodes-base.postgres",
-                                            "typeVersion":  2.7,
-                                            "position":  [
-                                                             224,
-                                                             0
-                                                         ],
-                                            "id":  "6bb8ff0f-7236-4add-b0a4-c17c4b7a0df0",
-                                            "name":  "Reanudador de bloqueados",
-                                            "credentials":  {
-                                                                "postgres":  {
-                                                                                 "id":  "ej8w00p6sjEzbq6J",
-                                                                                 "name":  "Postgres account"
-                                                                             }
-                                                            },
-                                            "onError":  "continueErrorOutput"
-                                        }
-                                    ],
-                          "connections":  {
-                                              "Reanudador de bloqueados":  {
-                                                                               "main":  [
-                                                                                            [
-
-                                                                                            ],
-                                                                                            [
-                                                                                                {
-                                                                                                    "node":  "Marcar como fallido",
-                                                                                                    "type":  "main",
-                                                                                                    "index":  0
-                                                                                                }
-                                                                                            ]
-                                                                                        ]
-                                                                           },
-                                              "Cada 5 minutos":  {
-                                                                     "main":  [
-                                                                                  [
-                                                                                      {
-                                                                                          "node":  "Reanudador de bloqueados",
-                                                                                          "type":  "main",
-                                                                                          "index":  0
-                                                                                      }
-                                                                                  ]
-                                                                              ]
-                                                                 }
-                                          },
-                          "nodeGroups":  [
-
-                                         ],
-                          "authors":  "Mateo Varela",
-                          "name":  null,
-                          "description":  null,
-                          "autosaved":  false,
-                          "workflowPublishHistory":  [
-                                                         {
-                                                             "createdAt":  "2026-08-15T07:40:16.177Z",
-                                                             "id":  1,
-                                                             "workflowId":  "3fKEODc6f6jH9VCJ",
-                                                             "versionId":  "ffb2b9d1-6641-4a6d-a97d-cf1ee2be8e40",
-                                                             "event":  "activated",
-                                                             "userId":  "a271e2bc-ff73-41ca-9dfd-a55cb54ad81f"
-                                                         }
-                                                     ]
-                      }
+{
+  "name": "Reanudador de bloqueados",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a4d4eff0-7916-456b-8c0e-240ee622c20e",
+      "name": "Cada 5 minutos"
+    },
+    {
+      "parameters": {
+        "chatId": "-5436560130",
+        "text": "={{ \"ALERTA CRITICA: el Reanudador de bloqueados fallo (posible Postgres caido o query invalida): \" + ($json.error?.message || $json.message || JSON.stringify($json)) }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        416,
+        192
+      ],
+      "id": "a1a1a010-2222-4000-8000-alertareanud1",
+      "name": "Alerta critica reanudador",
+      "webhookId": "a1a1a010-2222-4000-8000-alertareanud1",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERjVpxAa0CTVNhll",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH aclaracion_elegida AS (\n  SELECT DISTINCT ON (child.parent_task_id)\n    child.id AS child_id,\n    child.parent_task_id AS parent_id,\n    child.output AS child_output\n  FROM tasks AS child\n  JOIN tasks AS parent ON parent.id = child.parent_task_id\n  WHERE parent.status = 'blocked'\n    AND child.status = 'done'\n    AND child.consumed_at IS NULL\n  ORDER BY child.parent_task_id, child.updated_at ASC, child.id ASC\n),\nmarcar_consumida AS (\n  UPDATE tasks\n  SET consumed_at = now()\n  WHERE id IN (SELECT child_id FROM aclaracion_elegida)\n  RETURNING id\n)\nUPDATE tasks AS parent\nSET status = 'pending',\n    input = jsonb_set(parent.input, '{text}', to_jsonb((parent.input->>'text') || E'\\n\\nAclaración recibida: ' || ae.child_output)),\n    updated_at = now()\nFROM aclaracion_elegida ae\nWHERE parent.id = ae.parent_id\nRETURNING parent.id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "6bb8ff0f-7236-4add-b0a4-c17c4b7a0df0",
+      "name": "Reanudador de bloqueados",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    }
+  ],
+  "connections": {
+    "Reanudador de bloqueados": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Alerta critica reanudador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cada 5 minutos": {
+      "main": [
+        [
+          {
+            "node": "Reanudador de bloqueados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  }
 }

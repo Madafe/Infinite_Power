@@ -723,3 +723,27 @@ Mateo pidió contrastar un informe de auditoría externo (`docs/Informe_de_Audit
 El resto del informe (hallazgos ya cubiertos por tareas existentes como el pin de versión de imágenes Docker o la falta de CI) no generó tareas nuevas por ser redundante.
 
 **Decisión sobre el archivo:** el `.docx` original se borró del repo — todo lo que aportaba algo real ya quedó preservado en las tareas de ClickUp de arriba, con el contexto necesario para no depender del documento.
+
+## 22 de agosto de 2026 — Arreglado el bug confirmado de `reanudador_de_bloqueados` (ClickUp `86bbjhdmd`); re-exportados ambos workflows
+
+Mateo confirmó la opción A (re-exportar siempre como hábito) para el pendiente del punto 3 de la ronda anterior, y pidió continuar de forma autónoma con la lista de pendientes.
+
+**Problema 1 — referencia a un nodo inexistente.** El manejador de error de `"Marcar como fallido"` referenciaba `$('Reclamar tarea pendiente')`, un nodo que solo existe en `ejecutor_generico`, no en este workflow. Al pensarlo mejor (no alcanzaba con corregir la referencia, como sugería el ticket original): la query principal de `"Reanudador de bloqueados"` es un `UPDATE ... FROM` masivo sobre potencialmente varias filas a la vez — no hay una sola tarea responsable a la que marcarle `status = 'failed'` si la query falla. "Marcar una tarea como fallida" nunca tuvo sentido para un fallo de este tipo. Se reemplazó el nodo completo por `"Alerta critica reanudador"` (Telegram), replicando exactamente el patrón ya usado y probado en `"Alerta critica Postgres"` de `ejecutor_generico` (mismo `chatId`, mismas credenciales) — un fallo de este workflow es un problema de infraestructura, no de una tarea puntual.
+
+**Problema 2 — consumo no determinístico de aclaraciones múltiples.** Se agregó la migración `schema/010_aclaraciones_consumidas.sql`: columna `tasks.consumed_at timestamptz`, nullable, mismo patrón que `created_at`/`updated_at`. La query principal se reescribió con un CTE `aclaracion_elegida` que usa `SELECT DISTINCT ON (child.parent_task_id) ... ORDER BY child.parent_task_id, child.updated_at ASC, child.id ASC` para elegir exactamente una aclaración resuelta por padre bloqueado (la más vieja primero), y un segundo CTE marca esa fila con `consumed_at = now()` en la misma transacción antes de reanudar al padre. Las aclaraciones resueltas que no se usan quedan con `consumed_at = null` — visibles y no perdidas, pero nunca reutilizadas ni vueltas a evaluar.
+
+**Aplicada la migración a la base real** (`docker cp` + `psql -f`, evita el bug de encoding del pipe de PowerShell). Confirmado con `\d tasks`: la columna existe.
+
+**Nota de proceso — un error real que la propia prueba destapó:** la primera versión de la query usaba `FOR UPDATE OF child` junto con `SELECT DISTINCT ON`, algo que Postgres no permite (`FOR UPDATE is not allowed with DISTINCT clause`). Se descubrió porque el mecanismo de alerta recién construido (Problema 1) capturó el error y mandó la alerta real a Telegram con el mensaje exacto de Postgres — es decir, la corrección del Problema 1 sirvió para diagnosticar en el momento un bug real de la corrección del Problema 2. Se quitó el `FOR UPDATE` (el riesgo de condición de carrera es despreciable para un cron de un solo worker cada 5 minutos) y se corrigió.
+
+**Probado en vivo con datos reales de prueba** (webhook temporal conectado directo a `"Reanudador de bloqueados"`, mismo patrón ya usado en rondas anteriores): tarea 37 (`blocked`), dos hijas de aclaración ya `done` — tarea 38 (más vieja, 10 minutos antes) y tarea 39 (más nueva). Resultado exacto:
+- Tarea 37 pasó a `pending`, con el texto de la tarea 38 (la más vieja) correctamente anexado a `input.text`.
+- Tarea 38 quedó con `consumed_at` seteado.
+- Tarea 39 quedó sin tocar (`consumed_at = null`), disponible pero no perdida.
+- Segunda ejecución del mismo webhook: no modificó nada (`{"success":true}` sin `id` — la query ya no encuentra filas elegibles). Confirma idempotencia.
+
+Datos de prueba borrados, webhook temporal removido, workflow verificado sin conexiones colgantes y reactivado (`active: true`, como corresponde a un cron de producción).
+
+**Re-exportados ambos workflows** a `n8n-workflows/ejecutor_generico.json` (40 nodos) y `n8n-workflows/reanudador_de_bloqueados.json` (3 nodos) vía GET fresco con Python y UTF-8 explícito. Verificado sin caracteres de reemplazo (`�`) — el archivo es correcto aunque la consola de PowerShell muestre los acentos mal al imprimirlos.
+
+**ClickUp:** `86bbjhdmd` se marca resuelto. `86bbhaztz` se marca resuelto (re-export hecho); queda como hábito a seguir en cada ronda futura que edite un workflow por API, no como tarea puntual.

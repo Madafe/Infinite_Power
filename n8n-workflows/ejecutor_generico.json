@@ -1,11 +1,5 @@
 {
-  "updatedAt": "2026-08-20T03:36:26.222Z",
-  "createdAt": "2026-08-11T23:09:01.171Z",
-  "id": "aVORciBJl52lTxTU",
-  "name": "Ejecutor genérico",
-  "description": null,
-  "active": false,
-  "isArchived": false,
+  "name": "Ejecutor genï¿½rico",
   "nodes": [
     {
       "parameters": {},
@@ -16,7 +10,7 @@
         0
       ],
       "id": "aeb520fe-566a-4201-9d98-780d896b7d0c",
-      "name": "When clicking ‘Execute workflow’"
+      "name": "When clicking 'Execute workflow'"
     },
     {
       "parameters": {
@@ -42,7 +36,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const RANK = { bajo: 0, medio: 1, alto: 2, critico: 3 };\n\n// Esta lista replica los cuatro modelos configurados hoy en los combos de\n// OmniRoute. Si un combo cambia, actualizar esta lista en el mismo cambio.\nconst ESFUERZO_POR_MODELO = {\n  'nvidia/meta/llama-3.1-8b-instruct': 'bajo',\n  'meta/llama-3.1-8b-instruct': 'bajo',\n  'nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5': 'medio',\n  'nvidia/llama-3.3-nemotron-super-49b-v1.5': 'medio',\n  'nvidia/nvidia/nemotron-3-super-120b-a12b': 'alto',\n  'nvidia/nemotron-3-super-120b-a12b': 'alto',\n  'nvidia/nvidia/nemotron-3-ultra-550b-a55b': 'critico',\n  'nvidia/nemotron-3-ultra-550b-a55b': 'critico'\n};\n\nconst tarea = $('Reclamar tarea pendiente').first().json;\nconst esfuerzoSolicitado = $('Obtener esfuerzo fijo del bot').first().json.esfuerzo_fijo || tarea.esfuerzo;\nconst modeloUsado = $('Llamar a omniroute').first().json.model;\nconst esfuerzoUsado = ESFUERZO_POR_MODELO[modeloUsado];\n\n// OmniRoute no expone en el body el paso del combo que ejecutó. Un modelo\n// desconocido no permite confirmar que respetó el nivel, así que se avisa sin\n// bloquear la tarea ni convertirla en fallo.\nif (!esfuerzoUsado) {\n  return [{ json: {\n    tipo: 'modelo_desconocido',\n    task_id: tarea.id,\n    bot: tarea.bot,\n    esfuerzo_solicitado: esfuerzoSolicitado,\n    modelo_usado: modeloUsado || '(sin modelo en respuesta)'\n  } }];\n}\n\nif (RANK[esfuerzoUsado] < RANK[esfuerzoSolicitado]) {\n  return [{ json: {\n    tipo: 'degradacion',\n    task_id: tarea.id,\n    bot: tarea.bot,\n    esfuerzo_solicitado: esfuerzoSolicitado,\n    esfuerzo_usado: esfuerzoUsado,\n    modelo_usado: modeloUsado\n  } }];\n}\n\nreturn [];"
+        "jsCode": "const RANK = { bajo: 0, medio: 1, alto: 2, critico: 3 };\n\n// Esta lista replica los cuatro modelos configurados hoy en los combos de\n// OmniRoute. Si un combo cambia, actualizar esta lista en el mismo cambio.\nconst ESFUERZO_POR_MODELO = {\n  'nvidia/meta/llama-3.1-8b-instruct': 'bajo',\n  'meta/llama-3.1-8b-instruct': 'bajo',\n  'nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5': 'medio',\n  'nvidia/llama-3.3-nemotron-super-49b-v1.5': 'medio',\n  'nvidia/nvidia/nemotron-3-super-120b-a12b': 'alto',\n  'nvidia/nemotron-3-super-120b-a12b': 'alto',\n  'nvidia/nvidia/nemotron-3-ultra-550b-a55b': 'critico',\n  'nvidia/nemotron-3-ultra-550b-a55b': 'critico'\n};\n\nconst tarea = $('Reclamar tarea pendiente').first().json;\nconst esfuerzoSolicitado = $('Obtener esfuerzo fijo del bot').first().json.esfuerzo_fijo || tarea.esfuerzo;\nconst modeloUsado = $('Llamar a omniroute').first().json.model;\nconst esfuerzoUsado = ESFUERZO_POR_MODELO[modeloUsado];\n\n// OmniRoute no expone en el body el paso del combo que ejecutï¿½. Un modelo\n// desconocido no permite confirmar que respetï¿½ el nivel, asï¿½ que se avisa sin\n// bloquear la tarea ni convertirla en fallo.\nif (!esfuerzoUsado) {\n  return [{ json: {\n    tipo: 'modelo_desconocido',\n    task_id: tarea.id,\n    bot: tarea.bot,\n    esfuerzo_solicitado: esfuerzoSolicitado,\n    modelo_usado: modeloUsado || '(sin modelo en respuesta)'\n  } }];\n}\n\nif (RANK[esfuerzoUsado] < RANK[esfuerzoSolicitado]) {\n  return [{ json: {\n    tipo: 'degradacion',\n    task_id: tarea.id,\n    bot: tarea.bot,\n    esfuerzo_solicitado: esfuerzoSolicitado,\n    esfuerzo_usado: esfuerzoUsado,\n    modelo_usado: modeloUsado\n  } }];\n}\n\nreturn [];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -70,7 +64,7 @@
       "webhookId": "2d029179-3381-4e56-b436-e4df9b3a713e",
       "credentials": {
         "telegramApi": {
-          "id": "tuB3ffpZd4YdDBtR",
+          "id": "ERjVpxAa0CTVNhll",
           "name": "Telegram account"
         }
       }
@@ -108,7 +102,7 @@
         64
       ],
       "id": "dcfbcc91-1aaf-492e-a1cf-cfd07cf60965",
-      "name": "¿Hay tarea?"
+      "name": "ï¿½Hay tarea?"
     },
     {
       "parameters": {
@@ -222,12 +216,12 @@
         32
       ],
       "id": "98032e6c-4969-42aa-983b-eeba58d8bce5",
-      "name": "¿Este bot despacha tareas?",
+      "name": "ï¿½Este bot despacha tareas?",
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "const CAP_POR_ESFUERZO = {\n  bajo:    { porDespacho: 5,  porOperacion: 50  },\n  medio:   { porDespacho: 10, porOperacion: 100 },\n  alto:    { porDespacho: 15, porOperacion: 150 },\n  critico: { porDespacho: 20, porOperacion: 200 }\n};\n\nconst salida = JSON.parse($('Llamar a omniroute').first().json.choices[0].message.content);\nconst tareaPadre = $('Reclamar tarea pendiente').first().json;\nconst parentId = tareaPadre.id;\nconst clusterPropio = $('Obtener config del bot').first().json.cluster;\nconst operationId = tareaPadre.operation_id;\nconst totalOperacion = $('Contar tareas de operacion').first().json.total;\n// Este valor es la preferencia actual de la operacion y puede cambiarse desde la interfaz.\n// No es un minimo ni se hereda automaticamente: cada center asigna el esfuerzo de la tarea concreta.\nconst esfuerzoOperacion = $('Contar tareas de operacion').first().json.esfuerzo_operacion || tareaPadre.esfuerzo;\nconst botsRequierenAprobacion = $('Obtener bots que requieren aprobacion').first().json.slugs || [];\nconst botPropio = tareaPadre.bot;\nconst cap = CAP_POR_ESFUERZO[esfuerzoOperacion] || CAP_POR_ESFUERZO.bajo;\nconst asignaciones = salida.asignaciones || [];\n\nif (operationId && totalOperacion >= cap.porOperacion) {\n  return [{ json: { _tipo: 'tope_operacion', operation_id: operationId, total_actual: totalOperacion, tope: cap.porOperacion, bot: botPropio } }];\n}\n\nconst truncadas = Math.max(0, asignaciones.length - cap.porDespacho);\nconst items = asignaciones.slice(0, cap.porDespacho).map(a => {\n  const esfuerzo = a.esfuerzo || esfuerzoOperacion;\n  const requiereAprobacion = a.requiere_aprobacion === true || botsRequierenAprobacion.includes(a.bot);\n  return { json: {\n    _tipo: requiereAprobacion ? 'requiere_aprobacion' : 'normal',\n    cluster: a.cluster || clusterPropio,\n    bot: a.bot,\n    status: 'pending',\n    input: { text: a.input, modo: a.modo },\n    parent_task_id: parentId,\n    esfuerzo,\n    operation_id: operationId\n  } };\n});\n\nif (truncadas > 0) {\n  items.push({ json: { _tipo: 'fanout_truncado', operation_id: operationId, truncadas, tope: cap.porDespacho, bot: botPropio } });\n}\n\nreturn items;\n"
+        "jsCode": "const CAP_POR_ESFUERZO = {\n  bajo:    { porDespacho: 5,  porOperacion: 50  },\n  medio:   { porDespacho: 10, porOperacion: 100 },\n  alto:    { porDespacho: 15, porOperacion: 150 },\n  critico: { porDespacho: 20, porOperacion: 200 }\n};\n\nconst _norm = $('Normalizar salida del modelo').first().json;\nif (!_norm.json_extraido_ok) {\n  throw new Error('No se pudo extraer un JSON valido de la respuesta del modelo (ni directo ni con extraccion tolerante a Markdown).');\n}\nconst salida = _norm.json_extraido;\nconst tareaPadre = $('Reclamar tarea pendiente').first().json;\nconst parentId = tareaPadre.id;\nconst clusterPropio = $('Obtener config del bot').first().json.cluster;\nconst operationId = tareaPadre.operation_id;\nconst totalOperacion = $('Contar tareas de operacion').first().json.total;\n// Este valor es la preferencia actual de la operacion y puede cambiarse desde la interfaz.\n// No es un minimo ni se hereda automaticamente: cada center asigna el esfuerzo de la tarea concreta.\nconst esfuerzoOperacion = $('Contar tareas de operacion').first().json.esfuerzo_operacion || tareaPadre.esfuerzo;\nconst botsRequierenAprobacion = $('Obtener bots que requieren aprobacion').first().json.slugs || [];\nconst botPropio = tareaPadre.bot;\nconst cap = CAP_POR_ESFUERZO[esfuerzoOperacion] || CAP_POR_ESFUERZO.bajo;\nconst asignaciones = salida.asignaciones || [];\n\nif (operationId && totalOperacion >= cap.porOperacion) {\n  return [{ json: { _tipo: 'tope_operacion', operation_id: operationId, total_actual: totalOperacion, tope: cap.porOperacion, bot: botPropio, bot_origen: botPropio, parent_task_id: parentId } }];\n}\n\nconst truncadas = Math.max(0, asignaciones.length - cap.porDespacho);\nconst items = asignaciones.slice(0, cap.porDespacho).map(a => {\n  const esfuerzo = a.esfuerzo || esfuerzoOperacion;\n  const requiereAprobacion = a.requiere_aprobacion === true || botsRequierenAprobacion.includes(a.bot);\n  return { json: {\n    _tipo: requiereAprobacion ? 'requiere_aprobacion' : 'normal',\n    cluster: a.cluster || clusterPropio,\n    bot: a.bot,\n    bot_origen: botPropio,\n    status: 'pending',\n    input: { text: a.input, modo: a.modo },\n    parent_task_id: parentId,\n    esfuerzo,\n    operation_id: operationId\n  } };\n});\n\nif (truncadas > 0) {\n  items.push({ json: { _tipo: 'fanout_truncado', operation_id: operationId, truncadas, tope: cap.porDespacho, bot: botPropio, bot_origen: botPropio, parent_task_id: parentId } });\n}\n\nreturn items;\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -295,30 +289,7 @@
         240
       ],
       "id": "b44f788d-adbe-490c-8c54-07decd9df92e",
-      "name": "¿Requiere aprobación?",
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "chatId": "-5436560130",
-        "text": "={{ $('Llamar a omniroute').item.json.choices[0].message.content }}",
-        "additionalFields": {}
-      },
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        2368,
-        -688
-      ],
-      "id": "bc2ffe26-8704-43dd-869e-6543a6ab1a15",
-      "name": "Send a text message",
-      "webhookId": "1455de8c-8b23-4329-8937-0077dbcc8832",
-      "credentials": {
-        "telegramApi": {
-          "id": "ERjVpxAa0CTVNhll",
-          "name": "Telegram account"
-        }
-      },
+      "name": "ï¿½Requiere aprobaciï¿½n?",
       "onError": "continueErrorOutput"
     },
     {
@@ -376,7 +347,7 @@
         -144
       ],
       "id": "fa16ab11-b8b1-4439-a34a-32a0740db5af",
-      "name": "¿Requiere aprobación?1",
+      "name": "ï¿½Requiere aprobaciï¿½n?1",
       "onError": "continueErrorOutput"
     },
     {
@@ -391,7 +362,7 @@
           "conditions": [
             {
               "id": "36078b7f-60f7-4a0e-88b3-8babfb15ff28",
-              "leftValue": "={{ $json.choices[0].message.content.startsWith('NECESITA_ACLARACION:') }}",
+              "leftValue": "={{ $json.es_aclaracion }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -411,7 +382,7 @@
         -320
       ],
       "id": "bc495257-1401-4e36-a2ba-528899dc74f0",
-      "name": "¿Necesita aclaración?"
+      "name": "ï¿½Necesita aclaraciï¿½n?"
     },
     {
       "parameters": {
@@ -428,7 +399,7 @@
         -560
       ],
       "id": "f817ea73-a92d-4f38-808e-3440375d90ad",
-      "name": "Obtener bot que asignó",
+      "name": "Obtener bot que asignï¿½",
       "credentials": {
         "postgres": {
           "id": "ej8w00p6sjEzbq6J",
@@ -470,7 +441,7 @@
         -704
       ],
       "id": "77a3a807-2412-44c3-b2ea-50e59d0d9f55",
-      "name": "¿Tiene padre?",
+      "name": "ï¿½Tiene padre?",
       "onError": "continueErrorOutput"
     },
     {
@@ -478,7 +449,7 @@
         "operation": "executeQuery",
         "query": "INSERT INTO tasks (cluster, bot, status, input, parent_task_id, esfuerzo, operation_id) VALUES ($1, $2, 'pending', $3, $4, (SELECT esfuerzo FROM tasks WHERE id = $4), (SELECT operation_id FROM tasks WHERE id = $4));",
         "options": {
-          "queryReplacement": "={{ [$json.cluster_padre, $json.bot_padre, JSON.stringify({ text: $('Llamar a omniroute').first().json.choices[0].message.content.replace('NECESITA_ACLARACION: ', '') }), $('Reclamar tarea pendiente').first().json.id] }}"
+          "queryReplacement": "={{ [$json.cluster_padre, $json.bot_padre, JSON.stringify({ text: $('Normalizar salida del modelo').first().json.aclaracion_pregunta }), $('Reclamar tarea pendiente').first().json.id] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -488,7 +459,7 @@
         -896
       ],
       "id": "0ddea90a-5e0d-4709-a6d9-12c362d2e655",
-      "name": "Crear tarea de aclaración",
+      "name": "Crear tarea de aclaraciï¿½n",
       "credentials": {
         "postgres": {
           "id": "ej8w00p6sjEzbq6J",
@@ -649,7 +620,7 @@
         16
       ],
       "id": "890c9e9c-50bf-4ce7-ba9c-1b80e49c0cb9",
-      "name": "¿Bot que falló no es trouble_shooter?"
+      "name": "ï¿½Bot que fallï¿½ no es trouble_shooter?"
     },
     {
       "parameters": {
@@ -707,7 +678,7 @@
         372
       ],
       "id": "f259d81c-8678-447b-b619-8761bbbdf3cf",
-      "name": "¿Falló la llamada a omniroute?"
+      "name": "ï¿½Fallï¿½ la llamada a omniroute?"
     },
     {
       "parameters": {
@@ -981,29 +952,6 @@
     {
       "parameters": {
         "chatId": "-5436560130",
-        "text": "={{ $json._tipo === 'tope_operacion' ? (\"Tope de fan-out por operacion alcanzado. Operacion: \" + $json.operation_id + \". Total actual: \" + $json.total_actual + \"/\" + $json.tope + \". Bot que intentaba despachar: \" + $json.bot + \". La operacion quedo bloqueada, ningun despacho nuevo se creara hasta desbloquearla manualmente.\") : (\"Aprobacion requerida antes de crear esta tarea. Operacion: \" + $json.operation_id + \". Bot destino: \" + $json.bot + \". Cluster: \" + $json.cluster + \". Esfuerzo: \" + $json.esfuerzo + \". Input: \" + JSON.stringify($json.input) + \". Esta tarea NO se creo automaticamente -- la operacion quedo bloqueada. La reanudacion automatica via respuesta de Telegram todavia no existe, hay que desbloquearla a mano.\") }}",
-        "additionalFields": {}
-      },
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        3120,
-        560
-      ],
-      "id": "c1a1a005-0000-4000-8000-000000000005",
-      "name": "Alerta de aprobacion pendiente",
-      "credentials": {
-        "telegramApi": {
-          "id": "ERjVpxAa0CTVNhll",
-          "name": "Telegram account"
-        }
-      },
-      "onError": "continueErrorOutput",
-      "webhookId": "d7438f44-d00e-4c45-9c3b-45043bfd89f3"
-    },
-    {
-      "parameters": {
-        "chatId": "-5436560130",
         "text": "={{ \"Fan-out truncado en un despacho. Bot: \" + $json.bot + \". Se descartaron \" + $json.truncadas + \" tareas hijas (tope: \" + $json.tope + \"). Operacion: \" + $json.operation_id }}",
         "additionalFields": {}
       },
@@ -1048,10 +996,76 @@
         }
       },
       "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const tareaPadre = $('Reclamar tarea pendiente').first().json;\nconst contenido = $('Llamar a omniroute').first().json.choices[0].message.content;\nconst tipoEvento = ($('Normalizar salida del modelo').first().json.es_aclaracion === true) ? 'aclaracion_sin_padre' : 'aprobacion_bot_completo';\nconst aviso = {\n  tipo_evento: tipoEvento,\n  operation_id: tareaPadre.operation_id,\n  bot_origen: tareaPadre.bot,\n  cluster_origen: tareaPadre.cluster,\n  contenido\n};\nreturn [{ json: {\n  cluster: 'Efadam',\n  bot: 'efadam',\n  status: 'pending',\n  esfuerzo: 'bajo',\n  operation_id: tareaPadre.operation_id,\n  parent_task_id: tareaPadre.id,\n  input: { text: JSON.stringify(aviso) }\n} }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        720
+      ],
+      "id": "b0a0a001-1111-2222-3333-avisobot00001",
+      "name": "Preparar aviso - aprobacion bot completo",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\nconst aviso = {\n  tipo_evento: j._tipo,\n  operation_id: j.operation_id,\n  bot_origen: j.bot_origen || j.bot,\n  bot_destino: j._tipo === 'tope_operacion' ? null : j.bot,\n  cluster: j.cluster || null,\n  esfuerzo_solicitado: j.esfuerzo || null,\n  input_asignacion: j.input || null,\n  total_actual: j.total_actual || null,\n  tope: j.tope || null\n};\nreturn [{ json: {\n  cluster: 'Efadam',\n  bot: 'efadam',\n  status: 'pending',\n  esfuerzo: 'bajo',\n  operation_id: j.operation_id,\n  parent_task_id: j.parent_task_id || null,\n  input: { text: JSON.stringify(aviso) }\n} }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        1024
+      ],
+      "id": "b0a0a002-1111-2222-3333-avisoasig0002",
+      "name": "Preparar aviso - aprobacion pendiente",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tasks (cluster, bot, status, input, esfuerzo, operation_id, parent_task_id) VALUES ($1, $2, $3, $4, $5, $6, $7);",
+        "options": {
+          "queryReplacement": "={{ [$json.cluster, $json.bot, $json.status, JSON.stringify($json.input), $json.esfuerzo, $json.operation_id, $json.parent_task_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2096,
+        872
+      ],
+      "id": "b0a0a003-1111-2222-3333-crearaviso003",
+      "name": "Crear aviso para Efadam",
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "postgres": {
+          "id": "ej8w00p6sjEzbq6J",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.choices[0].message.content || '';\n\nfunction extraerJson(texto) {\n  try { return JSON.parse(texto); } catch (e) {}\n  const bloques = [...texto.matchAll(/```(?:json)?\\s*([\\s\\S]*?)```/gi)];\n  for (let i = bloques.length - 1; i >= 0; i--) {\n    try { return JSON.parse(bloques[i][1].trim()); } catch (e) {}\n  }\n  const inicio = texto.indexOf('{');\n  const fin = texto.lastIndexOf('}');\n  if (inicio !== -1 && fin !== -1 && fin > inicio) {\n    try { return JSON.parse(texto.slice(inicio, fin + 1)); } catch (e) {}\n  }\n  return null;\n}\n\nconst limpio = raw.replace(/^[\\s*_`#>~-]+/, '');\nconst esAclaracion = limpio.startsWith('NECESITA_ACLARACION:');\nlet aclaracionPregunta = null;\nif (esAclaracion) {\n  aclaracionPregunta = limpio.slice('NECESITA_ACLARACION:'.length).trim().replace(/^[*_`]+/, '').replace(/[*_`]+$/, '').trim();\n}\n\nconst jsonExtraido = esAclaracion ? null : extraerJson(raw);\n\nreturn [{\n  json: {\n    ...$json,\n    es_aclaracion: esAclaracion,\n    aclaracion_pregunta: aclaracionPregunta,\n    json_extraido: jsonExtraido,\n    json_extraido_ok: jsonExtraido !== null\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        96
+      ],
+      "id": "c0c0c001-1111-2222-3333-normalizar01",
+      "name": "Normalizar salida del modelo",
+      "onError": "continueErrorOutput"
     }
   ],
   "connections": {
-    "When clicking ‘Execute workflow’": {
+    "When clicking 'Execute workflow'": {
       "main": [
         [
           {
@@ -1066,7 +1080,7 @@
       "main": [
         [
           {
-            "node": "¿Hay tarea?",
+            "node": "ï¿½Hay tarea?",
             "type": "main",
             "index": 0
           }
@@ -1085,7 +1099,7 @@
         ]
       ]
     },
-    "¿Hay tarea?": {
+    "ï¿½Hay tarea?": {
       "main": [
         [
           {
@@ -1118,7 +1132,7 @@
       "main": [
         [
           {
-            "node": "¿Falló la llamada a omniroute?",
+            "node": "ï¿½Fallï¿½ la llamada a omniroute?",
             "type": "main",
             "index": 0
           }
@@ -1130,7 +1144,7 @@
       "main": [
         [
           {
-            "node": "¿Este bot despacha tareas?",
+            "node": "ï¿½Este bot despacha tareas?",
             "type": "main",
             "index": 0
           },
@@ -1170,18 +1184,18 @@
         []
       ]
     },
-    "¿Este bot despacha tareas?": {
+    "ï¿½Este bot despacha tareas?": {
       "main": [
         [
           {
-            "node": "¿Requiere aprobación?",
+            "node": "ï¿½Requiere aprobaciï¿½n?",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "¿Requiere aprobación?1",
+            "node": "ï¿½Requiere aprobaciï¿½n?1",
             "type": "main",
             "index": 0
           }
@@ -1225,11 +1239,11 @@
         ]
       ]
     },
-    "¿Requiere aprobación?": {
+    "ï¿½Requiere aprobaciï¿½n?": {
       "main": [
         [
           {
-            "node": "Send a text message",
+            "node": "Preparar aviso - aprobacion bot completo",
             "type": "main",
             "index": 0
           }
@@ -1250,29 +1264,11 @@
         ]
       ]
     },
-    "Send a text message": {
+    "ï¿½Requiere aprobaciï¿½n?1": {
       "main": [
         [
           {
-            "node": "Bloquear tarea original",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Preparar fallo",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "¿Requiere aprobación?1": {
-      "main": [
-        [
-          {
-            "node": "Send a text message",
+            "node": "Preparar aviso - aprobacion bot completo",
             "type": "main",
             "index": 0
           }
@@ -1287,11 +1283,11 @@
         ]
       ]
     },
-    "¿Necesita aclaración?": {
+    "ï¿½Necesita aclaraciï¿½n?": {
       "main": [
         [
           {
-            "node": "Obtener bot que asignó",
+            "node": "Obtener bot que asignï¿½",
             "type": "main",
             "index": 0
           }
@@ -1305,11 +1301,11 @@
         ]
       ]
     },
-    "Obtener bot que asignó": {
+    "Obtener bot que asignï¿½": {
       "main": [
         [
           {
-            "node": "¿Tiene padre?",
+            "node": "ï¿½Tiene padre?",
             "type": "main",
             "index": 0
           }
@@ -1323,18 +1319,18 @@
         ]
       ]
     },
-    "¿Tiene padre?": {
+    "ï¿½Tiene padre?": {
       "main": [
         [
           {
-            "node": "Crear tarea de aclaración",
+            "node": "Crear tarea de aclaraciï¿½n",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Send a text message",
+            "node": "Preparar aviso - aprobacion bot completo",
             "type": "main",
             "index": 0
           }
@@ -1348,7 +1344,7 @@
         ]
       ]
     },
-    "Crear tarea de aclaración": {
+    "Crear tarea de aclaraciï¿½n": {
       "main": [
         [
           {
@@ -1448,14 +1444,14 @@
       "main": [
         [
           {
-            "node": "¿Bot que falló no es trouble_shooter?",
+            "node": "ï¿½Bot que fallï¿½ no es trouble_shooter?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "¿Bot que falló no es trouble_shooter?": {
+    "ï¿½Bot que fallï¿½ no es trouble_shooter?": {
       "main": [
         [
           {
@@ -1467,7 +1463,7 @@
         []
       ]
     },
-    "¿Falló la llamada a omniroute?": {
+    "ï¿½Fallï¿½ la llamada a omniroute?": {
       "main": [
         [
           {
@@ -1478,7 +1474,7 @@
         ],
         [
           {
-            "node": "¿Necesita aclaración?",
+            "node": "Normalizar salida del modelo",
             "type": "main",
             "index": 0
           }
@@ -1622,23 +1618,11 @@
       "main": [
         [
           {
-            "node": "Alerta de aprobacion pendiente",
+            "node": "Preparar aviso - aprobacion pendiente",
             "type": "main",
             "index": 0
           }
         ],
-        [
-          {
-            "node": "Preparar fallo",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Alerta de aprobacion pendiente": {
-      "main": [
-        [],
         [
           {
             "node": "Preparar fallo",
@@ -1659,44 +1643,82 @@
           }
         ]
       ]
+    },
+    "Preparar aviso - aprobacion bot completo": {
+      "main": [
+        [
+          {
+            "node": "Crear aviso para Efadam",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Bloquear tarea original",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar aviso - aprobacion pendiente": {
+      "main": [
+        [
+          {
+            "node": "Crear aviso para Efadam",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear aviso para Efadam": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar salida del modelo": {
+      "main": [
+        [
+          {
+            "node": "ï¿½Necesita aclaraciï¿½n?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
-  },
-  "staticData": null,
-  "meta": {
-    "templateCredsSetupCompleted": true
-  },
-  "nodeGroups": [],
-  "pinData": {},
-  "versionId": "69c05e93-208e-4430-a850-e0f3da80ee3a",
-  "activeVersionId": null,
-  "versionCounter": 291,
-  "triggerCount": 0,
-  "sourceWorkflowId": null,
-  "shared": [
-    {
-      "updatedAt": "2026-08-11T23:09:01.171Z",
-      "createdAt": "2026-08-11T23:09:01.171Z",
-      "role": "workflow:owner",
-      "workflowId": "aVORciBJl52lTxTU",
-      "projectId": "mr3ONFLuLoDFG9LP",
-      "project": {
-        "updatedAt": "2026-08-11T16:44:47.998Z",
-        "createdAt": "2026-08-11T16:41:49.033Z",
-        "id": "mr3ONFLuLoDFG9LP",
-        "name": "Mateo Varela <mvarela@bintix.mx>",
-        "type": "personal",
-        "icon": null,
-        "description": null,
-        "customTelemetryTags": [],
-        "creatorId": "a271e2bc-ff73-41ca-9dfd-a55cb54ad81f"
-      }
-    }
-  ],
-  "tags": [],
-  "activeVersion": null
+  }
 }
