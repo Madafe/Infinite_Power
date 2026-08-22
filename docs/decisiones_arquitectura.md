@@ -702,3 +702,24 @@ una lectura final vía la API (sin conexiones colgantes, sin nodos
 duplicados).
 
 **ClickUp `86bbhbdry`:** se marca resuelto — ver actualización en la tarea.
+
+## 21 de agosto de 2026 — Revisión crítica de una auditoría externa; se descarta la mitad, se rescata el resto en ClickUp
+
+Mateo pidió contrastar un informe de auditoría externo (`docs/Informe_de_Auditoria_Integral_Efadam_2026-08-21.docx`) contra las decisiones de diseño ya tomadas, en vez de aceptarlo tal cual.
+
+**Hallazgo clave: la auditoría trabajó sobre una versión desactualizada.** `n8n-workflows/ejecutor_generico.json` no se había vuelto a exportar desde el 20/ago (commit `c455035`, 38 nodos), mientras el workflow real en n8n ya llevaba dos rondas de cambios ese mismo día (39 nodos tras el routing de aprobación, 40 tras el endurecimiento del parseo). Los dos hallazgos más graves del informe (F-02: aprobación sin control real; F-03: Telegram con destinatario fijo y payload completo) describían el mecanismo de Telegram directo que ya se había corregido — la auditoría no podía verlo porque nunca se re-exportó el workflow después de editarlo por API.
+
+**Recomendaciones descartadas por chocar con decisiones de diseño ya tomadas:**
+- F-01 proponía una matriz versionada rígida `bot_origen → bot_destino → tipo_de_accion` que rechace cualquier despacho no autorizado explícitamente. Choca con el diseño de que Efadam y los centers decidan dinámicamente a quién despachar y sumen especialistas nuevos de forma orgánica — una tabla de permisos cerrada anularía esa flexibilidad a propósito.
+- F-03 trataba toda alerta por Telegram como el mismo problema, sin distinguir avisos al cliente (ya corregidos para pasar por Efadam) de alertas operativas al propio Mateo (Postgres caído, degradación de modelo, fan-out truncado) — esas últimas fueron una decisión deliberada de una ronda anterior (pendiente 28) y no tienen "cliente" en la conversación.
+
+**Rescatado en ClickUp, con contexto suficiente para no depender del documento original (que se borró — ver abajo):**
+- `86bbhaztz` (reabierta): el export de `n8n-workflows/*.json` quedó desactualizado dos veces seguidas; se vuelve hábito obligatorio re-exportar después de cada edición por API.
+- `86bbhawp5` (actualizada): el caso de `operation_id` nulo que se salta el tope global de fan-out (F-06, confirmado en el código de "Parsear asignaciones") se agregó como caso a cubrir en la prueba de fan-out ya pendiente.
+- `86bbjhdmd` (nueva, alta prioridad): bug confirmado en `reanudador_de_bloqueados` — referencia a un nodo inexistente en el manejador de error, y consumo no determinístico cuando hay más de una aclaración resuelta (F-05).
+- `86bbjhdmj` y `86bbjhdmp` (nuevas, en Diseño pendiente): la separación de contenido confiable/no confiable en las llamadas al modelo (versión más liviana que la matriz rígida del auditor) y el flujo transaccional real de aprobaciones con tabla `approvals` — ambas explícitamente marcadas para revisar recién cuando Jarvis traiga entrada externa real, no antes.
+- `86bbjhdmu`, `86bbjhdn0`, `86bbjhdn3`, `86bbjhdn9` (nuevas, en Deuda técnica y legal, prioridad baja): separación de roles de Postgres, plantilla de `.env.example` incompleta, respaldo sin regla 3-2-1 ni prueba de restauración, y verificar si un cambio en `reglas_generales` propaga a los `system_prompt` ya compuestos.
+
+El resto del informe (hallazgos ya cubiertos por tareas existentes como el pin de versión de imágenes Docker o la falta de CI) no generó tareas nuevas por ser redundante.
+
+**Decisión sobre el archivo:** el `.docx` original se borró del repo — todo lo que aportaba algo real ya quedó preservado en las tareas de ClickUp de arriba, con el contexto necesario para no depender del documento.
