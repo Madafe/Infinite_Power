@@ -1,5 +1,11 @@
 {
-  "name": "Ejecutor genï¿½rico",
+  "updatedAt": "2026-08-22T02:58:36.966Z",
+  "createdAt": "2026-08-11T23:09:01.171Z",
+  "id": "aVORciBJl52lTxTU",
+  "name": "Ejecutor genérico",
+  "description": null,
+  "active": false,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {},
@@ -36,7 +42,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const RANK = { bajo: 0, medio: 1, alto: 2, critico: 3 };\n\n// Esta lista replica los cuatro modelos configurados hoy en los combos de\n// OmniRoute. Si un combo cambia, actualizar esta lista en el mismo cambio.\nconst ESFUERZO_POR_MODELO = {\n  'nvidia/meta/llama-3.1-8b-instruct': 'bajo',\n  'meta/llama-3.1-8b-instruct': 'bajo',\n  'nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5': 'medio',\n  'nvidia/llama-3.3-nemotron-super-49b-v1.5': 'medio',\n  'nvidia/nvidia/nemotron-3-super-120b-a12b': 'alto',\n  'nvidia/nemotron-3-super-120b-a12b': 'alto',\n  'nvidia/nvidia/nemotron-3-ultra-550b-a55b': 'critico',\n  'nvidia/nemotron-3-ultra-550b-a55b': 'critico'\n};\n\nconst tarea = $('Reclamar tarea pendiente').first().json;\nconst esfuerzoSolicitado = $('Obtener esfuerzo fijo del bot').first().json.esfuerzo_fijo || tarea.esfuerzo;\nconst modeloUsado = $('Llamar a omniroute').first().json.model;\nconst esfuerzoUsado = ESFUERZO_POR_MODELO[modeloUsado];\n\n// OmniRoute no expone en el body el paso del combo que ejecutï¿½. Un modelo\n// desconocido no permite confirmar que respetï¿½ el nivel, asï¿½ que se avisa sin\n// bloquear la tarea ni convertirla en fallo.\nif (!esfuerzoUsado) {\n  return [{ json: {\n    tipo: 'modelo_desconocido',\n    task_id: tarea.id,\n    bot: tarea.bot,\n    esfuerzo_solicitado: esfuerzoSolicitado,\n    modelo_usado: modeloUsado || '(sin modelo en respuesta)'\n  } }];\n}\n\nif (RANK[esfuerzoUsado] < RANK[esfuerzoSolicitado]) {\n  return [{ json: {\n    tipo: 'degradacion',\n    task_id: tarea.id,\n    bot: tarea.bot,\n    esfuerzo_solicitado: esfuerzoSolicitado,\n    esfuerzo_usado: esfuerzoUsado,\n    modelo_usado: modeloUsado\n  } }];\n}\n\nreturn [];"
+        "jsCode": "const RANK = { bajo: 0, medio: 1, alto: 2, critico: 3 };\n\n// Esta lista replica los cuatro modelos configurados hoy en los combos de\n// OmniRoute. Si un combo cambia, actualizar esta lista en el mismo cambio.\nconst ESFUERZO_POR_MODELO = {\n  'nvidia/meta/llama-3.1-8b-instruct': 'bajo',\n  'meta/llama-3.1-8b-instruct': 'bajo',\n  'nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5': 'medio',\n  'nvidia/llama-3.3-nemotron-super-49b-v1.5': 'medio',\n  'nvidia/nvidia/nemotron-3-super-120b-a12b': 'alto',\n  'nvidia/nemotron-3-super-120b-a12b': 'alto',\n  'nvidia/nvidia/nemotron-3-ultra-550b-a55b': 'critico',\n  'nvidia/nemotron-3-ultra-550b-a55b': 'critico'\n};\n\nconst tarea = $('Reclamar tarea pendiente').first().json;\nconst esfuerzoSolicitado = $('Obtener esfuerzo fijo del bot').first().json.esfuerzo_fijo || tarea.esfuerzo;\nconst modeloUsado = $('Llamar a omniroute').first().json.model;\nconst esfuerzoUsado = ESFUERZO_POR_MODELO[modeloUsado];\n\n// OmniRoute no expone en el body el paso del combo que ejecutó. Un modelo\n// desconocido no permite confirmar que respetó el nivel, así que se avisa sin\n// bloquear la tarea ni convertirla en fallo.\nif (!esfuerzoUsado) {\n  return [{ json: {\n    tipo: 'modelo_desconocido',\n    task_id: tarea.id,\n    bot: tarea.bot,\n    esfuerzo_solicitado: esfuerzoSolicitado,\n    modelo_usado: modeloUsado || '(sin modelo en respuesta)'\n  } }];\n}\n\nif (RANK[esfuerzoUsado] < RANK[esfuerzoSolicitado]) {\n  return [{ json: {\n    tipo: 'degradacion',\n    task_id: tarea.id,\n    bot: tarea.bot,\n    esfuerzo_solicitado: esfuerzoSolicitado,\n    esfuerzo_usado: esfuerzoUsado,\n    modelo_usado: modeloUsado\n  } }];\n}\n\nreturn [];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -102,7 +108,7 @@
         64
       ],
       "id": "dcfbcc91-1aaf-492e-a1cf-cfd07cf60965",
-      "name": "ï¿½Hay tarea?"
+      "name": "¿Hay tarea?"
     },
     {
       "parameters": {
@@ -216,7 +222,7 @@
         32
       ],
       "id": "98032e6c-4969-42aa-983b-eeba58d8bce5",
-      "name": "ï¿½Este bot despacha tareas?",
+      "name": "¿Este bot despacha tareas?",
       "onError": "continueErrorOutput"
     },
     {
@@ -289,7 +295,7 @@
         240
       ],
       "id": "b44f788d-adbe-490c-8c54-07decd9df92e",
-      "name": "ï¿½Requiere aprobaciï¿½n?",
+      "name": "¿Requiere aprobación?",
       "onError": "continueErrorOutput"
     },
     {
@@ -347,7 +353,7 @@
         -144
       ],
       "id": "fa16ab11-b8b1-4439-a34a-32a0740db5af",
-      "name": "ï¿½Requiere aprobaciï¿½n?1",
+      "name": "¿Requiere aprobación?1",
       "onError": "continueErrorOutput"
     },
     {
@@ -382,7 +388,7 @@
         -320
       ],
       "id": "bc495257-1401-4e36-a2ba-528899dc74f0",
-      "name": "ï¿½Necesita aclaraciï¿½n?"
+      "name": "¿Necesita aclaración?"
     },
     {
       "parameters": {
@@ -399,7 +405,7 @@
         -560
       ],
       "id": "f817ea73-a92d-4f38-808e-3440375d90ad",
-      "name": "Obtener bot que asignï¿½",
+      "name": "Obtener bot que asignó",
       "credentials": {
         "postgres": {
           "id": "ej8w00p6sjEzbq6J",
@@ -441,7 +447,7 @@
         -704
       ],
       "id": "77a3a807-2412-44c3-b2ea-50e59d0d9f55",
-      "name": "ï¿½Tiene padre?",
+      "name": "¿Tiene padre?",
       "onError": "continueErrorOutput"
     },
     {
@@ -459,7 +465,7 @@
         -896
       ],
       "id": "0ddea90a-5e0d-4709-a6d9-12c362d2e655",
-      "name": "Crear tarea de aclaraciï¿½n",
+      "name": "Crear tarea de aclaración",
       "credentials": {
         "postgres": {
           "id": "ej8w00p6sjEzbq6J",
@@ -620,7 +626,7 @@
         16
       ],
       "id": "890c9e9c-50bf-4ce7-ba9c-1b80e49c0cb9",
-      "name": "ï¿½Bot que fallï¿½ no es trouble_shooter?"
+      "name": "¿Bot que falló no es trouble_shooter?"
     },
     {
       "parameters": {
@@ -678,7 +684,7 @@
         372
       ],
       "id": "f259d81c-8678-447b-b619-8761bbbdf3cf",
-      "name": "ï¿½Fallï¿½ la llamada a omniroute?"
+      "name": "¿Falló la llamada a omniroute?"
     },
     {
       "parameters": {
@@ -1080,7 +1086,7 @@
       "main": [
         [
           {
-            "node": "ï¿½Hay tarea?",
+            "node": "¿Hay tarea?",
             "type": "main",
             "index": 0
           }
@@ -1099,7 +1105,7 @@
         ]
       ]
     },
-    "ï¿½Hay tarea?": {
+    "¿Hay tarea?": {
       "main": [
         [
           {
@@ -1132,7 +1138,7 @@
       "main": [
         [
           {
-            "node": "ï¿½Fallï¿½ la llamada a omniroute?",
+            "node": "¿Falló la llamada a omniroute?",
             "type": "main",
             "index": 0
           }
@@ -1144,7 +1150,7 @@
       "main": [
         [
           {
-            "node": "ï¿½Este bot despacha tareas?",
+            "node": "¿Este bot despacha tareas?",
             "type": "main",
             "index": 0
           },
@@ -1184,18 +1190,18 @@
         []
       ]
     },
-    "ï¿½Este bot despacha tareas?": {
+    "¿Este bot despacha tareas?": {
       "main": [
         [
           {
-            "node": "ï¿½Requiere aprobaciï¿½n?",
+            "node": "¿Requiere aprobación?",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "ï¿½Requiere aprobaciï¿½n?1",
+            "node": "¿Requiere aprobación?1",
             "type": "main",
             "index": 0
           }
@@ -1239,7 +1245,7 @@
         ]
       ]
     },
-    "ï¿½Requiere aprobaciï¿½n?": {
+    "¿Requiere aprobación?": {
       "main": [
         [
           {
@@ -1264,7 +1270,7 @@
         ]
       ]
     },
-    "ï¿½Requiere aprobaciï¿½n?1": {
+    "¿Requiere aprobación?1": {
       "main": [
         [
           {
@@ -1283,11 +1289,11 @@
         ]
       ]
     },
-    "ï¿½Necesita aclaraciï¿½n?": {
+    "¿Necesita aclaración?": {
       "main": [
         [
           {
-            "node": "Obtener bot que asignï¿½",
+            "node": "Obtener bot que asignó",
             "type": "main",
             "index": 0
           }
@@ -1301,11 +1307,11 @@
         ]
       ]
     },
-    "Obtener bot que asignï¿½": {
+    "Obtener bot que asignó": {
       "main": [
         [
           {
-            "node": "ï¿½Tiene padre?",
+            "node": "¿Tiene padre?",
             "type": "main",
             "index": 0
           }
@@ -1319,11 +1325,11 @@
         ]
       ]
     },
-    "ï¿½Tiene padre?": {
+    "¿Tiene padre?": {
       "main": [
         [
           {
-            "node": "Crear tarea de aclaraciï¿½n",
+            "node": "Crear tarea de aclaración",
             "type": "main",
             "index": 0
           }
@@ -1344,7 +1350,7 @@
         ]
       ]
     },
-    "Crear tarea de aclaraciï¿½n": {
+    "Crear tarea de aclaración": {
       "main": [
         [
           {
@@ -1444,14 +1450,14 @@
       "main": [
         [
           {
-            "node": "ï¿½Bot que fallï¿½ no es trouble_shooter?",
+            "node": "¿Bot que falló no es trouble_shooter?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "ï¿½Bot que fallï¿½ no es trouble_shooter?": {
+    "¿Bot que falló no es trouble_shooter?": {
       "main": [
         [
           {
@@ -1463,7 +1469,7 @@
         []
       ]
     },
-    "ï¿½Fallï¿½ la llamada a omniroute?": {
+    "¿Falló la llamada a omniroute?": {
       "main": [
         [
           {
@@ -1701,7 +1707,7 @@
       "main": [
         [
           {
-            "node": "ï¿½Necesita aclaraciï¿½n?",
+            "node": "¿Necesita aclaración?",
             "type": "main",
             "index": 0
           }
@@ -1720,5 +1726,38 @@
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
-  }
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "e8cbc048-2b87-4519-a29b-7a10d2e88063",
+  "activeVersionId": null,
+  "versionCounter": 310,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-08-11T23:09:01.171Z",
+      "createdAt": "2026-08-11T23:09:01.171Z",
+      "role": "workflow:owner",
+      "workflowId": "aVORciBJl52lTxTU",
+      "projectId": "mr3ONFLuLoDFG9LP",
+      "project": {
+        "updatedAt": "2026-08-11T16:44:47.998Z",
+        "createdAt": "2026-08-11T16:41:49.033Z",
+        "id": "mr3ONFLuLoDFG9LP",
+        "name": "Mateo Varela <mvarela@bintix.mx>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "a271e2bc-ff73-41ca-9dfd-a55cb54ad81f"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
 }
