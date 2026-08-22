@@ -88,8 +88,12 @@ al siguiente — ya no por fase horizontal ("escribir los 40 prompts primero"):
 2. **Tech center** (departamento Dev/Tech completo) — `tech_center` insertado
    y activo el 21/ago; prueba end-to-end (webhook temporal) confirmó que
    decide correctamente pero destapó un bug real de parseo de JSON en el
-   ejecutor genérico (ver `decisiones_arquitectura.md`, 21/ago) — no se puede
-   dar por confirmado en producción hasta resolverlo. 12 de 12 bots del
+   ejecutor genérico. Ese bug ya se resolvió el mismo 21/ago (nodo
+   compartido "Normalizar salida del modelo", tolerante a envoltorio
+   Markdown; ver `decisiones_arquitectura.md`) y se confirmó con una prueba
+   aislada que reproduce el patrón exacto de falla. Queda pendiente,
+   opcional, repetir el test end-to-end completo de `tech_center` con el fix
+   ya en producción para una confirmación adicional. 12 de 12 bots del
    roster con prompt escrito y conforme a plantilla.
 3. **Upgrade & review center** (departamento Estrategia completo).
 4. **Proyect center** (departamento Proyectos completo).
